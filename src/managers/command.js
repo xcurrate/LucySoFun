@@ -39,7 +39,7 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             state.lucyCooldownTimer = setTimeout(async () => {
                 state.lucyCooldownTimer = null;
                 try {
-                    await retryAction();
+                    await this.runLucyAction(retryAction);
                 } catch (error) {
                     log.error(`${accountPrefix(state)}❌ Retry aksi Lucy gagal: ${error.message || error}`);
                 }
