@@ -2,7 +2,6 @@ const axios = require('axios');
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { accountPrefix, randomInt } = require('../utils');
-const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 const TooEz = require('./TooEz');
 
 const DEFAULTS = { enabled: false, channelId: '', duration: '1D', sellAnimals: false, upgradeEnabled: false, upgradeGain: '' };
@@ -85,11 +84,7 @@ module.exports = function createHuntbot2Manager(state) {
             log.error(prefix() + 'Channel ID belum diatur atau channel tidak dapat diakses.');
             return false;
         }
-        try {
-            const sent = await sendWithCooldownRetry(channel, command, { state, feature: 'Huntbot2' });
-            if (sent) log.info(prefix() + 'Terkirim: ' + command);
-            return sent;
-        }
+        try { await channel.send(command); log.info(prefix() + 'Terkirim: ' + command); return true; }
         catch (error) { log.error(prefix() + 'Gagal mengirim "' + command + '": ' + (error.message || error)); return false; }
     };
     const schedule = (delayMs, callback) => {
