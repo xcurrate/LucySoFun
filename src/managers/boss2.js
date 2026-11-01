@@ -1,6 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { safeJsonStringify, removeInvisibleChars, accountPrefix, randomInt } = require('../utils');
+const { runWithCooldownRetry } = require('../services/cooldownHandler');
 
 const MAX_TIMER_MS = 2147483647;
 const TEXT_KEYS = new Set(['content', 'title', 'description', 'name', 'value', 'label', 'text']);
@@ -290,7 +291,19 @@ const createBoss2Manager = (state, configManager) => {
                     raid.ticketLastDecision = null;
 
                     try {
-                        await msg.clickButton(info.button.custom_id || info.button.customId);
+                        const buttonId = info.button.custom_id || info.button.customId;
+                        const clicked = await runWithCooldownRetry(msg.channel, () => msg.clickButton(buttonId), {
+                            state,
+                            feature: 'Auto Boss2 Fight',
+                            description: `klik tombol Fight #${before + 1}`,
+                            responseTimeoutMs: 5000,
+                            timeoutMs: 5 * 60 * 1000
+                        });
+                        if (!clicked) {
+                            raid.awaitingTicketAfterFight = false;
+                            log.warn(`${prefix()}Fight dibatalkan karena cooldown Lucy tidak berhasil dipulihkan.`);
+                            break;
+                        }
                         log.info(`${prefix()}⚔️ Klik Fight (target #${before + 1})`);
                     } catch (err) {
                         raid.awaitingTicketAfterFight = false;
