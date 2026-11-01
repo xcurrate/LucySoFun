@@ -128,7 +128,7 @@ const formatCountdown = (ts) => {
     return m >= 60 ? `${Math.floor(m / 60)}j ${m % 60}m` : `${m}m ${s}d`;
 };
 
-const createBoss2Manager = (state, configManager) => {
+const createBoss2Manager = (state, configManager, commandSender) => {
     state.boss2Raids = state.boss2Raids || new Map();
     state.boss2Timers = state.boss2Timers || new Set();
 
@@ -356,7 +356,7 @@ const createBoss2Manager = (state, configManager) => {
 
             // KASUS B — status bukan active → Nggak
             if (raid.status !== 'active') {
-                if (ticket.noActive) { try { await msg.clickButton(settings.ticketNoId); } catch (_) {} }
+                if (ticket.noActive) { try { await commandSender.runLucyAction(() => msg.clickButton(settings.ticketNoId)); } catch (_) {} }
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
                 return 'ticket-skipped';
