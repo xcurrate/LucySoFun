@@ -290,7 +290,7 @@ const createBoss2Manager = (state, configManager) => {
                     raid.ticketLastDecision = null;
 
                     try {
-                        await msg.clickButton(info.button.custom_id || info.button.customId);
+                        await commandSender.runLucyAction(() => msg.clickButton(info.button.custom_id || info.button.customId));
                         log.info(`${prefix()}⚔️ Klik Fight (target #${before + 1})`);
                     } catch (err) {
                         raid.awaitingTicketAfterFight = false;
@@ -344,7 +344,7 @@ const createBoss2Manager = (state, configManager) => {
             if (ticket.isAlreadyFought) {
                 log.info(`${prefix()}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
                 try {
-                    await msg.clickButton(settings.ticketNoId);
+                    await commandSender.runLucyAction(() => msg.clickButton(settings.ticketNoId));
                 } catch (err) {
                     log.error(`${prefix()}Gagal klik Nggak: ${err.message || err}`);
                 }
@@ -384,7 +384,7 @@ const createBoss2Manager = (state, configManager) => {
             log.info(`${prefix()}🎫 tiket ${ticket.ticketLeft ?? '?'}/${ticket.ticketMax ?? '?'} | ` +
                      `fightBoss=${foughtThisBoss}/${settings.fightsPerBoss} → ${shouldAccept ? 'Iya ✅' : 'Nggak ❌'}`);
 
-            try { await msg.clickButton(targetId); }
+            try { await commandSender.runLucyAction(() => msg.clickButton(targetId)); }
             catch (err) {
                 log.error(`${prefix()}Gagal klik ${targetId}: ${err.message || err}`);
                 raid.awaitingTicketAfterFight = false;
