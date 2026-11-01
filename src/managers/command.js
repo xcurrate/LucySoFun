@@ -1,6 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
+const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
@@ -32,6 +33,30 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return false;
         }
 
+        const isLucyCommand = type === 'Adventure'
+            || String(type).startsWith('Other Command')
+            || String(type).startsWith('Gems ');
+        if (isLucyCommand) {
+            if (String(type).startsWith('Other Command')) {
+                // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
+                state.lastLucyCommandChannelId = channel.id;
+            }
+            this.setLucyResponseTimeout(type || 'Lucy Command');
+            const sent = await sendWithCooldownRetry(channel, cmd, {
+                state,
+                feature: type || 'Lucy Command',
+                timeoutMs: 5 * 60 * 1000,
+                responseTimeoutMs: CONSTANTS.RESPONSE_TIMEOUT_MS
+            });
+            if (!sent) {
+                this.clearLucyResponseTimeout();
+                return false;
+            }
+            statsService.recordCommand(state, cmd, type);
+            log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
+            return true;
+        }
+
         const maxRetries = 2;
         let lastError = null;
 
@@ -47,10 +72,6 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
                 if (type === 'Battle' || type === 'Hunt') {
                     this.setResponseTimeout(type);
-                } else if (String(type).startsWith('Other Command')) {
-                    // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
-                    state.lastLucyCommandChannelId = channel.id;
-                    this.setLucyResponseTimeout(type);
                 }
                 return true;
             } catch (e) {
@@ -79,6 +100,7 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         }
 
         return false;
+
     },
 
     setResponseTimeout(type) {
