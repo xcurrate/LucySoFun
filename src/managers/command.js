@@ -6,10 +6,18 @@ const statsService = require('../services/stats');
 module.exports = (state, channelManager, emergencyHandler) => ({
     async runLucyAction(action) {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-        const remaining = (state.lucyCooldownUntil || 0) - Date.now();
-        if (remaining > 0) await wait(remaining + 1500);
-        state.lucyCooldownLastAction = action;
-        return action();
+        const previous = state.lucyActionQueue || Promise.resolve();
+        let release;
+        state.lucyActionQueue = new Promise(resolve => { release = resolve; });
+        await previous;
+        try {
+            const remaining = (state.lucyCooldownUntil || 0) - Date.now();
+            if (remaining > 0) await wait(remaining + 1500);
+            state.lucyCooldownLastAction = action;
+            return await action();
+        } finally {
+            release();
+        }
     },
 
     async handleLucyCooldownMessage(msg) {
