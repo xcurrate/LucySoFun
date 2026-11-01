@@ -15,7 +15,11 @@ module.exports = {
         fightsPerBoss: 3,
         maxFightsPerBoss: 3,
         delayMinMs: 1000,
-        delayMaxMs: 1000
+        delayMaxMs: 1000,
+        ticketYesId: 'raid:ticket:yes',
+ticketNoId:  'raid:ticket:no',
+limitText:   'limit fight',
+minTicketLeft: 1
     },
     GEMS_TIERS: {
         F: { main: ['57', '71', '78'], special: '85' },
