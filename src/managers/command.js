@@ -69,10 +69,6 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
                 if (type === 'Battle' || type === 'Hunt') {
                     this.setResponseTimeout(type);
-                } else if (String(type).startsWith('Other Command')) {
-                    // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
-                    state.lastLucyCommandChannelId = channel.id;
-                    this.setLucyResponseTimeout(type);
                 }
                 return true;
             } catch (e) {
