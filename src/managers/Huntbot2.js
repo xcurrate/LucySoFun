@@ -61,7 +61,8 @@ function extractImageUrl(msg) {
 }
 function parseReturnTime(text) { return cleanText(text).match(RETURN_TIME_PATTERN)?.[1]?.trim() || null; }
 
-module.exports = function createHuntbot2Manager(state) {
+module.exports = function createHuntbot2Manager(state, commandSender) {
+    const runLucyAction = (action) => commandSender?.runLucyAction ? commandSender.runLucyAction(action) : action();
     const handled = new Set(), timers = new Set();
     let pendingAction = null;
     const prefix = () => accountPrefix(state) + '🤖 Huntbot2: ';
@@ -84,7 +85,7 @@ module.exports = function createHuntbot2Manager(state) {
             log.error(prefix() + 'Channel ID belum diatur atau channel tidak dapat diakses.');
             return false;
         }
-        try { await channel.send(command); log.info(prefix() + 'Terkirim: ' + command); return true; }
+        try { await runLucyAction(() => channel.send(command)); log.info(prefix() + 'Terkirim: ' + command); return true; }
         catch (error) { log.error(prefix() + 'Gagal mengirim "' + command + '": ' + (error.message || error)); return false; }
     };
     const schedule = (delayMs, callback) => {
@@ -113,7 +114,7 @@ module.exports = function createHuntbot2Manager(state) {
         const button = findButton(msg?.components || [], customId);
         if (!button || button.disabled === true) { log.warn(prefix() + 'Tombol konfirmasi ' + customId + ' tidak ditemukan/aktif.'); return false; }
         try {
-            await msg.clickButton(customId);
+            await runLucyAction(() => msg.clickButton(customId));
             log.success(prefix() + 'Konfirmasi ' + label + ' diklik (' + customId + ').');
             const currentSettings = settings();
             if (customId === 'sac_confirm' && currentSettings.upgradeEnabled && currentSettings.upgradeGain) {

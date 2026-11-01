@@ -255,16 +255,16 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         startAll: () => loopManager && loopManager.startAll()
     };
     const bossManager = createBossManager(state, configManager, telegramService);
-    const boss2Manager = createBoss2Manager(state, configManager);
     const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService, macrodroidService);
     const commandSender = createCommandSender(state, channelManager, emergencyHandler);
+    const boss2Manager = createBoss2Manager(state, configManager);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);
     const loopManager = createLoopManager(state, commandSender);
     const captchaHandler = createCaptchaHandler(state, configManager, loopManager, telegramService, channelManager, macrodroidService);
     const voiceManager = createVoiceManager(state, configManager);
     const huntbotManager = createHuntbotManager(state, createHuntbotState(), configManager, commandSender, telegramService, captchaSolver);
-    const huntbot2Manager = createHuntbot2Manager(state);
+    const huntbot2Manager = createHuntbot2Manager(state, commandSender);
     const messageHandler = createMessageHandler(
         state,
         configManager,

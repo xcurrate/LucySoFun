@@ -93,6 +93,8 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     async handle(msg) {
         if (!state.client?.isReady()) return;
 
+        // Deteksi cooldown global Lucy sebelum handler fitur memproses pesan yang sama.
+        if (commandSender?.handleLucyCooldownMessage) commandSender.handleLucyCooldownMessage(msg);
         handleLucyTeamDebug(msg);
         this.captureMessageDebug(msg);
         if (huntbot2Manager && typeof huntbot2Manager.handle === 'function') {

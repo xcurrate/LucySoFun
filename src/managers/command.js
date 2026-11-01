@@ -4,7 +4,58 @@ const { sleep, randomInt, accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
+    async runLucyAction(action) {
+        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const previous = state.lucyActionQueue || Promise.resolve();
+        let release;
+        state.lucyActionQueue = new Promise(resolve => { release = resolve; });
+        await previous;
+        try {
+            const remaining = (state.lucyCooldownUntil || 0) - Date.now();
+            if (remaining > 0) await wait(remaining + 1500);
+            state.lucyCooldownLastAction = action;
+            return await action();
+        } finally {
+            release();
+        }
+    },
+
+    async handleLucyCooldownMessage(msg) {
+        if (String(msg?.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return false;
+        const embeds = (msg.embeds || []).flatMap(embed => [embed.title, embed.description, ...(embed.fields || []).flatMap(field => [field.name, field.value])]);
+        const components = msg.components || [];
+        const text = [msg.content || '', ...embeds, JSON.stringify(components)].join('\n');
+        const match = text.match(/Pelan-pelan dan coba lagi command-nya\s*<t:(\d+):R>/i);
+        if (!match) return false;
+        const timestamp = Number(match[1]) * 1000;
+        const remaining = timestamp - Date.now();
+        if (!Number.isFinite(timestamp) || remaining <= 0) return false;
+        state.lucyCooldownUntil = Math.max(state.lucyCooldownUntil || 0, timestamp);
+        if (state.lucyCooldownTimer) clearTimeout(state.lucyCooldownTimer);
+        const retryAction = state.lucyCooldownLastAction;
+        if (typeof retryAction === 'function') {
+            const delay = Math.max(0, state.lucyCooldownUntil - Date.now()) + 1500;
+            log.warn(`${accountPrefix(state)}⏱️ Lucy cooldown terdeteksi. Mengulang aksi setelah ${Math.ceil(delay / 1000)} detik.`);
+            state.lucyCooldownTimer = setTimeout(async () => {
+                state.lucyCooldownTimer = null;
+                try {
+                    await this.runLucyAction(retryAction);
+                } catch (error) {
+                    log.error(`${accountPrefix(state)}❌ Retry aksi Lucy gagal: ${error.message || error}`);
+                }
+            }, delay);
+        }
+        return true;
+    },
+
     async send(cmd, type = '', targetChannelId = '', options = {}) {
+        const sendAction = () => this.sendRaw(cmd, type, targetChannelId, options);
+        if (String(type).startsWith('Other Command')) return sendAction();
+        if (/^(Adventure|Gems)/i.test(String(type))) return this.runLucyAction(sendAction);
+        return sendAction();
+    },
+
+    async sendRaw(cmd, type = '', targetChannelId = '', options = {}) {
         const allowDuringCaptcha = options.allowDuringCaptcha === true;
         const allowWhilePaused = options.allowWhilePaused === true;
         if (state.hasActiveCaptcha && !allowDuringCaptcha) {
