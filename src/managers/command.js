@@ -1,6 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
+const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
@@ -32,53 +33,33 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return false;
         }
 
-        const maxRetries = 2;
-        let lastError = null;
+        if (state.hasActiveCaptcha && !allowDuringCaptcha) return false;
 
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            if (state.hasActiveCaptcha && !allowDuringCaptcha) {
-                log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] dibatalkan sebelum pengiriman: CAPTCHA sedang aktif.`);
-                return false;
-            }
-            try {
-                await channel.send(cmd);
-                statsService.recordCommand(state, cmd, type);
-                log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
-
-                if (type === 'Battle' || type === 'Hunt') {
-                    this.setResponseTimeout(type);
-                } else if (String(type).startsWith('Other Command')) {
-                    // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
-                    state.lastLucyCommandChannelId = channel.id;
-                    this.setLucyResponseTimeout(type);
-                }
-                return true;
-            } catch (e) {
-                lastError = e;
-
-                const isRateLimit = e.code === 429 || (e.message && e.message.toLowerCase().includes('rate limit'));
-                const isNetworkError = e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT' || e.message?.includes('fetch');
-
-                if (attempt < maxRetries && (isRateLimit || isNetworkError)) {
-                    const delay = 1500 * attempt;
-                    log.warn(`${accountPrefix(state)}⚠️ Gagal kirim command [${cmd}] (attempt ${attempt}/${maxRetries}). Retrying in ${delay}ms... (${e.message})`);
-                    await sleep(delay);
-                    continue;
-                }
-
-                // Final error after retries or non-retryable error
-                log.error(`${accountPrefix(state)}❌ Gagal mengirim command [${cmd}] [${type}] setelah ${attempt} percobaan: ${e.message}`, {
-                    code: e.code,
-                    status: e.status,
-                    command: cmd,
-                    type: type,
-                    stack: e.stack?.split('\n').slice(0, 5).join('\n') // partial stack
-                });
-                break;
-            }
+        // Aktifkan timeout sebelum pengiriman agar balasan Lucy yang ditunggu helper
+        // tetap dapat membersihkan timeout yang sudah ada.
+        if (type === 'Battle' || type === 'Hunt') {
+            this.setResponseTimeout(type);
+        } else if (String(type).startsWith('Other Command')) {
+            state.lastLucyCommandChannelId = channel.id;
+            this.setLucyResponseTimeout(type);
         }
 
-        return false;
+        const sent = await sendWithCooldownRetry(channel, cmd, {
+            state,
+            feature: type || 'Command',
+            timeoutMs: 5 * 60 * 1000,
+            responseTimeoutMs: CONSTANTS.RESPONSE_TIMEOUT_MS
+        });
+
+        if (!sent) {
+            if (type === 'Battle' || type === 'Hunt') this.clearResponseTimeout();
+            else if (String(type).startsWith('Other Command')) this.clearLucyResponseTimeout();
+            return false;
+        }
+
+        statsService.recordCommand(state, cmd, type);
+        log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
+        return true;
     },
 
     setResponseTimeout(type) {
