@@ -2,6 +2,7 @@ const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { removeInvisibleChars, accountPrefix, randomInt } = require('../utils');
 const { collectTexts, toPlainData } = require('./boss2');
+const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 
 const toIdList = (value) => (Array.isArray(value) ? value : String(value || '').split(/[\s,]+/))
     .map(item => String(item).trim())
@@ -211,7 +212,10 @@ const createGemsManager = (state, configManager, commandSender) => {
         async sendCommand(command, type, settings) {
             await wait(randomInt(settings.delayMinMs, settings.delayMaxMs));
             if (!getSettings().enabled) return false;
-            return commandSender.send(command, type, gems.channelId || settings.channelId);
+            const channelId = gems.channelId || settings.channelId;
+            const channel = channelId ? state.client?.channels?.cache?.get(String(channelId)) : null;
+            if (!channel) return false;
+            return sendWithCooldownRetry(channel, command, { state, feature: type || 'Auto Use Gems' });
         },
 
         async checkInventory(settings = getSettings()) {
