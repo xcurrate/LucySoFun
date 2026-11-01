@@ -33,8 +33,28 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return false;
         }
 
+        if (String(type).startsWith('Other Command')) {
+            // Custom Command tetap dikirim langsung; timeout Lucy baru aktif setelah pesan berhasil dikirim.
+            state.lastLucyCommandChannelId = channel.id;
+            try {
+                await channel.send(cmd);
+                this.setLucyResponseTimeout(type);
+                statsService.recordCommand(state, cmd, type);
+                log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
+                return true;
+            } catch (e) {
+                log.error(`${accountPrefix(state)}❌ Gagal mengirim command [${cmd}] [${type}]: ${e.message}`, {
+                    code: e.code,
+                    status: e.status,
+                    command: cmd,
+                    type,
+                    stack: e.stack?.split('\\n').slice(0, 5).join('\\n')
+                });
+                return false;
+            }
+        }
+
         const isLucyCommand = type === 'Adventure'
-            || String(type).startsWith('Other Command')
             || String(type).startsWith('Gems ');
         if (isLucyCommand) {
             if (String(type).startsWith('Other Command')) {
