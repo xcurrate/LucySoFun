@@ -15,7 +15,8 @@ module.exports = (state, channelManager, emergencyHandler) => ({
     async handleLucyCooldownMessage(msg) {
         if (String(msg?.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return false;
         const embeds = (msg.embeds || []).flatMap(embed => [embed.title, embed.description, ...(embed.fields || []).flatMap(field => [field.name, field.value])]);
-        const text = [msg.content || '', ...embeds].join('\n');
+        const components = msg.components || [];
+        const text = [msg.content || '', ...embeds, JSON.stringify(components)].join('\n');
         const match = text.match(/Pelan-pelan dan coba lagi command-nya\s*<t:(\d+):R>/i);
         if (!match) return false;
         const timestamp = Number(match[1]) * 1000;
