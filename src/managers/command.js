@@ -57,10 +57,6 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         const isLucyCommand = type === 'Adventure'
             || String(type).startsWith('Gems ');
         if (isLucyCommand) {
-            if (String(type).startsWith('Other Command')) {
-                // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
-                state.lastLucyCommandChannelId = channel.id;
-            }
             this.setLucyResponseTimeout(type || 'Lucy Command');
             const sent = await sendWithCooldownRetry(channel, cmd, {
                 state,
