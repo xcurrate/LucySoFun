@@ -255,9 +255,9 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         startAll: () => loopManager && loopManager.startAll()
     };
     const bossManager = createBossManager(state, configManager, telegramService);
-    const boss2Manager = createBoss2Manager(state, configManager);
     const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService, macrodroidService);
     const commandSender = createCommandSender(state, channelManager, emergencyHandler);
+    const boss2Manager = createBoss2Manager(state, configManager, commandSender);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);
     const loopManager = createLoopManager(state, commandSender);
