@@ -1,6 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
+const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
@@ -30,6 +31,45 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         if (state.hasActiveCaptcha && !allowDuringCaptcha) {
             log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] dibatalkan setelah typing: CAPTCHA sedang aktif.`);
             return false;
+        }
+
+        if (String(type).startsWith('Other Command')) {
+            // Other Command tetap memakai perilaku lama: kirim langsung tanpa cooldown retry.
+            state.lastLucyCommandChannelId = channel.id;
+            try {
+                await channel.send(cmd);
+                this.setLucyResponseTimeout(type);
+                statsService.recordCommand(state, cmd, type);
+                log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
+                return true;
+            } catch (e) {
+                log.error(`${accountPrefix(state)}❌ Gagal mengirim command [${cmd}] [${type}]: ${e.message}`, {
+                    code: e.code,
+                    status: e.status,
+                    command: cmd,
+                    type,
+                    stack: e.stack?.split('\\n').slice(0, 5).join('\\n')
+                });
+                return false;
+            }
+        }
+
+        const isLucyCommand = type === 'Adventure' || String(type).startsWith('Gems ');
+        if (isLucyCommand) {
+            this.setLucyResponseTimeout(type || 'Lucy Command');
+            const sent = await sendWithCooldownRetry(channel, cmd, {
+                state,
+                feature: type || 'Lucy Command',
+                timeoutMs: 5 * 60 * 1000,
+                responseTimeoutMs: CONSTANTS.RESPONSE_TIMEOUT_MS
+            });
+            if (!sent) {
+                this.clearLucyResponseTimeout();
+                return false;
+            }
+            statsService.recordCommand(state, cmd, type);
+            log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
+            return true;
         }
 
         const maxRetries = 2;
