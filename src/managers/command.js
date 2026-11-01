@@ -33,7 +33,9 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return false;
         }
 
-        const isLucyCommand = type === 'Adventure' || String(type).startsWith('Other Command');
+        const isLucyCommand = type === 'Adventure'
+            || String(type).startsWith('Other Command')
+            || String(type).startsWith('Gems ');
         if (isLucyCommand) {
             if (String(type).startsWith('Other Command')) {
                 // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
