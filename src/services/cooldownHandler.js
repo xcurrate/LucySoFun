@@ -2,7 +2,7 @@ const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
 
-const COOLDOWN_REGEX = /Pelan-pelan dan coba lagi command-nya\s*<t:(\d+):R>/i;
+const COOLDOWN_REGEX = /Pelan-pelan dan coba lagi command-nya\\s*<t:(\\d+):R>/i;
 const DEFAULT_MAX_RETRIES = 4;
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_RESPONSE_TIMEOUT_MS = 40000;
@@ -13,11 +13,11 @@ function getMessageText(message) {
         embed.description,
         ...(embed.fields || []).flatMap(field => [field.name, field.value])
     ]);
-    return [message?.content || '', ...embeds].filter(Boolean).join('\n');
+    return [message?.content || '', ...embeds].filter(Boolean).join('\\n');
 }
 
-async function sendWithCooldownRetry(channel, command, options = {}) {
-    if (!channel || typeof channel.send !== 'function') return false;
+async function runWithCooldownRetry(channel, action, options = {}) {
+    if (!channel || typeof action !== 'function') return false;
 
     const startedAt = Date.now();
     const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : DEFAULT_TIMEOUT_MS;
@@ -28,6 +28,7 @@ async function sendWithCooldownRetry(channel, command, options = {}) {
         ? Math.max(1000, options.responseTimeoutMs)
         : DEFAULT_RESPONSE_TIMEOUT_MS;
     const feature = options.feature || 'Lucy';
+    const description = options.description || feature;
     const prefix = options.state ? accountPrefix(options.state) : '';
     const logEvent = (level, message) => {
         const method = typeof log[level] === 'function' ? log[level] : log.info;
@@ -35,14 +36,13 @@ async function sendWithCooldownRetry(channel, command, options = {}) {
     };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const elapsed = Date.now() - startedAt;
-        const remaining = timeoutMs - elapsed;
+        const remaining = timeoutMs - (Date.now() - startedAt);
         if (remaining <= 0) {
-            logEvent('warn', `Timeout total 5 menit tercapai; command "${command}" dibatalkan.`);
+            logEvent('warn', `Timeout total tercapai; ${description} dibatalkan.`);
             return false;
         }
 
-        // Pasang collector sebelum mengirim agar balasan Lucy yang cepat tidak terlewat.
+        // Collector dipasang sebelum aksi agar balasan cooldown Lucy tidak terlewat.
         let responsePromise = null;
         if (typeof channel.awaitMessages === 'function') {
             responsePromise = channel.awaitMessages(
@@ -56,30 +56,22 @@ async function sendWithCooldownRetry(channel, command, options = {}) {
         }
 
         try {
-            await channel.send(command);
+            await action();
         } catch (error) {
-            logEvent('error', `Gagal mengirim "${command}": ${error.message || error}`);
+            logEvent('error', `Gagal menjalankan ${description}: ${error.message || error}`);
             return false;
         }
 
-        if (!responsePromise) {
-            logEvent('info', `Command terkirim tanpa collector balasan: "${command}".`);
-            return true;
-        }
+        if (!responsePromise) return true;
 
         const response = await responsePromise;
         if (!response) {
-            // Tidak ada cooldown yang dilaporkan Lucy. Biarkan timeout respons milik manager
-            // yang sudah ada tetap menangani kondisi ketika Lucy benar-benar tidak membalas.
-            logEvent('info', `Tidak ada balasan Lucy dalam jendela tunggu; command "${command}" dianggap terkirim.`);
+            logEvent('info', `Tidak ada respons cooldown Lucy; ${description} dianggap berhasil.`);
             return true;
         }
 
         const match = getMessageText(response).match(COOLDOWN_REGEX);
-        if (!match) {
-            logEvent('info', `Lucy merespons; command "${command}" selesai.`);
-            return true;
-        }
+        if (!match) return true;
 
         const cooldownAt = Number(match[1]) * 1000;
         const waitMs = cooldownAt - Date.now();
@@ -90,7 +82,7 @@ async function sendWithCooldownRetry(channel, command, options = {}) {
         }
 
         if (attempt >= maxRetries || waitMs + 2000 > timeoutMs - (Date.now() - startedAt)) {
-            logEvent('warn', `Cooldown ${Math.ceil(waitMs / 1000)}s tidak dapat diulang dalam batas retry/timeout.`);
+            logEvent('warn', `Cooldown ${Math.ceil(waitMs / 1000)}s melewati batas retry/timeout.`);
             return false;
         }
 
@@ -102,4 +94,12 @@ async function sendWithCooldownRetry(channel, command, options = {}) {
     return false;
 }
 
-module.exports = { sendWithCooldownRetry };
+async function sendWithCooldownRetry(channel, command, options = {}) {
+    if (!channel || typeof channel.send !== 'function') return false;
+    return runWithCooldownRetry(channel, () => channel.send(command), {
+        ...options,
+        description: options.description || `command "${command}"`
+    });
+}
+
+module.exports = { sendWithCooldownRetry, runWithCooldownRetry };
