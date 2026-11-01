@@ -274,13 +274,14 @@ async checkTickets(client) {
         }
 
         log.info(`${accountPrefix(state)}🕵️ Mengirim 'wboss ticket' ke Channel Khusus...`);
-        const sent = await sendWithCooldownRetry(ticketChannel, 'wboss t', { state, feature: 'Boss Ticket' });
-        if (!sent) return;
+        // Simpan request sebelum menunggu balasan agar handler ticket tidak kehilangan balasan cepat.
         state.lastTicketCheck = Date.now();
         state.pendingBossTicketCheck = {
             channelId: ticketChannelId,
             requestedAt: state.lastTicketCheck
         };
+        const sent = await sendWithCooldownRetry(ticketChannel, 'wboss t', { state, feature: 'Boss Ticket' });
+        if (!sent) state.pendingBossTicketCheck = null;
     } catch (err) {
         log.error(`${accountPrefix(state)}Error kirim cek tiket: ${err.message}`);
     }
