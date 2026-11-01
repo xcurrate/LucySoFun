@@ -1,6 +1,7 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { deepCopy, safeJsonStringify, removeInvisibleChars, accountPrefix } = require('../utils');
+const { sendWithCooldownRetry } = require('../services/cooldownHandler');
 
 
 const BOSS_TICKET_COMMAND_PATTERN = /^w(?:boss)?\s+t(?:icket)?$/i;
@@ -273,7 +274,8 @@ async checkTickets(client) {
         }
 
         log.info(`${accountPrefix(state)}🕵️ Mengirim 'wboss ticket' ke Channel Khusus...`);
-        await ticketChannel.send("wboss t");
+        const sent = await sendWithCooldownRetry(ticketChannel, 'wboss t', { state, feature: 'Boss Ticket' });
+        if (!sent) return;
         state.lastTicketCheck = Date.now();
         state.pendingBossTicketCheck = {
             channelId: ticketChannelId,
