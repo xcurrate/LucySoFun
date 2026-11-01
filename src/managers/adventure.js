@@ -178,7 +178,7 @@ if (exploreButton) {
 
     const buttonId = exploreButton.custom_id || exploreButton.customId;
 
-    msg.clickButton(buttonId).catch(error => {
+    commandSender.runLucyAction(() => msg.clickButton(buttonId)).catch(error => {
         log.error(`${accountPrefix(state)}Explore click error: ${error.message}`);
     });
 
