@@ -2,7 +2,7 @@ const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
 
-const COOLDOWN_REGEX = /Pelan-pelan dan coba lagi command-nya\\s*<t:(\\d+):R>/i;
+const COOLDOWN_REGEX = /Pelan-pelan dan coba lagi command-nya\s*<t:(\d+):R>/i;
 const DEFAULT_MAX_RETRIES = 4;
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_RESPONSE_TIMEOUT_MS = 40000;
@@ -13,7 +13,7 @@ function getMessageText(message) {
         embed.description,
         ...(embed.fields || []).flatMap(field => [field.name, field.value])
     ]);
-    return [message?.content || '', ...embeds].filter(Boolean).join('\\n');
+    return [message?.content || '', ...embeds].filter(Boolean).join('\n');
 }
 
 async function runWithCooldownRetry(channel, action, options = {}) {
