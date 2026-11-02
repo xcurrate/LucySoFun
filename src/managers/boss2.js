@@ -148,7 +148,33 @@ const createBoss2Manager = (state, configManager) => {
     state.boss2Raids = state.boss2Raids || new Map();
     state.boss2Timers = state.boss2Timers || new Set();
 
-    const prefix = () => `${accountPrefix(state)}🐲 Auto Boss2: `;
+    const prefix = (kind = 'guild') => `${accountPrefix(state)}🐲 Auto Boss2${kind === 'global' ? ' [Global]' : ' [Guild]'}: `;
+    const raidKey = (key, kind = 'guild') => `${key}:${kind}`;
+    const pendingTicketContexts = [];
+    const ticketStatus = state.boss2TicketStatus || (state.boss2TicketStatus = { guild: null, global: null });
+    let lastTicketStatusRequest = 0;
+    const kindEnabled = kind => kind !== 'global' || configManager.getLucyBossLifecycleSettings?.('global')?.enabled === true;
+    const requestTicketStatus = async settings => {
+        if (!settings.ticketStatusChannelId || Date.now() - lastTicketStatusRequest < 30000) return;
+        lastTicketStatusRequest = Date.now();
+        try {
+            const channel = await state.client?.channels?.fetch?.(settings.ticketStatusChannelId);
+            if (!channel?.send) throw new Error('Channel tiket tidak tersedia');
+            await channel.send(settings.ticketStatusCommand || 'lboss t');
+            log.info(prefix() + 'Meminta status tiket melalui channel privat.');
+        } catch (error) {
+            log.warn(prefix() + 'Gagal meminta status tiket: ' + (error.message || error));
+        }
+    };
+    const parseTicketStatus = msg => {
+        const components = toPlainData(msg.components) || [];
+        const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\\n'));
+        const get = label => {
+            const match = text.match(new RegExp('Ticket\\\\s+Boss\\\\s+' + label + '[\\\\s\\\\S]*?punya\\\\s*\\\\*{0,2}(\\\\d+)\\\\*{0,2}\\\\s*\\\\/\\\\s*\\\\*{0,2}(\\\\d+)\\\\*{0,2}', 'i'));
+            return match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null;
+        };
+        return { guild: get('Guild'), global: get('Global') };
+    };
 
     const schedule = (callback, atMs) => {
         const delay = Math.min(MAX_TIMER_MS, Math.max(0, atMs - Date.now()));
@@ -168,9 +194,10 @@ const createBoss2Manager = (state, configManager) => {
 
     const wait = (ms) => new Promise(resolve => schedule(resolve, Date.now() + ms));
 
-    const getRaid = (key) => {
-        if (!state.boss2Raids.has(key)) {
-            state.boss2Raids.set(key, {
+    const getRaid = (key, kind = 'guild') => {
+        const id = raidKey(key, kind);
+        if (!state.boss2Raids.has(id)) {
+            state.boss2Raids.set(id, {
                 messageId: null, channelId: null, status: 'idle',
                 fightsDone: 0, ticketAtBossStart: null, fighting: false,
                 lastTicketActionMessageId: null, ticketLastDecision: null,
@@ -179,11 +206,13 @@ const createBoss2Manager = (state, configManager) => {
                 limitResetAt: null, limitTimer: null, limitMessageId: null
             });
         }
-        return state.boss2Raids.get(key);
+        const raid = state.boss2Raids.get(id);
+        raid.kind = kind;
+        return raid;
     };
 
     return {
-        getRaidState(key) { return state.boss2Raids.get(key) || null; },
+        getRaidState(key, kind = 'guild') { return state.boss2Raids.get(raidKey(key, kind)) || null; },
 
         isAllowed(msg, settings) {
             const myId = state.client?.user?.id;
@@ -199,10 +228,17 @@ const createBoss2Manager = (state, configManager) => {
         async handle(msg) {
             const settings = configManager.getBoss2Settings();
             if (!settings.enabled) return null;
+            if (settings.ticketStatusChannelId && String(msg.channel?.id || msg.channelId || '') === settings.ticketStatusChannelId && String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {
+                const status = parseTicketStatus(msg);
+                if (status.guild || status.global) {
+                    if (status.guild) ticketStatus.guild = status.guild;
+                    if (status.global) ticketStatus.global = status.global;
+                    log.info(prefix() + 'Tiket diperbarui: Guild ' + (ticketStatus.guild?.left ?? '?') + '/' + (ticketStatus.guild?.max ?? '?') + ', Global ' + (ticketStatus.global?.left ?? '?') + '/' + (ticketStatus.global?.max ?? '?') + '.');
+                    return 'ticket-status';
+                }
+            }
             if (!this.isAllowed(msg, settings)) return null;
-
             const key = msg.guildId || msg.channel?.id || 'dm';
-            const raid = getRaid(key);
 
             // JALUR 1 — Limit message (text-only)
             if (!msg.components?.length) {
@@ -217,29 +253,32 @@ const createBoss2Manager = (state, configManager) => {
 
             // JALUR 3 — Boss message
             const info = parseRaidMessage(msg, settings);
+            if (!info.kind || !kindEnabled(info.kind)) return null;
+            const kind = info.kind;
+            const raid = getRaid(key, kind);
 
             // Saat limit, hanya track ended (jangan fight)
             if (raid.status === 'limit') {
-                if (info.isDefeated || info.nextSpawnAt || (info.button && !info.buttonActive)) {
-                    this.handleEnded(key, msg, info);
+                if (info.isDefeated || info.isEscaped || info.nextSpawnAt || (info.button && !info.buttonActive)) {
+                    this.handleEnded(key, kind, msg, info);
                 }
                 return 'limit-cooldown';
             }
 
-            if (info.isDefeated || info.nextSpawnAt || (info.button && !info.buttonActive)) {
-                this.handleEnded(key, msg, info);
+            if (info.isDefeated || info.isEscaped || info.nextSpawnAt || (info.button && !info.buttonActive)) {
+                this.handleEnded(key, kind, msg, info);
                 return 'ended';
             }
 
             if (info.isAppear && info.buttonActive) {
-                return this.handleAppear(key, msg, info, settings);
+                return this.handleAppear(key, kind, msg, info, settings);
             }
             return null;
         },
 
         // ── APPEAR — gate nextSpawnAt dulu, baru fight ─────────────
-        async handleAppear(key, msg, info, settings) {
-            const raid = getRaid(key);
+        async handleAppear(key, kind, msg, info, settings) {
+            const raid = getRaid(key, kind);
             const now = Date.now();
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp)
@@ -271,7 +310,8 @@ const createBoss2Manager = (state, configManager) => {
                     ticketLastDecision: null,
                     awaitingTicketAfterFight: false
                 });
-                log.success(`${prefix()}Guild Boss muncul di ${msg.guild?.name || key}!`);
+                log.success(`${prefix(kind)}Boss muncul di ${msg.guild?.name || key}!`);
+                requestTicketStatus(settings).catch(() => {});
             }
 
             if (raid.status !== 'active') return null;
@@ -281,11 +321,11 @@ const createBoss2Manager = (state, configManager) => {
                 return 'maxed';
             }
 
-            return this.fight(raid, msg, info, settings);
+            return this.fight(raid, msg, info, settings, kind, key);
         },
 
         // ── FIGHT — klik fight, tunggu ephemeral/ticket handler ────
-        async fight(raid, msg, info, settings) {
+        async fight(raid, msg, info, settings, kind = 'guild', key = msg.guildId || msg.channel?.id || 'dm') {
             if (raid.fighting) return null;
             raid.fighting = true;
             const messageId = msg.id;
