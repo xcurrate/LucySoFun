@@ -92,7 +92,8 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     const getRaid = (kind, key) => {
         if (!raids[kind].has(key)) raids[kind].set(key, {
             status: 'idle', fightsDone: 0, channelId: null, endsAt: null,
-            expiryTimer: null, pending: false, lastHandledMessage: null
+            expiryTimer: null, nextFightTimer: null, pending: false, lastHandledMessage: null,
+            lastMessage: null, lastInfo: null
         });
         return raids[kind].get(key);
     };
@@ -105,6 +106,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     };
     const endRaid = (kind, raid, reason) => {
         clearTimer(kind, raid);
+        if (raid.nextFightTimer) { clearTimeout(raid.nextFightTimer); timers[kind].delete(raid.nextFightTimer); raid.nextFightTimer = null; }
         raid.status = reason;
         raid.pending = false;
         log.info(`${prefix(kind)}Lifecycle berakhir: ${reason}.`);
@@ -132,6 +134,8 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     const startFight = async (kind, key, raid, msg, info, settings) => {
         if (raid.status !== 'active' || raid.pending || raid.fightsDone >= settings.fightsPerBoss) return;
         raid.pending = true;
+        raid.lastMessage = msg;
+        raid.lastInfo = info;
         raid.channelId = msg.channel?.id || msg.channelId || raid.channelId;
         pendingTickets.push({ kind, key, raid });
         try {
@@ -172,8 +176,14 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         if (accept) {
             raid.fightsDone += 1;
             log.success(`${prefix(kind)}Ticket diterima (${raid.fightsDone}/${settings.fightsPerBoss}).`);
-            if (raid.fightsDone < settings.fightsPerBoss) {
-                // The next visible boss update will initiate the next fight; no blind repeated clicks.
+            if (raid.fightsDone < settings.fightsPerBoss && raid.status === 'active' && raid.lastMessage && raid.lastInfo?.buttonActive) {
+                raid.nextFightTimer = setTimeout(() => {
+                    timers[kind].delete(raid.nextFightTimer);
+                    raid.nextFightTimer = null;
+                    startFight(kind, context.key, raid, raid.lastMessage, raid.lastInfo, settings).catch(error =>
+                        log.error(`${prefix(kind)}Gagal melanjutkan fight: ${error.message || error}`));
+                }, 1000);
+                timers[kind].add(raid.nextFightTimer);
             }
             return 'ticket-accepted';
         }
@@ -207,7 +217,8 @@ const createLucyBossLifecycleManager = (state, configManager) => {
                         Object.assign(raid, {
                             status: 'active', fightsDone: 0, pending: false,
                             channelId: msg.channel?.id || msg.channelId || null,
-                            endsAt: info.endsAt || null, lastHandledMessage: null
+                            endsAt: info.endsAt || null, lastHandledMessage: null,
+                            lastMessage: msg, lastInfo: info
                         });
                         if (info.endsAt) scheduleExpiry(kind, raid, info.endsAt);
                         log.success(`${prefix(kind)}Boss muncul.`);
@@ -223,7 +234,11 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         getRaidState(kind, key) { return raids[kind]?.get(String(key)) || null; },
         stop() {
             for (const kind of kinds) {
-                for (const raid of raids[kind].values()) clearTimer(kind, raid);
+                for (const raid of raids[kind].values()) {
+                    clearTimer(kind, raid);
+                    if (raid.nextFightTimer) clearTimeout(raid.nextFightTimer);
+                    raid.nextFightTimer = null;
+                }
                 timers[kind].clear();
             }
             pendingTickets.length = 0;
