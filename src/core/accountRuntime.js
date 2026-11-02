@@ -47,8 +47,6 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.lucyControl = config.settings.lucyControl || { start: 'lucy start', pause: 'lucy pause', allowIds: [] };
     config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
     config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
-    config.settings.lucyBoss = config.settings.lucyBoss || { enabled: false, allowedGuilds: [], channelIds: [], fightsPerBoss: 3 };
-    config.settings.globalRaidBoss = config.settings.globalRaidBoss || { enabled: false, allowedGuilds: [], channelIds: [], fightsPerBoss: 3 };
     config.settings.gems = normalizeGemsSettings(config.settings.gems);
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
     config.settings.rest = normalizeRestSettings(config.settings.rest);
@@ -188,11 +186,6 @@ const createRuntimeConfigManager = (state, filePath) => ({
         return normalizeBoss2Settings(state.config.settings?.boss2);
     },
 
-    getLucyBossLifecycleSettings(kind) {
-        const key = kind === 'global' ? 'globalRaidBoss' : 'lucyBoss';
-        return state.config.settings?.[key] || {};
-    },
-
     getGemsSettings() {
         return normalizeGemsSettings(state.config.settings?.gems);
     },
@@ -300,8 +293,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const hasEnabledLucyFeatures = () => {
         const settings = state.config.settings || {};
         return settings.boss2?.enabled === true
-            || settings.lucyBoss?.enabled === true
-            || settings.globalRaidBoss?.enabled === true
             || settings.gems?.enabled === true
             || settings.adventure?.enabled === true
             || (Array.isArray(state.config.otherCommands) && state.config.otherCommands.some(command => command?.enabled === true));
