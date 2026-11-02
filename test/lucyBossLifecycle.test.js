@@ -85,20 +85,25 @@ test('keeps Guild Boss and Global Raid Boss lifecycle state independent', async 
 
 test('ticket confirmation is associated with the prior pending boss context', async () => {
     const { manager } = setup();
-    const global = bossMessage('global');
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
     await manager.handle(global);
 
-    const prompt = ticketMessage();
+    const prompt = ticketMessage({ content: 'Global Raid Boss: Kamu punya **3** / **5** ticket.' });
     assert.equal(parseTicket(prompt).ticketLeft, 3);
     assert.equal(await manager.handle(prompt), 'ticket-accepted');
     assert.deepEqual(prompt.clicks, ['raid:ticket:yes']);
     assert.equal(manager.getRaidState('global', 'guild-1').fightsDone, 1);
+    assert.equal(manager.getRaidState('guild', 'guild-1').fightsDone, 0);
     manager.stop();
 });
 
 test('Global Raid Boss defeat ends immediately and clears its old expiry context', async () => {
     const { manager } = setup();
-    const global = bossMessage('global');
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
     await manager.handle(global);
     const oldEndsAt = manager.getRaidState('global', 'guild-1').endsAt;
     assert.ok(oldEndsAt);
@@ -112,6 +117,9 @@ test('Global Raid Boss defeat ends immediately and clears its old expiry context
     assert.equal(raid.status, 'defeated');
     assert.equal(raid.endsAt, null);
     assert.equal(raid.expiryTimer, null);
+    const guildRaid = manager.getRaidState('guild', 'guild-1');
+    assert.equal(guildRaid.status, 'active');
+    assert.ok(guildRaid.expiryTimer, 'Guild Boss expiry timer must remain isolated and active');
     manager.stop();
 });
 
