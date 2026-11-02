@@ -479,6 +479,14 @@ const createBoss2Manager = (state, configManager) => {
             } finally {
                 raid.awaitingTicketStatus = false;
             }
+            if (raid.status !== 'active') {
+                if (ticket.noActive) {
+                    try { await msg.clickButton(settings.ticketNoId); } catch (_) {}
+                }
+                raid.awaitingTicketAfterFight = false;
+                raid.ticketLastDecision = 'no';
+                return 'ticket-stale';
+            }
             const currentTicketLeft = inventory?.[kind]?.left ?? null;
             const currentTicketMax = inventory?.[kind]?.max ?? null;
             if (currentTicketLeft === null) {
