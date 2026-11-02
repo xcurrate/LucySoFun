@@ -16,6 +16,7 @@ function renderPage(config) {
         const rotation = config.settings.channelRotation || {};
         const boss = config.settings.boss || {};
         const boss2 = config.settings.boss2 || {};
+        const bossLifecycle = { guild: config.settings.lucyBoss || {}, global: config.settings.globalRaidBoss || {} };
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
         const msgFilter = config.settings.messageFilter || {};
@@ -97,6 +98,7 @@ function renderPage(config) {
                         rotation,
                         boss,
                         boss2,
+                        bossLifecycle,
                         gems,
                         adventure,
                         msgFilter,
