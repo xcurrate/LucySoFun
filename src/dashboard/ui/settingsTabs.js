@@ -546,7 +546,7 @@ ${renderRestSettings(config.settings?.rest)}
                             <input type="number" min="1" max="3" name="boss2FightsPerBoss" value="${boss2.fightsPerBoss ?? 3}" placeholder="3">
                             <label>Channel Privat Pemeriksaan Tiket Guild & Global</label>
                             <input type="text" name="boss2TicketStatusChannelId" value="${escapeHtml(boss2.ticketStatusChannelId || '')}" placeholder="Discord Channel ID khusus/private">
-                            <div class="input-hint">Boss2 akan mengirim `lboss t` hanya ke channel ini setiap kali Lucy meminta konfirmasi tiket. Pastikan channel hanya dapat dilihat oleh akunmu.</div>
+                            <div class="input-hint">Boss2 akan mengirim <strong>lboss t</strong> hanya ke channel ini setiap kali Lucy meminta konfirmasi tiket. Pastikan channel hanya dapat dilihat oleh akunmu.</div>
                             <label>Jeda sebelum tiap Fight (ms)</label>
                             <div class="row">
                                 <div class="col"><input type="number" min="0" name="boss2DelayMin" value="${boss2.delayMinMs ?? 1000}" placeholder="Min"></div>
