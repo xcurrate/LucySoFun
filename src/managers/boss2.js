@@ -178,6 +178,7 @@ const createBoss2Manager = (state, configManager) => {
         const promise = new Promise(resolve => { resolveRequest = resolve; });
         const request = {
             channelId,
+            startedAt: Date.now(),
             promise,
             resolve(status) {
                 clearTimeout(request.timeout);
@@ -258,7 +259,8 @@ const createBoss2Manager = (state, configManager) => {
             if (!settings.enabled) return null;
             if (ticketStatusRequest &&
                 String(msg.channel?.id || msg.channelId || '') === ticketStatusRequest.channelId &&
-                String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {
+                String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID &&
+                (!msg.createdTimestamp || msg.createdTimestamp >= ticketStatusRequest.startedAt)) {
                 const status = parseTicketStatus(msg);
                 if (status.guild && status.global) {
                     log.info(prefix() + 'Status tiket privat diterima: Guild ' + status.guild.left + '/' + status.guild.max + ', Global ' + status.global.left + '/' + status.global.max + '.');
@@ -387,7 +389,7 @@ const createBoss2Manager = (state, configManager) => {
                     }
 
                     // Tunggu max 5 detik: ephemeral (kalau ada) ATAU timeout = sukses langsung
-                    const deadline = Date.now() + 5000;
+                    const deadline = Date.now() + 15000;
                     while (Date.now() < deadline && canContinue()) {
                         if (!raid.awaitingTicketAfterFight) break;
                         await wait(200);
@@ -486,7 +488,7 @@ const createBoss2Manager = (state, configManager) => {
             const willFight = foughtThisBoss + 1;
             const canFightMore = willFight <= settings.fightsPerBoss;
             const enoughTicket = currentTicketLeft >= settings.minTicketLeft;
-            const shouldAccept = canFightMore && enoughTicket;
+            const shouldAccept = canFightMore && enoughTicket && ticket.yesActive;
             const targetId = shouldAccept ? settings.ticketYesId : settings.ticketNoId;
 
             log.info(`${prefix(kind)}🎫 tiket ${currentTicketLeft ?? '?'}/${currentTicketMax ?? '?'} | ` +
