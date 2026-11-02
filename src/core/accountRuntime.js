@@ -6,7 +6,6 @@ const createMacrodroidService = require('../services/macrodroidService');
 const createChannelManager = require('../managers/channel');
 const createBossManager = require('../managers/boss');
 const createBoss2Manager = require('../managers/boss2');
-const createLucyBossLifecycleManager = require('../managers/lucyBossLifecycle');
 const { normalizeBoss2Settings } = createBoss2Manager;
 const createAdventureManager = require('../managers/adventure');
 const createGemsManager = require('../managers/gems');
@@ -266,7 +265,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService, macrodroidService);
     const commandSender = createCommandSender(state, channelManager, emergencyHandler);
     const boss2Manager = createBoss2Manager(state, configManager);
-    const lucyBossLifecycleManager = createLucyBossLifecycleManager(state, configManager);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);
     const loopManager = createLoopManager(state, commandSender);
@@ -288,7 +286,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         voiceManager,
         adventureManager,
         boss2Manager,
-        lucyBossLifecycleManager,
         gemsManager,
         huntbot2Manager
     );
@@ -557,7 +554,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
                 bossManager.stop();
             }
             boss2Manager.stop();
-            lucyBossLifecycleManager.stop();
             gemsManager.stop();
             adventureManager.stop();
             if (state.client) {
