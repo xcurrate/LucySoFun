@@ -97,6 +97,9 @@ const parseRaidMessage = (msg, settings) => {
         isEscaped: kind === 'global' ? isGlobalEscaped : isGuildEscaped,
         button,
         buttonActive: !!button && button.disabled !== true,
+        endsAt: parseDiscordTimestamp(text, 'berakhir'),
+        fightsUsed: Number((text.match(/Fight kamu:\\s*(\\d+)\\s*\\//i) || [])[1] || 0),
+        fightsMax: Number((text.match(/Fight kamu:\\s*\\d+\\s*\\/\\s*(\\d+)/i) || [])[1] || 0),
         nextSpawnAt: parseDiscordTimestamp(text, 'boss\\s+baru')
     };
 };
@@ -120,6 +123,21 @@ const parseTicketConfirmation = (msg, settings) => {
         ticketMax:  match ? parseInt(match[2], 10) : null,
         text
     };
+};
+
+const parseTicketStatusMessage = msg => {
+    const components = toPlainData(msg.components) || [];
+    const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\n'));
+    const get = label => {
+        const heading = new RegExp('Ticket\\s+Boss\\s+' + label, 'i');
+        const start = text.search(heading);
+        if (start < 0) return null;
+        const next = text.slice(start + 1).search(/Ticket\s+Boss\s+(?:Guild|Global)/i);
+        const section = text.slice(start, next >= 0 ? start + 1 + next : undefined);
+        const match = section.match(/punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*boss\s*ticket/i);
+        return match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null;
+    };
+    return { guild: get('Guild'), global: get('Global') };
 };
 
 const parseLimitMessage = (msg, settings) => {
@@ -152,20 +170,6 @@ const createBoss2Manager = (state, configManager) => {
     const raidKey = (key, kind = 'guild') => `${key}:${kind}`;
     const pendingTicketContexts = [];
     let ticketStatusRequest = null;
-    const parseTicketStatus = msg => {
-        const components = toPlainData(msg.components) || [];
-        const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\n'));
-        const get = label => {
-            const heading = new RegExp('Ticket\\s+Boss\\s+' + label, 'i');
-            const start = text.search(heading);
-            if (start < 0) return null;
-            const next = text.slice(start + 1).search(/Ticket\\s+Boss\\s+(?:Guild|Global)/i);
-            const section = text.slice(start, next >= 0 ? start + 1 + next : undefined);
-            const match = section.match(/punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*boss\s*ticket/i);
-            return match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null;
-        };
-        return { guild: get('Guild'), global: get('Global') };
-    };
     const requestTicketStatus = async settings => {
         const channelId = String(settings.ticketStatusChannelId || '').trim();
         if (!channelId) {
@@ -261,7 +265,7 @@ const createBoss2Manager = (state, configManager) => {
                 String(msg.channel?.id || msg.channelId || '') === ticketStatusRequest.channelId &&
                 String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID &&
                 (!msg.createdTimestamp || msg.createdTimestamp >= ticketStatusRequest.startedAt)) {
-                const status = parseTicketStatus(msg);
+                const status = parseTicketStatusMessage(msg);
                 if (status.guild && status.global) {
                     log.info(prefix() + 'Status tiket privat diterima: Guild ' + status.guild.left + '/' + status.guild.max + ', Global ' + status.global.left + '/' + status.global.max + '.');
                     ticketStatusRequest.resolve(status);
@@ -639,6 +643,7 @@ const createBoss2Manager = (state, configManager) => {
 createBoss2Manager.normalizeBoss2Settings = normalizeBoss2Settings;
 createBoss2Manager.parseRaidMessage = parseRaidMessage;
 createBoss2Manager.parseTicketConfirmation = parseTicketConfirmation;
+createBoss2Manager.parseTicketStatusMessage = parseTicketStatusMessage;
 createBoss2Manager.parseLimitMessage = parseLimitMessage;
 createBoss2Manager.collectTexts = collectTexts;
 createBoss2Manager.toPlainData = toPlainData;
