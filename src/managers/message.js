@@ -261,8 +261,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     setLucyFeatures(enabled) {
         const settings = state.config.settings = state.config.settings || {};
         settings.boss2 = { ...(settings.boss2 || {}), enabled };
-        settings.lucyBoss = { ...(settings.lucyBoss || {}), enabled };
-        settings.globalRaidBoss = { ...(settings.globalRaidBoss || {}), enabled };
         settings.gems = { ...(settings.gems || {}), enabled };
         settings.adventure = { ...(settings.adventure || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
