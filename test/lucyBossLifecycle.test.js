@@ -60,6 +60,33 @@ function setup() {
     return { manager, settings };
 }
 
+
+test('new lifecycle claims enabled Guild/Global messages so Boss2 cannot double-fight them', async () => {
+    const { manager, settings } = setup();
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    const other = bossMessage('guild', {
+        id: 'other-guild',
+        guildId: 'guild-2',
+        channel: { id: 'channel-2' }
+    });
+
+    assert.equal(manager.ownsMessage(guild), false, 'ownership is inactive before runtime start');
+    manager.setRunning(true);
+    assert.equal(manager.ownsMessage(guild), true);
+    assert.equal(manager.ownsMessage(global), true);
+    assert.equal(manager.ownsMessage(other), true, 'unrestricted settings allow the configured lifecycle to own it');
+
+    settings.guild.enabled = false;
+    assert.equal(manager.ownsMessage(guild), false, 'disabled Guild Boss falls back to Boss2');
+    assert.equal(manager.ownsMessage(global), true, 'Global Raid Boss remains independently owned');
+
+    await manager.handle(global);
+    const ticket = ticketMessage();
+    assert.equal(manager.ownsMessage(ticket), true, 'ticket confirmation belongs to the pending lifecycle fight');
+    manager.stop();
+});
+
 test('parses nested Discord type 17/10/2 components without message content or embeds', () => {
     const parsed = parseLucyBossMessage(bossMessage('global'));
     assert.equal(parsed.isGlobalAppear, true);
