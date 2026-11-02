@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager) => {
+module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, lucyBossLifecycleManager, gemsManager, huntbot2Manager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -85,6 +85,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         try {
             if (msg.partial) msg = await msg.fetch();
             await boss2Manager.handle(msg);
+            await lucyBossLifecycleManager?.handle?.(msg);
         } catch (error) {
             log.error(`${accountPrefix(state)}Gagal memproses edit pesan: ${error.message}`);
         }
@@ -117,6 +118,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (adventureManager) await adventureManager.handle(msg);
 
         if (boss2Manager) await boss2Manager.handle(msg);
+        if (lucyBossLifecycleManager) await lucyBossLifecycleManager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);
 
@@ -259,6 +261,8 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     setLucyFeatures(enabled) {
         const settings = state.config.settings = state.config.settings || {};
         settings.boss2 = { ...(settings.boss2 || {}), enabled };
+        settings.lucyBoss = { ...(settings.lucyBoss || {}), enabled };
+        settings.globalRaidBoss = { ...(settings.globalRaidBoss || {}), enabled };
         settings.gems = { ...(settings.gems || {}), enabled };
         settings.adventure = { ...(settings.adventure || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
@@ -278,6 +282,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             adventureManager?.stop?.();
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
             boss2Manager?.stop?.();
+            lucyBossLifecycleManager?.stop?.();
             gemsManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
