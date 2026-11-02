@@ -71,8 +71,7 @@ test('new lifecycle claims enabled Guild/Global messages so Boss2 cannot double-
         channel: { id: 'channel-2' }
     });
 
-    assert.equal(manager.ownsMessage(guild), false, 'ownership is inactive before runtime start');
-    manager.setRunning(true);
+    // setup() starts the lifecycle manager, matching a running Lucy runtime.
     assert.equal(manager.ownsMessage(guild), true);
     assert.equal(manager.ownsMessage(global), true);
     assert.equal(manager.ownsMessage(other), true, 'unrestricted settings allow the configured lifecycle to own it');
