@@ -144,7 +144,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     };
 
     const startFight = async (kind, key, raid, msg, info, settings) => {
-        if (raid.status !== 'active' || raid.pending || raid.fightsDone >= settings.fightsPerBoss) return;
+        if (raid.status !== 'active' || raid.pending || raid.nextFightTimer || raid.fightsDone >= settings.fightsPerBoss) return;
         raid.pending = true;
         raid.lastMessage = msg;
         raid.lastInfo = info;
@@ -162,6 +162,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     };
 
     const handleTicket = async (msg, ticket) => {
+        if (String(msg.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return null;
         const channelId = String(msg.channel?.id || msg.channelId || '');
         const contextualKind = /global raid boss/i.test(ticket.text) ? 'global'
             : /guild boss/i.test(ticket.text) ? 'guild' : null;
@@ -174,6 +175,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         const context = pendingTickets.splice(index, 1)[0];
         const { kind, raid } = context;
         const settings = settingsFor(kind);
+        if (!settings.enabled) { raid.pending = false; return 'ticket-disabled'; }
         const accept = !ticket.alreadyFought && ticket.ticketLeft !== 0 &&
             raid.fightsDone < settings.fightsPerBoss && ticket.yesActive;
         const buttonId = accept ? 'raid:ticket:yes' : 'raid:ticket:no';
