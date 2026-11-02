@@ -542,7 +542,7 @@ const createBoss2Manager = (state, configManager) => {
                 raid.fightsDone = 0;
                 raid.ticketAtBossStart = null;
                 raid.lastTicketActionMessageId = null;
-                return this.fight(raid, msg, info, settings);
+                return this.fight(raid, msg, info, settings, raid.kind || 'guild', raid.messageId ? String(raid.messageId).split(':')[0] : (msg.guildId || msg.channel?.id || 'dm'));
             } catch (err) {
                 log.warn(`${prefix()}Boss tidak bisa di-resume: ${err.message}`);
                 raid.status = 'idle';
@@ -550,8 +550,8 @@ const createBoss2Manager = (state, configManager) => {
         },
 
         // ── ENDED — simpan nextSpawnAt sebagai gate ────────────────
-        handleEnded(key, msg, info) {
-            const raid = getRaid(key);
+        handleEnded(key, kind, msg, info) {
+            const raid = getRaid(key, kind);
             const wasActive = raid.status === 'active';
             const wasWaiting = raid.status === 'waiting-defeat';
 
@@ -562,9 +562,9 @@ const createBoss2Manager = (state, configManager) => {
             raid.messageId = raid.messageId || msg.id;
 
             if (wasActive) {
-                log.warn(`${prefix()}Boss ${info.isDefeated ? 'telah dikalahkan' : 'selesai'}.`);
+                log.warn(`${prefix(kind)}Boss ${info.isDefeated ? 'telah dikalahkan' : info.isEscaped ? 'kabur' : 'selesai'}.`);
             } else if (wasWaiting) {
-                log.info(`${prefix()}Boss ${info.isDefeated ? 'telah dikalahkan' : 'selesai'}.`);
+                log.info(`${prefix(kind)}Boss ${info.isDefeated ? 'telah dikalahkan' : info.isEscaped ? 'kabur' : 'selesai'}.`);
             }
 
             if (info.nextSpawnAt && info.nextSpawnAt !== raid.nextSpawnAt) {
@@ -576,6 +576,7 @@ const createBoss2Manager = (state, configManager) => {
         stop() {
             for (const timer of state.boss2Timers) clearTimeout(timer);
             state.boss2Timers.clear();
+            pendingTicketContexts.length = 0;
             for (const raid of state.boss2Raids.values()) {
                 raid.limitTimer = null;
                 raid.limitResetAt = null;
