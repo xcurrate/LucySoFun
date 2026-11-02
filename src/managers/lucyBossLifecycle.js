@@ -258,6 +258,11 @@ const createLucyBossLifecycleManager = (state, configManager) => {
                     if (raid.nextFightTimer) clearTimeout(raid.nextFightTimer);
                     raid.nextFightTimer = null;
                     raid.pending = false;
+                    raid.status = 'idle';
+                    raid.endsAt = null;
+                    raid.lastMessage = null;
+                    raid.lastInfo = null;
+                    raid.lastHandledMessage = null;
                 }
                 timers[kind].clear();
             }
