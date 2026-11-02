@@ -161,7 +161,7 @@ const createBoss2Manager = (state, configManager) => {
             if (start < 0) return null;
             const next = text.slice(start + 1).search(/Ticket\\s+Boss\\s+(?:Guild|Global)/i);
             const section = text.slice(start, next >= 0 ? start + 1 + next : undefined);
-            const match = section.match(/punya\\s*\\*{0,2}(\\d+)\\*{0,2}\\s*\\/\\s*\\*{0,2}(\\d+)\\*{0,2}\\s*boss\\s*ticket/i);
+            const match = section.match(/punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*boss\s*ticket/i);
             return match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null;
         };
         return { guild: get('Guild'), global: get('Global') };
