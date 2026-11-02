@@ -98,8 +98,8 @@ const parseRaidMessage = (msg, settings) => {
         button,
         buttonActive: !!button && button.disabled !== true,
         endsAt: parseDiscordTimestamp(text, 'berakhir'),
-        fightsUsed: Number((text.match(/Fight kamu:\\s*(\\d+)\\s*\\//i) || [])[1] || 0),
-        fightsMax: Number((text.match(/Fight kamu:\\s*\\d+\\s*\\/\\s*(\\d+)/i) || [])[1] || 0),
+        fightsUsed: Number((text.match(/Fight kamu:\s*(\d+)\s*\//i) || [])[1] || 0),
+        fightsMax: Number((text.match(/Fight kamu:\s*\d+\s*\/\s*(\d+)/i) || [])[1] || 0),
         nextSpawnAt: parseDiscordTimestamp(text, 'boss\\s+baru')
     };
 };
