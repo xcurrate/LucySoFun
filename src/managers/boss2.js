@@ -389,8 +389,8 @@ const createBoss2Manager = (state, configManager) => {
                     }
 
                     // Tunggu max 5 detik: ephemeral (kalau ada) ATAU timeout = sukses langsung
-                    const deadline = Date.now() + 15000;
-                    while (Date.now() < deadline && canContinue()) {
+                    const deadline = Date.now() + 5000;
+                    while ((Date.now() < deadline || raid.awaitingTicketStatus) && canContinue()) {
                         if (!raid.awaitingTicketAfterFight) break;
                         await wait(200);
                     }
@@ -468,7 +468,13 @@ const createBoss2Manager = (state, configManager) => {
             // KASUS C — ambil inventaris terbaru dari channel privat.
             // Prompt konfirmasi tidak menyebut jenis boss, jadi angka di prompt tidak
             // boleh dipakai untuk membedakan tiket Guild dan Global.
-            const inventory = await requestTicketStatus(settings);
+            raid.awaitingTicketStatus = true;
+            let inventory = null;
+            try {
+                inventory = await requestTicketStatus(settings);
+            } finally {
+                raid.awaitingTicketStatus = false;
+            }
             const currentTicketLeft = inventory?.[kind]?.left ?? null;
             const currentTicketMax = inventory?.[kind]?.max ?? null;
             if (currentTicketLeft === null) {
