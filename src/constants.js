@@ -19,7 +19,11 @@ module.exports = {
         ticketYesId: 'raid:ticket:yes',
 ticketNoId:  'raid:ticket:no',
 limitText:   'limit fight',
-minTicketLeft: 1
+minTicketLeft: 1,
+        ticketStatusChannelId: '',
+        ticketStatusCommand: 'lboss t',
+        globalAppearText: 'Global Raid Boss Telah Muncul',
+        globalDefeatedText: 'Global Raid Boss Telah Dikalahkan'
     },
     GEMS_TIERS: {
         F: { main: ['57', '71', '78'], special: '85' },
