@@ -266,6 +266,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
         configManager.save();
+        lucyBossLifecycleManager?.setRunning?.(enabled);
 
         // Sama seperti route dashboard (multiAccountManager.start/stopAdventure & start/stopOtherCommand):
         // flag saja tidak cukup karena timer/loop yang sudah terjadwal tidak dibatalkan/dimulai ulang.
@@ -280,7 +281,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             adventureManager?.stop?.();
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
             boss2Manager?.stop?.();
-            lucyBossLifecycleManager?.stop?.();
             gemsManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
