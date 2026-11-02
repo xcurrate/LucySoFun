@@ -56,6 +56,7 @@ function setup() {
     const manager = createManager(state, {
         getLucyBossLifecycleSettings: kind => settings[kind]
     });
+    manager.setRunning(true);
     return { manager, settings };
 }
 
