@@ -123,6 +123,30 @@ test('Global Raid Boss defeat ends immediately and clears its old expiry context
     manager.stop();
 });
 
+
+test('boss expiry timer ends only its own lifecycle', async () => {
+    const { manager } = setup();
+    const endsAt = Math.floor(Date.now() / 1000) + 1;
+    const guild = bossMessage('guild', {
+        components: [{
+            type: 17,
+            components: [
+                { type: 10, content: 'Guild Boss Telah Muncul!' },
+                { type: 10, content: `Berakhir <t:${endsAt}:R>` },
+                { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: false }] }
+            ]
+        }]
+    });
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
+    await manager.handle(global);
+
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    assert.equal(manager.getRaidState('guild', 'guild-1').status, 'expired');
+    assert.equal(manager.getRaidState('global', 'guild-1').status, 'active');
+    manager.stop();
+});
+
 test('Guild Boss escape ends only the Guild Boss lifecycle', async () => {
     const { manager } = setup();
     await manager.handle(bossMessage('guild'));
