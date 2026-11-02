@@ -37,6 +37,9 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.channelRotation = config.settings.channelRotation || { enabled: false, minMs: 180000, maxMs: 360000 };
         config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
         config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
+        const normalizeLucyBossLifecycle = raw => ({ enabled: raw?.enabled === true, allowedGuilds: Array.isArray(raw?.allowedGuilds) ? raw.allowedGuilds.map(String) : [], channelIds: Array.isArray(raw?.channelIds) ? raw.channelIds.map(String) : [], fightsPerBoss: Math.max(1, Math.min(20, this.toInt(raw?.fightsPerBoss, 3))) });
+        config.settings.lucyBoss = normalizeLucyBossLifecycle(config.settings.lucyBoss);
+        config.settings.globalRaidBoss = normalizeLucyBossLifecycle(config.settings.globalRaidBoss);
         config.settings.gems = normalizeGemsSettings(config.settings.gems);
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
@@ -147,6 +150,10 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
 
         config.settings.boss.enabled = this.toBool(body.bossEnabled);
         config.settings.boss.allowedGuilds = this.toArray(body.bossGuilds);
+
+        const normalizeLucyBossLifecycle = (current, prefix) => ({ enabled: this.toBool(body[prefix + 'Enabled']), allowedGuilds: this.toArray(body[prefix + 'Guilds']), channelIds: this.toArray(body[prefix + 'ChannelIds']), fightsPerBoss: Math.max(1, Math.min(20, this.toInt(body[prefix + 'FightsPerBoss'], current?.fightsPerBoss || 3))) });
+        config.settings.lucyBoss = normalizeLucyBossLifecycle(config.settings.lucyBoss, 'lucyBoss');
+        config.settings.globalRaidBoss = normalizeLucyBossLifecycle(config.settings.globalRaidBoss, 'globalRaidBoss');
 
         config.settings.boss2 = normalizeBoss2Settings({
             enabled: this.toBool(body.boss2Enabled),
