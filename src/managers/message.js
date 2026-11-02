@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, lucyBossLifecycleManager, gemsManager, huntbot2Manager) => {
+module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -84,13 +84,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (!state.client?.isReady() || !boss2Manager) return;
         try {
             if (msg.partial) msg = await msg.fetch();
-            const lifecycleOwnsMessage = lucyBossLifecycleManager?.ownsMessage?.(msg) === true;
-            if (lifecycleOwnsMessage) {
-                await lucyBossLifecycleManager.handle(msg);
-            } else {
-                await boss2Manager.handle(msg);
-                await lucyBossLifecycleManager?.handle?.(msg);
-            }
+            await boss2Manager.handle(msg);
         } catch (error) {
             log.error(`${accountPrefix(state)}Gagal memproses edit pesan: ${error.message}`);
         }
@@ -122,15 +116,8 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         // Adventure adalah automasi mandiri; jangan letakkan di handleOwOMessage.
         if (adventureManager) await adventureManager.handle(msg);
 
-        // Guild/Global Boss yang diaktifkan pada lifecycle baru harus punya satu pemilik.
-        // Boss2 tetap menangani boss lain dan menjadi fallback jika lifecycle baru nonaktif.
-        const lifecycleOwnsMessage = lucyBossLifecycleManager?.ownsMessage?.(msg) === true;
-        if (lifecycleOwnsMessage) {
-            await lucyBossLifecycleManager.handle(msg);
-        } else {
-            if (boss2Manager) await boss2Manager.handle(msg);
-            if (lucyBossLifecycleManager) await lucyBossLifecycleManager.handle(msg);
-        }
+        // Boss2 menjadi satu-satunya jalur deteksi, Fight, dan konfirmasi tiket Guild/Global.
+        if (boss2Manager) await boss2Manager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);
 
@@ -278,7 +265,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
         configManager.save();
-        lucyBossLifecycleManager?.setRunning?.(enabled);
 
         // Sama seperti route dashboard (multiAccountManager.start/stopAdventure & start/stopOtherCommand):
         // flag saja tidak cukup karena timer/loop yang sudah terjadwal tidak dibatalkan/dimulai ulang.
