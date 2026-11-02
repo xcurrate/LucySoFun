@@ -117,8 +117,15 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         // Adventure adalah automasi mandiri; jangan letakkan di handleOwOMessage.
         if (adventureManager) await adventureManager.handle(msg);
 
-        if (boss2Manager) await boss2Manager.handle(msg);
-        if (lucyBossLifecycleManager) await lucyBossLifecycleManager.handle(msg);
+        // Guild/Global Boss yang diaktifkan pada lifecycle baru harus punya satu pemilik.
+        // Boss2 tetap menangani boss lain dan menjadi fallback jika lifecycle baru nonaktif.
+        const lifecycleOwnsMessage = lucyBossLifecycleManager?.ownsMessage?.(msg) === true;
+        if (lifecycleOwnsMessage) {
+            await lucyBossLifecycleManager.handle(msg);
+        } else {
+            if (boss2Manager) await boss2Manager.handle(msg);
+            if (lucyBossLifecycleManager) await lucyBossLifecycleManager.handle(msg);
+        }
 
         if (gemsManager) await gemsManager.handle(msg);
 
