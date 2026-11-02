@@ -85,6 +85,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
     const raids = { guild: new Map(), global: new Map() };
     const timers = { guild: new Set(), global: new Set() };
     const pendingTickets = [];
+    let runtimeEnabled = false;
 
     const prefix = kind => `${accountPrefix(state)}${kind === 'guild' ? '👑 Guild Boss' : '🌐 Global Raid Boss'}: `;
     const settingsFor = kind => normalizeSettings(configManager.getLucyBossLifecycleSettings(kind));
@@ -199,6 +200,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
 
     return {
         handle: async msg => {
+            if (!runtimeEnabled) return null;
             const ticket = parseTicket(msg);
             if (ticket) return handleTicket(msg, ticket);
 
@@ -238,6 +240,10 @@ const createLucyBossLifecycleManager = (state, configManager) => {
             return null;
         },
         getRaidState(kind, key) { return raids[kind]?.get(String(key)) || null; },
+        setRunning(enabled) {
+            runtimeEnabled = enabled === true;
+            if (!runtimeEnabled) this.stop();
+        },
         stop() {
             for (const kind of kinds) {
                 for (const raid of raids[kind].values()) {
