@@ -345,12 +345,16 @@ const createBoss2Manager = (state, configManager) => {
                     raid.awaitingTicketAfterFight = true;
                     raid.ticketLastDecision = null;
 
+                    const pendingContext = { kind, key, raid, channelId: String(msg.channel?.id || msg.channelId || '') };
+                    pendingTicketContexts.push(pendingContext);
                     try {
                         await msg.clickButton(info.button.custom_id || info.button.customId);
-                        log.info(`${prefix()}⚔️ Klik Fight (target #${before + 1})`);
+                        log.info(`${prefix(kind)}⚔️ Klik Fight (target #${before + 1})`);
                     } catch (err) {
                         raid.awaitingTicketAfterFight = false;
-                        log.error(`${prefix()}Gagal klik Fight: ${err.message || err}`);
+                        const pendingIndex = pendingTicketContexts.indexOf(pendingContext);
+                        if (pendingIndex >= 0) pendingTicketContexts.splice(pendingIndex, 1);
+                        log.error(`${prefix(kind)}Gagal klik Fight: ${err.message || err}`);
                         break;
                     }
 
@@ -366,8 +370,11 @@ const createBoss2Manager = (state, configManager) => {
                     // Fight sukses langsung (tidak ada ephemeral)
                     if (raid.awaitingTicketAfterFight) {
                         raid.awaitingTicketAfterFight = false;
+                        const pendingIndex = pendingTicketContexts.indexOf(pendingContext);
+                        if (pendingIndex >= 0) pendingTicketContexts.splice(pendingIndex, 1);
                         raid.fightsDone = before + 1;
-                        log.success(`${prefix()}⚔️ Fight ${raid.fightsDone}/${target} (sukses langsung)`);
+                        if (ticketStatus[kind]?.left > 0) ticketStatus[kind].left -= 1;
+                        log.success(`${prefix(kind)}⚔️ Fight ${raid.fightsDone}/${target} (sukses langsung)`);
                     }
 
                     // Ephemeral bilang Nggak → stop
@@ -384,25 +391,32 @@ const createBoss2Manager = (state, configManager) => {
             } finally {
                 raid.awaitingTicketAfterFight = false;
                 raid.fighting = false;
+                for (let i = pendingTicketContexts.length - 1; i >= 0; i--) {
+                    if (pendingTicketContexts[i].raid === raid) pendingTicketContexts.splice(i, 1);
+                }
             }
             return 'fought';
         },
 
         // ── TICKET CONFIRMATION ────────────────────────────────────
         async handleTicketConfirmation(msg, ticket, settings) {
-            const key = msg.guildId || msg.channel?.id || 'dm';
-            const raid = getRaid(key);
+            const channelId = String(msg.channel?.id || msg.channelId || '');
+            const pendingIndex = pendingTicketContexts.findIndex(item => !channelId || !item.channelId || item.channelId === channelId);
+            const context = pendingIndex >= 0 ? pendingTicketContexts.splice(pendingIndex, 1)[0] : null;
+            const key = context?.key || msg.guildId || msg.channel?.id || 'dm';
+            const kind = context?.kind || 'guild';
+            const raid = context?.raid || getRaid(key, kind);
 
             if (raid.lastTicketActionMessageId === msg.id) return null;
             raid.lastTicketActionMessageId = msg.id;
 
             // KASUS A — "sudah melawan boss ini" → SELALU Nggak + stop
             if (ticket.isAlreadyFought) {
-                log.info(`${prefix()}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
+                log.info(`${prefix(kind)}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
                 try {
                     await msg.clickButton(settings.ticketNoId);
                 } catch (err) {
-                    log.error(`${prefix()}Gagal klik Nggak: ${err.message || err}`);
+                    log.error(`${prefix(kind)}Gagal klik Nggak: ${err.message || err}`);
                 }
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
@@ -419,30 +433,29 @@ const createBoss2Manager = (state, configManager) => {
             }
 
             // KASUS C — fallback berbasis sisa tiket
-            if (raid.ticketAtBossStart === null && ticket.ticketLeft !== null) {
-                raid.ticketAtBossStart = ticket.ticketLeft;
-                log.info(`${prefix()}🎫 Sisa tiket di awal boss: ${ticket.ticketLeft}/${ticket.ticketMax}`);
+            const currentTicketLeft = ticket.ticketLeft ?? ticketStatus[kind]?.left ?? null;
+            const currentTicketMax = ticket.ticketMax ?? ticketStatus[kind]?.max ?? null;
+            if (raid.ticketAtBossStart === null && currentTicketLeft !== null) {
+                raid.ticketAtBossStart = currentTicketLeft;
+                log.info(`${prefix(kind)}🎫 Sisa tiket awal: ${currentTicketLeft}/${currentTicketMax ?? '?'}`);
             }
-
-            const foughtThisBoss = (raid.ticketAtBossStart !== null && ticket.ticketLeft !== null)
-                ? Math.max(0, raid.ticketAtBossStart - ticket.ticketLeft)
-                : raid.fightsDone;
+            const foughtThisBoss = raid.fightsDone;
 
             const willFight = foughtThisBoss + 1;
             const canFightMore = willFight <= settings.fightsPerBoss;
-            const enoughTicket = ticket.ticketLeft === null
+            const enoughTicket = currentTicketLeft === null
                 ? true
-                : ticket.ticketLeft >= settings.minTicketLeft;
+                : currentTicketLeft >= settings.minTicketLeft;
 
             const shouldAccept = canFightMore && enoughTicket;
             const targetId = shouldAccept ? settings.ticketYesId : settings.ticketNoId;
 
-            log.info(`${prefix()}🎫 tiket ${ticket.ticketLeft ?? '?'}/${ticket.ticketMax ?? '?'} | ` +
+            log.info(`${prefix(kind)}🎫 tiket ${currentTicketLeft ?? '?'}/${currentTicketMax ?? '?'} | ` +
                      `fightBoss=${foughtThisBoss}/${settings.fightsPerBoss} → ${shouldAccept ? 'Iya ✅' : 'Nggak ❌'}`);
 
             try { await msg.clickButton(targetId); }
             catch (err) {
-                log.error(`${prefix()}Gagal klik ${targetId}: ${err.message || err}`);
+                log.error(`${prefix(kind)}Gagal klik ${targetId}: ${err.message || err}`);
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
                 return 'ticket-error';
@@ -453,7 +466,8 @@ const createBoss2Manager = (state, configManager) => {
 
             if (shouldAccept) {
                 raid.fightsDone = foughtThisBoss + 1;
-                log.success(`${prefix()}⚔️ Fight ${raid.fightsDone}/${settings.fightsPerBoss} (via ticket)`);
+                if (currentTicketLeft !== null) ticketStatus[kind] = { left: Math.max(0, currentTicketLeft - 1), max: currentTicketMax, checkedAt: Date.now() };
+                log.success(`${prefix(kind)}⚔️ Fight ${raid.fightsDone}/${settings.fightsPerBoss} (via ticket)`);
                 return 'ticket-accepted';
             }
 
