@@ -84,8 +84,13 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (!state.client?.isReady() || !boss2Manager) return;
         try {
             if (msg.partial) msg = await msg.fetch();
-            await boss2Manager.handle(msg);
-            await lucyBossLifecycleManager?.handle?.(msg);
+            const lifecycleOwnsMessage = lucyBossLifecycleManager?.ownsMessage?.(msg) === true;
+            if (lifecycleOwnsMessage) {
+                await lucyBossLifecycleManager.handle(msg);
+            } else {
+                await boss2Manager.handle(msg);
+                await lucyBossLifecycleManager?.handle?.(msg);
+            }
         } catch (error) {
             log.error(`${accountPrefix(state)}Gagal memproses edit pesan: ${error.message}`);
         }
