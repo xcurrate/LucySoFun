@@ -554,7 +554,7 @@ const createBoss2Manager = (state, configManager) => {
             raid.awaitingTicketAfterFight = false;
 
             log.warn(`${prefix(kind)}🚫 Limit fight tercapai. Boss2 dijeda untuk jenis boss ini.`);
-            log.info(`${prefix()}⏰ Reset: ${formatWib(limit.resetAt)} WIB (${formatCountdown(limit.resetAt)})`);
+            log.info(`${prefix(kind)}⏰ Reset: ${formatWib(limit.resetAt)} WIB (${formatCountdown(limit.resetAt)})`);
 
             const onReset = () => {
                 if (Date.now() < limit.resetAt - 1500) {
@@ -567,7 +567,7 @@ const createBoss2Manager = (state, configManager) => {
 
                 log.success(`${prefix(kind)}⏰ Limit reset! Coba resume boss yang masih aktif.`);
                 this.resumeAfterLimit(raid, settings).catch(err => {
-                    log.error(`${prefix()}Gagal resume: ${err.message}`);
+                    log.error(`${prefix(kind)}Gagal resume: ${err.message}`);
                     if (raid.status === 'limit') raid.status = 'idle';
                 });
             };
