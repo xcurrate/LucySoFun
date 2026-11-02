@@ -109,6 +109,12 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         if (raid.nextFightTimer) { clearTimeout(raid.nextFightTimer); timers[kind].delete(raid.nextFightTimer); raid.nextFightTimer = null; }
         raid.status = reason;
         raid.pending = false;
+        raid.endsAt = null;
+        raid.lastMessage = null;
+        raid.lastInfo = null;
+        for (let i = pendingTickets.length - 1; i >= 0; i--) {
+            if (pendingTickets[i].raid === raid) pendingTickets.splice(i, 1);
+        }
         log.info(`${prefix(kind)}Lifecycle berakhir: ${reason}.`);
     };
     const scheduleExpiry = (kind, raid, endsAt) => {
