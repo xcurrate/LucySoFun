@@ -36,7 +36,11 @@ const normalizeBoss2Settings = (raw = {}) => {
         ticketYesId: toText(raw.ticketYesId, defaults.ticketYesId || 'raid:ticket:yes'),
         ticketNoId:  toText(raw.ticketNoId,  defaults.ticketNoId  || 'raid:ticket:no'),
         limitText:   toText(raw.limitText,   defaults.limitText   || 'limit fight'),
-        minTicketLeft: Math.max(0, toNonNegativeInt(raw.minTicketLeft, defaults.minTicketLeft ?? 1))
+        minTicketLeft: Math.max(0, toNonNegativeInt(raw.minTicketLeft, defaults.minTicketLeft ?? 1)),
+        ticketStatusChannelId: String(raw.ticketStatusChannelId || defaults.ticketStatusChannelId || '').trim(),
+        ticketStatusCommand: toText(raw.ticketStatusCommand, defaults.ticketStatusCommand || 'lboss t'),
+        globalAppearText: toText(raw.globalAppearText, defaults.globalAppearText || 'Global Raid Boss Telah Muncul'),
+        globalDefeatedText: toText(raw.globalDefeatedText, defaults.globalDefeatedText || 'Global Raid Boss Telah Dikalahkan')
     };
 };
 
@@ -76,9 +80,21 @@ const parseRaidMessage = (msg, settings) => {
     const lowerText = text.toLowerCase();
     const button = findButton(components, settings.buttonId);
 
+    const isGlobalAppear = lowerText.includes(settings.globalAppearText.toLowerCase());
+    const isGlobalDefeated = lowerText.includes(settings.globalDefeatedText.toLowerCase());
+    const isGuildAppear = !isGlobalAppear && lowerText.includes(settings.appearText.toLowerCase());
+    const isGuildDefeated = !isGlobalDefeated && lowerText.includes(settings.defeatedText.toLowerCase());
+    const isGlobalEscaped = lowerText.includes('global raid boss kabur');
+    const isGuildEscaped = !isGlobalEscaped && lowerText.includes('guild boss kabur');
+    const kind = isGlobalAppear || isGlobalDefeated || isGlobalEscaped ? 'global'
+        : isGuildAppear || isGuildDefeated || isGuildEscaped ? 'guild' : null;
     return {
-        isAppear: lowerText.includes(settings.appearText.toLowerCase()),
-        isDefeated: lowerText.includes(settings.defeatedText.toLowerCase()),
+        kind,
+        isGuildAppear, isGuildDefeated, isGuildEscaped,
+        isGlobalAppear, isGlobalDefeated, isGlobalEscaped,
+        isAppear: kind === 'global' ? isGlobalAppear : isGuildAppear,
+        isDefeated: kind === 'global' ? isGlobalDefeated : isGuildDefeated,
+        isEscaped: kind === 'global' ? isGlobalEscaped : isGuildEscaped,
         button,
         buttonActive: !!button && button.disabled !== true,
         nextSpawnAt: parseDiscordTimestamp(text, 'boss\\s+baru')
