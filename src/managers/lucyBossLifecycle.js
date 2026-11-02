@@ -205,7 +205,33 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         return 'ticket-rejected';
     };
 
+    const ownsMessage = msg => {
+        if (!runtimeEnabled) return false;
+        const ticket = parseTicket(msg);
+        if (ticket && String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {
+            const channelId = String(msg.channel?.id || msg.channelId || '');
+            const contextualKind = /global raid boss/i.test(ticket.text) ? 'global'
+                : /guild boss/i.test(ticket.text) ? 'guild' : null;
+            return pendingTickets.some(item =>
+                (!contextualKind || item.kind === contextualKind) &&
+                (!channelId || !item.raid.channelId || item.raid.channelId === channelId) &&
+                item.raid.status === 'active' && item.raid.pending &&
+                settingsFor(item.kind).enabled
+            );
+        }
+
+        const info = parseLucyBossMessage(msg);
+        return kinds.some(kind => {
+            const settings = settingsFor(kind);
+            if (!settings.enabled || !allowed(msg, settings)) return false;
+            return kind === 'guild'
+                ? info.isGuildAppear || info.isGuildDefeated || info.isGuildEscaped
+                : info.isGlobalAppear || info.isGlobalDefeated || info.isGlobalEscaped;
+        });
+    };
+
     return {
+        ownsMessage,
         handle: async msg => {
             if (!runtimeEnabled) return null;
             const ticket = parseTicket(msg);
