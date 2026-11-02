@@ -93,8 +93,24 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     async handle(msg) {
         if (!state.client?.isReady()) return;
 
-        // Deteksi cooldown global Lucy sebelum handler fitur memproses pesan yang sama.
-        if (commandSender?.handleLucyCooldownMessage) commandSender.handleLucyCooldownMessage(msg);
+        // Jalankan Boss2 lebih dulu agar antrean/retry fitur Lucy lain tidak menahan
+        // deteksi boss muncul, klik Fight, atau konfirmasi tiket.
+        if (boss2Manager) {
+            try {
+                await boss2Manager.handle(msg);
+            } catch (error) {
+                log.error(`${accountPrefix(state)}Gagal memproses Boss2: ${error.message || error}`);
+            }
+        }
+
+        // Deteksi cooldown global Lucy tanpa membiarkan error parser menghentikan handler lain.
+        if (commandSender?.handleLucyCooldownMessage) {
+            try {
+                commandSender.handleLucyCooldownMessage(msg);
+            } catch (error) {
+                log.error(`${accountPrefix(state)}Gagal memproses cooldown Lucy: ${error.message || error}`);
+            }
+        }
         handleLucyTeamDebug(msg);
         this.captureMessageDebug(msg);
         if (huntbot2Manager && typeof huntbot2Manager.handle === 'function') {
@@ -115,8 +131,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
 
         // Adventure adalah automasi mandiri; jangan letakkan di handleOwOMessage.
         if (adventureManager) await adventureManager.handle(msg);
-
-        if (boss2Manager) await boss2Manager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);
 
