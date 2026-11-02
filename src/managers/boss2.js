@@ -529,7 +529,12 @@ const createBoss2Manager = (state, configManager) => {
         // ── LIMIT — stop per-guild, jadwalkan resume ───────────────
         async handleLimitReached(msg, limit, settings) {
             const key = msg.guildId || msg.channel?.id || 'dm';
-            const raid = getRaid(key);
+            const channelId = String(msg.channel?.id || msg.channelId || '');
+            const pendingIndex = pendingTicketContexts.findIndex(item => !channelId || !item.channelId || item.channelId === channelId);
+            const pendingContext = pendingIndex >= 0 ? pendingTicketContexts.splice(pendingIndex, 1)[0] : null;
+            const activeKinds = ['guild', 'global'].filter(kind => getRaid(key, kind).status === 'active');
+            const kind = pendingContext?.kind || (activeKinds.length === 1 ? activeKinds[0] : 'guild');
+            const raid = pendingContext?.raid || getRaid(key, kind);
 
             if (raid.status === 'limit' && raid.limitResetAt === limit.resetAt && raid.limitTimer) {
                 return 'limit-already-handled';
@@ -537,7 +542,7 @@ const createBoss2Manager = (state, configManager) => {
 
             const remaining = limit.resetAt - Date.now();
             if (remaining <= 0) {
-                log.warn(`${prefix()}Limit timestamp sudah lewat, skip.`);
+                log.warn(`${prefix(kind)}Limit timestamp sudah lewat, skip.`);
                 return 'limit-past';
             }
 
@@ -548,7 +553,7 @@ const createBoss2Manager = (state, configManager) => {
             raid.fighting = false;
             raid.awaitingTicketAfterFight = false;
 
-            log.warn(`${prefix()}🚫 Limit fight tercapai. Boss2 dijeda untuk guild ini.`);
+            log.warn(`${prefix(kind)}🚫 Limit fight tercapai. Boss2 dijeda untuk jenis boss ini.`);
             log.info(`${prefix()}⏰ Reset: ${formatWib(limit.resetAt)} WIB (${formatCountdown(limit.resetAt)})`);
 
             const onReset = () => {
@@ -560,7 +565,7 @@ const createBoss2Manager = (state, configManager) => {
                 raid.limitResetAt = null;
                 if (raid.status !== 'limit') return;
 
-                log.success(`${prefix()}⏰ Limit reset! Coba resume boss yang masih aktif.`);
+                log.success(`${prefix(kind)}⏰ Limit reset! Coba resume boss yang masih aktif.`);
                 this.resumeAfterLimit(raid, settings).catch(err => {
                     log.error(`${prefix()}Gagal resume: ${err.message}`);
                     if (raid.status === 'limit') raid.status = 'idle';
