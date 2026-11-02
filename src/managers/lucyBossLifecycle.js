@@ -124,7 +124,12 @@ const createLucyBossLifecycleManager = (state, configManager) => {
         const expire = () => {
             timers[kind].delete(raid.expiryTimer);
             raid.expiryTimer = null;
-            if (raid.status === 'active' && raid.endsAt === endsAt) endRaid(kind, raid, 'expired');
+            if (raid.status !== 'active' || raid.endsAt !== endsAt) return;
+            if (Date.now() < endsAt) {
+                scheduleExpiry(kind, raid, endsAt);
+                return;
+            }
+            endRaid(kind, raid, 'expired');
         };
         raid.expiryTimer = setTimeout(expire, Math.min(MAX_TIMER_MS, endsAt - Date.now()));
         timers[kind].add(raid.expiryTimer);
@@ -250,6 +255,7 @@ const createLucyBossLifecycleManager = (state, configManager) => {
                     clearTimer(kind, raid);
                     if (raid.nextFightTimer) clearTimeout(raid.nextFightTimer);
                     raid.nextFightTimer = null;
+                    raid.pending = false;
                 }
                 timers[kind].clear();
             }
