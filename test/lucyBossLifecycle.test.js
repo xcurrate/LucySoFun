@@ -1,0 +1,198 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const createManager = require('../src/managers/lucyBossLifecycle');
+const { parseLucyBossMessage, parseTicket } = createManager;
+
+const LUCY_ID = '1438615298012872817';
+
+const bossMessage = (kind, overrides = {}) => ({
+    id: kind + '-message',
+    guildId: 'guild-1',
+    channel: { id: 'channel-1' },
+    author: { id: LUCY_ID },
+    content: '',
+    embeds: [],
+    components: [{
+        type: 17,
+        components: [
+            { type: 10, content: kind === 'guild' ? '## Guild Boss Telah Muncul!' : '## Global Raid Boss Telah Muncul!' },
+            { type: 10, content: '⏳ Berakhir <t:1999999999:R>' },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: false }] }
+        ]
+    }],
+    clicks: [],
+    clickButton: async function(id) { this.clicks.push(id); },
+    ...overrides
+});
+
+const ticketMessage = (overrides = {}) => ({
+    id: 'ticket-prompt',
+    guildId: 'guild-1',
+    channel: { id: 'channel-1' },
+    author: { id: LUCY_ID },
+    content: 'Kamu punya **3** / **5** ticket.',
+    components: [{
+        type: 17,
+        components: [{
+            type: 1,
+            components: [
+                { type: 2, custom_id: 'raid:ticket:yes', disabled: false },
+                { type: 2, custom_id: 'raid:ticket:no', disabled: false }
+            ]
+        }]
+    }],
+    clicks: [],
+    clickButton: async function(id) { this.clicks.push(id); },
+    ...overrides
+});
+
+function setup() {
+    const state = {};
+    const settings = {
+        guild: { enabled: true, fightsPerBoss: 3 },
+        global: { enabled: true, fightsPerBoss: 3 }
+    };
+    const manager = createManager(state, {
+        getLucyBossLifecycleSettings: kind => settings[kind]
+    });
+    manager.setRunning(true);
+    return { manager, settings };
+}
+
+
+test('new lifecycle claims enabled Guild/Global messages so Boss2 cannot double-fight them', async () => {
+    const { manager, settings } = setup();
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    const other = bossMessage('guild', {
+        id: 'other-guild',
+        guildId: 'guild-2',
+        channel: { id: 'channel-2' }
+    });
+
+    // setup() starts the lifecycle manager, matching a running Lucy runtime.
+    assert.equal(manager.ownsMessage(guild), true);
+    assert.equal(manager.ownsMessage(global), true);
+    assert.equal(manager.ownsMessage(other), true, 'unrestricted settings allow the configured lifecycle to own it');
+
+    settings.guild.enabled = false;
+    assert.equal(manager.ownsMessage(guild), false, 'disabled Guild Boss falls back to Boss2');
+    assert.equal(manager.ownsMessage(global), true, 'Global Raid Boss remains independently owned');
+
+    await manager.handle(global);
+    const ticket = ticketMessage();
+    assert.equal(manager.ownsMessage(ticket), true, 'ticket confirmation belongs to the pending lifecycle fight');
+    manager.stop();
+});
+
+test('parses nested Discord type 17/10/2 components without message content or embeds', () => {
+    const parsed = parseLucyBossMessage(bossMessage('global'));
+    assert.equal(parsed.isGlobalAppear, true);
+    assert.equal(parsed.isGuildAppear, false);
+    assert.equal(parsed.buttonActive, true);
+    assert.equal(parsed.endsAt, 1999999999000);
+});
+
+test('keeps Guild Boss and Global Raid Boss lifecycle state independent', async () => {
+    const { manager } = setup();
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+
+    assert.equal(await manager.handle(guild), 'appear');
+    assert.equal(await manager.handle(global), 'appear');
+    assert.equal(manager.getRaidState('guild', 'guild-1').status, 'active');
+    assert.equal(manager.getRaidState('global', 'guild-1').status, 'active');
+    assert.notEqual(manager.getRaidState('guild', 'guild-1'), manager.getRaidState('global', 'guild-1'));
+    assert.deepEqual(guild.clicks, ['raid:fight']);
+    assert.deepEqual(global.clicks, ['raid:fight']);
+    manager.stop();
+});
+
+test('ticket confirmation is associated with the prior pending boss context', async () => {
+    const { manager } = setup();
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
+    await manager.handle(global);
+
+    const prompt = ticketMessage({ content: 'Global Raid Boss: Kamu punya **3** / **5** ticket.' });
+    assert.equal(parseTicket(prompt).ticketLeft, 3);
+    assert.equal(await manager.handle(prompt), 'ticket-accepted');
+    assert.deepEqual(prompt.clicks, ['raid:ticket:yes']);
+    assert.equal(manager.getRaidState('global', 'guild-1').fightsDone, 1);
+    assert.equal(manager.getRaidState('guild', 'guild-1').fightsDone, 0);
+    manager.stop();
+});
+
+test('Global Raid Boss defeat ends immediately and clears its old expiry context', async () => {
+    const { manager } = setup();
+    const guild = bossMessage('guild');
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
+    await manager.handle(global);
+    const oldEndsAt = manager.getRaidState('global', 'guild-1').endsAt;
+    assert.ok(oldEndsAt);
+
+    const defeated = bossMessage('global', {
+        id: 'global-defeated',
+        components: [{ type: 17, components: [{ type: 10, content: 'Global Raid Boss Telah Dikalahkan!' }] }]
+    });
+    assert.equal(await manager.handle(defeated), 'defeated');
+    const raid = manager.getRaidState('global', 'guild-1');
+    assert.equal(raid.status, 'defeated');
+    assert.equal(raid.endsAt, null);
+    assert.equal(raid.expiryTimer, null);
+    const guildRaid = manager.getRaidState('guild', 'guild-1');
+    assert.equal(guildRaid.status, 'active');
+    assert.ok(guildRaid.expiryTimer, 'Guild Boss expiry timer must remain isolated and active');
+    manager.stop();
+});
+
+
+test('boss expiry timer ends only its own lifecycle', async () => {
+    const { manager } = setup();
+    const endsAt = Math.floor(Date.now() / 1000) + 1;
+    const guild = bossMessage('guild', {
+        components: [{
+            type: 17,
+            components: [
+                { type: 10, content: 'Guild Boss Telah Muncul!' },
+                { type: 10, content: `Berakhir <t:${endsAt}:R>` },
+                { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: false }] }
+            ]
+        }]
+    });
+    const global = bossMessage('global', { id: 'global-message' });
+    await manager.handle(guild);
+    await manager.handle(global);
+
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    assert.equal(manager.getRaidState('guild', 'guild-1').status, 'expired');
+    assert.equal(manager.getRaidState('global', 'guild-1').status, 'active');
+    manager.stop();
+});
+
+test('Guild Boss escape ends only the Guild Boss lifecycle', async () => {
+    const { manager } = setup();
+    await manager.handle(bossMessage('guild'));
+    await manager.handle(bossMessage('global', { id: 'global-message' }));
+
+    const escaped = bossMessage('guild', {
+        id: 'guild-escaped',
+        components: [{ type: 17, components: [{ type: 10, content: 'GUILD BOSS KABUR!' }] }]
+    });
+    assert.equal(await manager.handle(escaped), 'escaped');
+    assert.equal(manager.getRaidState('guild', 'guild-1').status, 'escaped');
+    assert.equal(manager.getRaidState('global', 'guild-1').status, 'active');
+    manager.stop();
+});
+
+test('duplicate boss message does not trigger a second fight click', async () => {
+    const { manager } = setup();
+    const msg = bossMessage('guild');
+    await manager.handle(msg);
+    assert.equal(await manager.handle(msg), 'duplicate');
+    assert.deepEqual(msg.clicks, ['raid:fight']);
+    manager.stop();
+});
