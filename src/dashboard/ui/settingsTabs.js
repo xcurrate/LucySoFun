@@ -479,7 +479,7 @@ ${renderRestSettings(config.settings?.rest)}
         `;
     }
 
-    function renderLucySettings({ config, boss2 = {}, bossLifecycle = {}, gems = {}, adventure = {}, lucyControl = {} }) {
+    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, lucyControl = {} }) {
         return `
                     <div id="tab-lucy-commands" class="tab-content">
                         <div class="category-heading">
@@ -544,6 +544,9 @@ ${renderRestSettings(config.settings?.rest)}
                             <input type="text" name="boss2ButtonId" value="${escapeHtml(boss2.buttonId || '')}" placeholder="raid:fight">
                             <label>Jumlah Fight per Boss (1-3)</label>
                             <input type="number" min="1" max="3" name="boss2FightsPerBoss" value="${boss2.fightsPerBoss ?? 3}" placeholder="3">
+                            <label>Channel Privat Pemeriksaan Tiket Guild & Global</label>
+                            <input type="text" name="boss2TicketStatusChannelId" value="${escapeHtml(boss2.ticketStatusChannelId || '')}" placeholder="Discord Channel ID khusus/private">
+                            <div class="input-hint">Boss2 akan mengirim `lboss t` hanya ke channel ini setiap kali Lucy meminta konfirmasi tiket. Pastikan channel hanya dapat dilihat oleh akunmu.</div>
                             <label>Jeda sebelum tiap Fight (ms)</label>
                             <div class="row">
                                 <div class="col"><input type="number" min="0" name="boss2DelayMin" value="${boss2.delayMinMs ?? 1000}" placeholder="Min"></div>
@@ -552,22 +555,6 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </div>
 
-                    <div id="tab-lucy-boss-lifecycle" class="tab-content">
-                        <div class="category-heading"><div><span class="section-label">Lucy</span><h3>⚔️ Guild & Global Boss Lifecycle</h3></div></div>
-                        <div class="input-hint">Aktifkan lifecycle baru secara terpisah. Saat aktif, lifecycle ini mengambil alih boss terkait dari Boss2 agar tidak terjadi klik Fight ganda. Jika OFF, Boss2 kembali menangani jenis boss tersebut. Boss2 tetap menangani jenis boss lainnya.</div>
-                        <div class="card"><label>👑 GUILD BOSS</label>
-                            <div class="toggle-row"><span>Enable Guild Boss Lifecycle</span><input type="checkbox" name="lucyBossEnabled" ${bossLifecycle.guild?.enabled === true ? "checked" : ""}></div>
-                            <label>Allowed Guilds (kosong = semua)</label><input type="text" name="lucyBossGuilds" value="${escapeHtml((bossLifecycle.guild?.allowedGuilds || []).join(","))}" placeholder="Guild ID, pisahkan dengan koma">
-                            <label>Allowed Channels (kosong = semua)</label><input type="text" name="lucyBossChannelIds" value="${escapeHtml((bossLifecycle.guild?.channelIds || []).join(","))}" placeholder="Channel ID, pisahkan dengan koma">
-                            <label>Jumlah Fight per Boss (1-20)</label><input type="number" min="1" max="20" name="lucyBossFightsPerBoss" value="${bossLifecycle.guild?.fightsPerBoss ?? 3}">
-                        </div>
-                        <div class="card"><label>🌐 GLOBAL RAID BOSS</label>
-                            <div class="toggle-row"><span>Enable Global Raid Boss Lifecycle</span><input type="checkbox" name="globalRaidBossEnabled" ${bossLifecycle.global?.enabled === true ? "checked" : ""}></div>
-                            <label>Allowed Guilds (kosong = semua)</label><input type="text" name="globalRaidBossGuilds" value="${escapeHtml((bossLifecycle.global?.allowedGuilds || []).join(","))}" placeholder="Guild ID, pisahkan dengan koma">
-                            <label>Allowed Channels (kosong = semua)</label><input type="text" name="globalRaidBossChannelIds" value="${escapeHtml((bossLifecycle.global?.channelIds || []).join(","))}" placeholder="Channel ID, pisahkan dengan koma">
-                            <label>Jumlah Fight per Boss (1-20)</label><input type="number" min="1" max="20" name="globalRaidBossFightsPerBoss" value="${bossLifecycle.global?.fightsPerBoss ?? 3}">
-                        </div>
-                    </div>
                     <div id="tab-lucy-gems" class="tab-content">
                         <div class="category-heading">
                             <div>
@@ -725,7 +712,6 @@ ${renderRestSettings(config.settings?.rest)}
                                 <span>Lucy</span>
                                 <button type="button" class="settings-menu-item" data-menu-label="Custom Commands Lucy" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands Lucy</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Guild & Global Boss" onclick="switchTab(event, 'tab-lucy-boss-lifecycle')">⚔️ Guild & Global Boss</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
