@@ -631,11 +631,13 @@ const createBoss2Manager = (state, configManager) => {
         stop() {
             for (const timer of state.boss2Timers) clearTimeout(timer);
             state.boss2Timers.clear();
+            if (ticketStatusRequest) ticketStatusRequest.resolve(null);
             pendingTicketContexts.length = 0;
             for (const raid of state.boss2Raids.values()) {
                 raid.limitTimer = null;
                 raid.limitResetAt = null;
                 raid.awaitingTicketAfterFight = false;
+                raid.awaitingTicketStatus = false;
                 raid.nextSpawnAt = null;
                 if (['active', 'limit', 'ended', 'waiting-defeat'].includes(raid.status)) {
                     raid.status = 'idle';
