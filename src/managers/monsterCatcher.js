@@ -86,7 +86,9 @@ const parseWaitTimeMs = (text) => {
 
 module.exports = function createMonsterCatcherManager(state, configManager, loopManager, commandSender, options = {}) {
     const decoder = options.decoder || (buffer => neo3.decodeBuffer(buffer));
-    const downloader = options.downloader || downloadImage;
+    // `downloadImage` dideklarasikan dengan `const` di bawah; gunakan akses
+    // lambat agar const di atas tidak mengevaluasi binding pada TDZ saat init.
+    const getDownloader = () => options.downloader || downloadImage;
     const mc = state.monsterCatcher = state.monsterCatcher || {
         active: false,
         processing: false,
@@ -203,7 +205,7 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         clearRetryTimer();
         try {
             log.info(`${prefix()}Mengunduh sensor: ${imageUrl}`);
-            const buffer = await downloader(imageUrl);
+            const buffer = await getDownloader()(imageUrl);
             log.info(`${prefix()}Memproses gambar dengan neo3.js...`);
             const code = decoder(buffer);
             if (!code) {

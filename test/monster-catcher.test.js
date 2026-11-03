@@ -147,6 +147,18 @@ test('only messages from Lucy bot are processed', async () => {
     assert.equal(sent.length, 0);
 });
 
+test('manager creation without injected downloader does not crash (TDZ regression)', async () => {
+    const state = {
+        client: { isReady: () => true, user: { id: 'me' } },
+        config: { settings: { monsterCatcher: normalizeMonsterCatcherSettings({ enabled: true, autoPauseLoops: false }) } }
+    };
+    const cfg = { getMonsterCatcherSettings: () => normalizeMonsterCatcherSettings(state.config.settings.monsterCatcher) };
+    // Tidak menyuntikkan options.downloader — memakai default downloadImage.
+    const manager = createMonsterCatcherManager(state, cfg, {}, { send: async () => false });
+    assert.ok(manager, 'manager must be created without referencing downloadImage at init');
+    assert.equal(manager.getStatus().enabled, true);
+});
+
 test('disabled manager ignores messages', async () => {
     const { manager, sent, loopEpoch } = setup({ config: { enabled: false } });
     const handled = await manager.handle(withImage());
