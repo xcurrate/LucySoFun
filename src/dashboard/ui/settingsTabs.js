@@ -678,6 +678,9 @@ ${renderRestSettings(config.settings?.rest)}
                                 <span>Jeda semua loop saat penangkapan (recommended)</span>
                                 <input type="checkbox" name="mcAutoPauseLoops" ${monsterCatcher.autoPauseLoops !== false ? 'checked' : ''}>
                             </div>
+                            <label>DM Channel ID Lucy</label>
+                            <input type="text" name="mcDmChannelId" value="${monsterCatcher.dmChannelId || ''}" placeholder="1557002545556230195">
+                            <div class="input-hint">Channel DM tempat Bot Lucy mengirim sensor monster. Sensor hanya diproses bila datang dari channel ini; balasan kode juga dikirim ke channel ini.</div>
                             <label>Tunggu pembaruan sensor jika tidak cocok (detik)</label>
                             <input type="number" min="0" step="1" name="mcRetryWaitSec" value="${Math.round((monsterCatcher.retryWaitMs ?? 60000) / 1000)}" placeholder="60">
                             <label>Batas percobaan (0 = tak terbatas)</label>

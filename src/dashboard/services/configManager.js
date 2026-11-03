@@ -239,7 +239,8 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             enabled: this.toBool(body.mcEnabled),
             autoPauseLoops: this.toBool(body.mcAutoPauseLoops),
             retryWaitMs: Math.max(0, this.toInt(body.mcRetryWaitSec, 60) * 1000),
-            maxRetries: Math.max(0, this.toInt(body.mcMaxRetries, 5))
+            maxRetries: Math.max(0, this.toInt(body.mcMaxRetries, 5)),
+            dmChannelId: String(body.mcDmChannelId || '').trim()
         });
         config.tiketandhb.channelId = body.tiketandhbChannel || '';
         

@@ -42,13 +42,14 @@ function setup({ config = {}, decoder = () => 'ABC123' } = {}) {
     return { state, manager, sent, loopEpoch };
 }
 
+const DM_CHANNEL_ID = '1557002545556230195';
 const sensorMessage = (overrides = {}) => ({
     id: `msg-${Math.random()}`,
     content: '🔎 Ketik 6 karakter pada gambar',
     attachments: { values: () => [] },
     components: [],
     embeds: [],
-    channel: { id: 'dm-1', type: 'DM' },
+    channel: { id: DM_CHANNEL_ID, type: 'DM' },
     author: { id: LUCY_ID },
     guild: null,
     ...overrides
@@ -64,13 +65,14 @@ function withImage(overrides = {}) {
 
 test('normalizeMonsterCatcherSettings fills defaults and coerces values', () => {
     const defaults = normalizeMonsterCatcherSettings(undefined);
-    assert.deepEqual(defaults, { enabled: false, autoPauseLoops: true, retryWaitMs: 60000, maxRetries: 0 });
+    assert.deepEqual(defaults, { enabled: false, autoPauseLoops: true, retryWaitMs: 60000, maxRetries: 0, dmChannelId: DM_CHANNEL_ID });
 
     assert.deepEqual(normalizeMonsterCatcherSettings({ enabled: true, autoPauseLoops: false, maxRetries: 3 }), {
-        enabled: true, autoPauseLoops: false, retryWaitMs: 60000, maxRetries: 3
+        enabled: true, autoPauseLoops: false, retryWaitMs: 60000, maxRetries: 3, dmChannelId: DM_CHANNEL_ID
     });
     assert.equal(normalizeMonsterCatcherSettings({ retryWaitMs: -5 }).retryWaitMs, 60000);
     assert.equal(normalizeMonsterCatcherSettings({ retryWaitMs: 20000 }).retryWaitMs, 20000);
+    assert.equal(normalizeMonsterCatcherSettings({ dmChannelId: '  888  ' }).dmChannelId, '888');
 });
 
 test('messageText strips invisible characters and lowercases', () => {
@@ -105,7 +107,7 @@ test('sensor trigger pauses loops, decodes image, sends code to DM Lucy', async 
     assert.equal(handled, true);
     assert.equal(loopEpoch.paused, true, 'loops must pause on sensor trigger');
     assert.equal(decoded.length, 1);
-    assert.equal(sent.some(s => s.cmd === 'X1K2P3' && s.channelId === 'dm-1'), true, 'recognized code must be sent to the DM channel');
+    assert.equal(sent.some(s => s.cmd === 'X1K2P3' && s.channelId === DM_CHANNEL_ID), true, 'recognized code must be sent to the DM channel');
 });
 
 test('done confirmation resumes loops and ends the catch', async () => {
@@ -157,6 +159,20 @@ test('manager creation without injected downloader does not crash (TDZ regressio
     const manager = createMonsterCatcherManager(state, cfg, {}, { send: async () => false });
     assert.ok(manager, 'manager must be created without referencing downloadImage at init');
     assert.equal(manager.getStatus().enabled, true);
+});
+
+test('sensor from a different DM channel than configured is ignored', async () => {
+    const { manager, sent, loopEpoch } = setup({});
+    const foreignChannel = withImage({ channel: { id: 'other-channel', type: 'DM' } });
+    const handled = await manager.handle(foreignChannel);
+    assert.equal(handled, false, 'sensor from a channel other than the configured Lucy DM must be ignored');
+    assert.equal(sent.length, 0);
+    assert.equal(loopEpoch.paused, false);
+});
+
+test('getStatus reports the configured DM channel ID', async () => {
+    const { manager } = setup({});
+    assert.equal(manager.getStatus().dmChannelId, DM_CHANNEL_ID);
 });
 
 test('disabled manager ignores messages', async () => {

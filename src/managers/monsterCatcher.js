@@ -31,11 +31,16 @@ const toNonNegativeInt = (value, fallback) => {
     return Number.isFinite(num) && num >= 0 ? num : fallback;
 };
 
+const DEFAULT_LUCY_DM_CHANNEL_ID = '1557002545556230195';
+
 const normalizeMonsterCatcherSettings = (raw = {}) => ({
     enabled: raw.enabled === true,
     autoPauseLoops: raw.autoPauseLoops !== false,
     retryWaitMs: Math.max(1000, toNonNegativeInt(raw.retryWaitMs, 60000)),
-    maxRetries: toNonNegativeInt(raw.maxRetries, 0)
+    maxRetries: toNonNegativeInt(raw.maxRetries, 0),
+    // Channel DM khusus Bot Lucy. Diambil dari pesan sensor secara dinamis;
+    // setting ini menjadi pembatas eksplisit + fallback tujuan reply.
+    dmChannelId: String(raw.dmChannelId || DEFAULT_LUCY_DM_CHANNEL_ID).trim()
 });
 
 // Kumpulkan teks dari komponen/embed seperti manager Lucy lain.
@@ -122,8 +127,11 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         mc.retryTimer = null;
     };
 
+    // Channel DM tujuan: prioritaskan channel pesan sensor terakhir, lalu setting eksplisit.
+    const resolveDmChannelId = () => mc.channelId || settings().dmChannelId || '';
+
     const getDmChannel = async (msg = null) => {
-        const channelId = mc.channelId || msg?.channel?.id || '';
+        const channelId = resolveDmChannelId() || msg?.channel?.id || '';
         if (!channelId || !state.client?.isReady()) return null;
         return state.client.channels.cache.get(channelId) || state.client.channels.fetch(channelId).catch(() => null);
     };
@@ -131,7 +139,7 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
     const sendDm = async (text) => {
         if (!state.client?.isReady()) return false;
         if (commandSender?.send) {
-            return commandSender.send(text, 'Monster Catcher', mc.channelId, {
+            return commandSender.send(text, 'Monster Catcher', resolveDmChannelId(), {
                 allowWhilePaused: true,
                 allowDuringMonsterCatch: true,
                 allowDuringRest: true
@@ -292,6 +300,14 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         const text = messageText(msg);
         if (!text) return false;
 
+        // Sensor baru saat tidak ada catch berjalan: hanya terima dari channel DM Lucy yang dikonfigurasi.
+        const incomingChannelId = String(msg.channel?.id || msg.channelId || '');
+        if (!mc.active && text.includes(SENSOR_TRIGGER_TEXT) && cfg.dmChannelId && incomingChannelId && incomingChannelId !== cfg.dmChannelId) {
+            log.info(`${prefix()}Sensor Lucy dari channel lain diabaikan (${incomingChannelId} ≠ ${cfg.dmChannelId}).`);
+            return false;
+        }
+        if (mc.active && !mc.channelId && incomingChannelId) mc.channelId = incomingChannelId;
+
         // Konfirmasi selesai selalu diproses, apapun statusnya.
         if (text.includes(DONE_TRIGGER_TEXT)) {
             if (markHandled(msg)) return false;
@@ -351,6 +367,7 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
                 autoPauseLoops: settings().autoPauseLoops,
                 retryWaitMs: settings().retryWaitMs,
                 maxRetries: settings().maxRetries,
+                dmChannelId: resolveDmChannelId(),
                 status: mc.status,
                 phase: mc.phase,
                 active: !!mc.active,
