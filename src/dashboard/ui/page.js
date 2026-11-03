@@ -18,6 +18,7 @@ function renderPage(config) {
         const boss2 = config.settings.boss2 || {};
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
+        const monsterCatcher = config.settings.monsterCatcher || {};
         const msgFilter = config.settings.messageFilter || {};
         const messageDebug = config.settings.messageDebug || {};
         const voice = config.settings.voice || {};
@@ -99,6 +100,7 @@ function renderPage(config) {
                         boss2,
                         gems,
                         adventure,
+                        monsterCatcher,
                         msgFilter,
                         messageDebug,
                         voice,

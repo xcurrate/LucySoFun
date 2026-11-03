@@ -139,6 +139,38 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
 
                 refreshLogs(); setInterval(refreshLogs, ${CONSTANTS.LOG_REFRESH_INTERVAL_MS});
                 refreshStats(); setInterval(refreshStats, 1000);
+
+                // MONSTER CATCHER STATUS
+                async function refreshMonsterCatcher() {
+                    const target = document.querySelector('[data-mc-status]');
+                    if (!target) return;
+                    try {
+                        const res = await fetch('/api/monster-catcher-status' + profileQuery, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+                        if (!res.ok) throw new Error('HTTP Error');
+                        const data = await res.json();
+                        const acc = (data.accounts || [])[0];
+                        if (!acc) { updateText('[data-mc-status]', '⚠️ Akun belum tersedia'); return; }
+                        const s = acc.status || {};
+                        const phaseLabel = {
+                            idle: 'menunggu sensor',
+                            awaitingVerdict: 'menunggu verifikasi Lucy',
+                            awaitingRefresh: 'menunggu tunda pembaruan',
+                            awaitingNewSensor: 'menunggu sensor baru'
+                        }[s.phase] || s.phase || '-';
+                        const stateLabel = {
+                            IDLE: '🟢 IDLE',
+                            PAUSED: '⏸️ PAUSED (loop dijeda)',
+                            PROCESSING: '🔄 PROCESSING (OCR)',
+                            WAITING_RETRY: '⏳ WAITING_RETRY',
+                            RESUMING: '▶️ RESUMING'
+                        }[s.status] || s.status || '-';
+                        const code = s.lastCode ? 'Kode: ' + s.lastCode : 'Belum ada kode';
+                        updateText('[data-mc-status]', (s.enabled ? '✅ Aktif' : '⛔ Nonaktif') + ' • ' + stateLabel + ' • ' + phaseLabel + ' • ' + code + (s.processing ? ' • memproses' : ''));
+                    } catch (err) {
+                        updateText('[data-mc-status]', 'Status tidak bisa dimuat');
+                    }
+                }
+                refreshMonsterCatcher(); setInterval(refreshMonsterCatcher, 2000);
                 
                 // AUTO FETCH PROFILE SCRIPT
                 async function fetchProfile() {

@@ -479,7 +479,7 @@ ${renderRestSettings(config.settings?.rest)}
         `;
     }
 
-    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, lucyControl = {} }) {
+    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {} }) {
         return `
                     <div id="tab-lucy-commands" class="tab-content">
                         <div class="category-heading">
@@ -656,6 +656,36 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </div>
 
+                    <div id="tab-lucy-monster-catcher" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Lucy</span>
+                                <h3>🐾 Monster Catcher</h3>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <label>🐾 MONSTER CATCHER (neo3.js)</label>
+                            <div class="input-hint">
+                                Mendeteksi sensor monster dari DM Bot Lucy ("Ketik 6 karakter pada gambar"), mengunduh gambar, mengenali kode via <code>neo3.js</code>, lalu mengirimkan hasil ke DM Lucy. Saat sensor terdeteksi, seluruh loop command Lucy dijeda (sisa delay disimpan) dan dilanjutkan kembali setelah Lucy mengirim "Terima kasih, catch selesai". Jika monster tidak cocok, sistem mengirim "ulang", menunggu pembaruan sensor ≈1 menit, lalu mencoba lagi sampai berhasil.
+                            </div>
+                            <div class="toggle-row">
+                                <span>Enable Monster Catcher</span>
+                                <input type="checkbox" name="mcEnabled" ${monsterCatcher.enabled ? 'checked' : ''}>
+                            </div>
+                            <div class="input-hint mc-status-line"><span data-mc-status>Memuat status...</span></div>
+                            <div class="toggle-row">
+                                <span>Jeda semua loop saat penangkapan (recommended)</span>
+                                <input type="checkbox" name="mcAutoPauseLoops" ${monsterCatcher.autoPauseLoops !== false ? 'checked' : ''}>
+                            </div>
+                            <label>Tunggu pembaruan sensor jika tidak cocok (detik)</label>
+                            <input type="number" min="0" step="1" name="mcRetryWaitSec" value="${Math.round((monsterCatcher.retryWaitMs ?? 60000) / 1000)}" placeholder="60">
+                            <label>Batas percobaan (0 = tak terbatas)</label>
+                            <input type="number" min="0" step="1" name="mcMaxRetries" value="${monsterCatcher.maxRetries ?? 5}" placeholder="5">
+                            <div class="input-hint">Proses catch dijalankan hanya untuk pesan dari Bot Lucy di DM. Pesan sensor dan respons tidak diproses dua kali (state: IDLE / PAUSED / PROCESSING / WAITING_RETRY / RESUMING).</div>
+                        </div>
+                    </div>
+
                     <div id="tab-lucy-control" class="tab-content">
                         <div class="category-heading">
                             <div>
@@ -715,6 +745,7 @@ ${renderRestSettings(config.settings?.rest)}
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
+                                <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
                             </div>
                         </div>

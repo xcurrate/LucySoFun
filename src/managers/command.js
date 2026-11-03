@@ -62,6 +62,10 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] ditahan: CAPTCHA sedang aktif.`);
             return false;
         }
+        if (state.monsterCatchPaused && options.allowDuringMonsterCatch !== true) {
+            log.warn(`${accountPrefix(state)}🐾 Command [${cmd}] ditahan: Monster Catcher sedang aktif.`);
+            return false;
+        }
         if (state.rest?.active && options.allowDuringRest !== true) {
             log.info(`${accountPrefix(state)}😴 Command [${cmd}] ditahan: sedang istirahat.`);
             return false;
