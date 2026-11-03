@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const createBoss2Manager = require('../src/managers/boss2');
-const { normalizeBoss2Settings, parseRaidMessage } = createBoss2Manager;
+const { normalizeBoss2Settings, parseRaidMessage, parseTicketStatusMessage } = createBoss2Manager;
 
 const ENDS_AT = Math.floor(Date.now() / 1000) + 600;
 const NEXT_SPAWN = Math.floor(Date.now() / 1000) + 3600;
@@ -150,4 +150,69 @@ test('Auto Boss2 does not fight when disabled, filtered out, or button is disabl
     assert.equal(await enabled.manager.handle(c.msg), 'ended');
 
     assert.deepEqual([...a.clicks, ...b.clicks, ...c.clicks], []);
+});
+
+
+test('parseRaidMessage distinguishes Global Raid Boss and preserves its own lifecycle metadata', () => {
+    const components = [{
+        type: 17,
+        components: [
+            { type: 10, content: '## Global Raid Boss Telah Muncul!' },
+            { type: 10, content: '⏳ Berakhir <t:' + ENDS_AT + ':R>\n⚔ **0** fighter\n-# Fight kamu: 2/3' },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: false }] }
+        ]
+    }];
+    const info = parseRaidMessage({ content: '', embeds: [], components }, normalizeBoss2Settings({}));
+    assert.equal(info.kind, 'global');
+    assert.equal(info.isGlobalAppear, true);
+    assert.equal(info.isGuildAppear, false);
+    assert.equal(info.buttonActive, true);
+    assert.equal(info.endsAt, ENDS_AT * 1000);
+    assert.equal(info.fightsUsed, 2);
+    assert.equal(info.fightsMax, 3);
+});
+
+test('parseTicketStatusMessage reads Guild and Global ticket balances independently', () => {
+    const status = parseTicketStatusMessage({
+        content: '',
+        components: [{
+            type: 17,
+            components: [
+                { type: 10, content: '## 🎟 Ticket Boss Guild' },
+                { type: 10, content: '**nnneozen**, kamu punya **2**/**3** boss ticket!\n-# Diisi ulang <t:1793638800:R>' },
+                { type: 14, divider: true },
+                { type: 10, content: '## 🎟 Ticket Boss Global' },
+                { type: 10, content: '**nnneozen**, kamu punya **1**/**3** boss ticket!\n-# Diisi ulang <t:1793638800:R>' }
+            ]
+        }]
+    });
+    assert.equal(status.guild.left, 2);
+    assert.equal(status.guild.max, 3);
+    assert.equal(status.global.left, 1);
+    assert.equal(status.global.max, 3);
+});
+
+test('Boss2 keeps Guild and Global boss state separate inside the same guild', async () => {
+    const { manager } = setup();
+    const guildDefeated = createMessage([{
+        type: 17,
+        components: [
+            { type: 10, content: '## Guild Boss Telah Dikalahkan!' },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: true }] }
+        ]
+    }], { author: { id: '1438615298012872817' } });
+    const globalDefeated = createMessage([{
+        type: 17,
+        components: [
+            { type: 10, content: '## Global Raid Boss Telah Dikalahkan!' },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: true }] }
+        ]
+    }], { id: 'global-defeated', author: { id: '1438615298012872817' } });
+
+    assert.equal(await manager.handle(guildDefeated.msg), 'ended');
+    assert.equal(await manager.handle(globalDefeated.msg), 'ended');
+    assert.equal(manager.getRaidState('guild-1', 'guild').status, 'ended');
+    assert.equal(manager.getRaidState('guild-1', 'global').status, 'ended');
+    assert.notEqual(manager.getRaidState('guild-1', 'guild'), manager.getRaidState('guild-1', 'global'));
+    manager.stop();
 });
