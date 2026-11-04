@@ -22,6 +22,7 @@ function renderPage(config) {
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
 
         const renderLucyCommandCards = renderSettingsTabs.renderLucyCommandCards || (() => '');
+        const renderMultiAccountCard = renderSettingsTabs.renderMultiAccountCard || (() => '');
 
         // renderSettingsTabs sekarang objek berisi { renderSettingsTabs, renderLucyCommandCards }.
         const pageSettingsTabs = renderSettingsTabs.renderSettingsTabs
@@ -81,12 +82,12 @@ function renderPage(config) {
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
+                    ${!viewingProfileId ? renderMultiAccountCard({ profileOptions }) : ''}
                     ${renderLucyCommandCards({ config })}
 
                     ${pageSettingsTabs({
                         profileOptions,
                         config,
-                        profileOptions,
                         channels,
                         lucyControl,
                         boss2,
