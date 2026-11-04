@@ -32,9 +32,17 @@ function createHarness({ allowIds = [] } = {}) {
         start: async (opts) => { calls.push(`advStart:${opts?.restart}`); return true; },
         stop: () => calls.push('advStop')
     };
+    const emergencyHandler = {
+        resume: () => {
+            calls.push('emergencyResume');
+            state.config.botStatus = { running: true, paused: false };
+            loopManager.startAll();
+        }
+    };
     const handler = createMessageHandler(
         state,
         configManager,
+        emergencyHandler,
         loopManager,
         {},
         telegramService,
@@ -67,8 +75,9 @@ test('Lucy start word enables every Lucy feature and starts its schedulers', asy
     assert.ok(calls.includes('advStart:true'));
     assert.ok(['startOther0', 'startOther1', 'startOther2'].every(call => calls.includes(call)));
     assert.ok(calls.some(call => call.startsWith('tg:') && call.includes('Lucy Started')));
-    assert.ok(!calls.includes('schedulerStartAll'));
-    assert.deepEqual(state.config.botStatus, { running: false, paused: true });
+    assert.ok(calls.includes('emergencyResume'), 'Control Lucy start resumes an emergency-paused account');
+    assert.ok(calls.includes('schedulerStartAll'), 'resume calls scheduler startAll');
+    assert.deepEqual(state.config.botStatus, { running: true, paused: false });
 });
 
 test('Lucy pause word disables every Lucy feature and stops timers', async () => {

@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, loopManager, channelManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, channelManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -229,6 +229,9 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
         configManager.save();
 
         if (enabled) {
+            // Control Lucy start: lanjutkan akun yang terjeda emergency/timeout
+            // secara manual tanpa menunggu recovery linv otomatis.
+            emergencyHandler?.resume?.();
             if (adventureManager) {
                 adventureManager.start({ restart: true }).catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
             }

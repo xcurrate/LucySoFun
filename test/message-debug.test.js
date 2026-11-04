@@ -12,7 +12,7 @@ function createHandler(messageDebug) {
     const handler = createMessageHandler(
         state,
         { getLucyControlCommands: () => ({ startCmd: 'lucy start', pauseCmd: 'lucy pause', allowIds: [] }) },
-        {}, {}, {}, {}, {}, null, null, {}, {}, {}
+        {}, {}, {}, {}, {}, null, null, {}, {}, {}, {}
     );
     return { state, handler };
 }

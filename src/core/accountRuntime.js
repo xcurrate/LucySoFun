@@ -224,6 +224,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const messageHandler = createMessageHandler(
         state,
         configManager,
+        emergencyHandler,
         loopManager,
         channelManager,
         telegramService,

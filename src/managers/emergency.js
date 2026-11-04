@@ -130,6 +130,21 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             }
 
             telegramService.send(`⛔ <b>Bot Paused</b>\nAlasan: ${reason}`);
+        },
+
+        // Dipakai Control Lucy: melanjutkan akun yang terjeda emergency/timeout
+        // secara manual, tanpa menunggu recovery linv.
+        resume() {
+            state.emergencyRecoveryActive = false;
+            clearRecoveryProbe();
+            state.config.botStatus.paused = false;
+            state.config.botStatus.running = true;
+            statsService.syncBotUptime(state);
+            configManager.save();
+            log.success(`${accountPrefix(state)}✅ Bot dilanjutkan manual melalui Control Lucy.`);
+            if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
+            if (channelManager && typeof channelManager.updateActive === 'function') channelManager.updateActive();
+            telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: Control Lucy (start).`);
         }
     };
 };
