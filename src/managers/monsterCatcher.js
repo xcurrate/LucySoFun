@@ -6,10 +6,10 @@ const { removeInvisibleChars, accountPrefix, sleep } = require('../utils');
 // Nama pengenalan gambar (neo3.js) yang diintegrasikan di root proyek.
 const neo3 = require('../../neo3');
 
-const SENSOR_TRIGGER_TEXT = 'ketik 6 karakter pada gambar';
-const DONE_TRIGGER_TEXT = 'terima kasih, catch selesai';
-const MISMATCH_TRIGGER_TEXT = 'monsternya belum cocok';
-const REFRESH_TRIGGER_TEXT = 'monster perlu diperbarui';
+const SENSOR_TRIGGER_TEXT = 'ketik 6 karakter';
+const DONE_TRIGGER_TEXT = 'terima kasih';
+const MISMATCH_TRIGGER_TEXT = 'belum cocok';
+const REFRESH_TRIGGER_TEXT = 'perlu diperbarui';
 
 const STATUS = {
     IDLE: 'IDLE',
@@ -254,6 +254,7 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         mc.status = STATUS.WAITING_RETRY;
         mc.phase = PHASE.AWAITING_REFRESH;
         log.warn(`${prefix()}Sensor gagal/belum cocok (percobaan ${mc.retryCount}). Mengirim "ulang"...`);
+        await sleep(850);
         await sendDm('ulang');
         return 'retry';
     };
