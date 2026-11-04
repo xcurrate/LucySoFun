@@ -81,7 +81,8 @@ function renderPage(config) {
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
-                    ${renderLucyCommandCards({ config, profileOptions })}
+                    ${renderSettingsTabs.renderMultiAccountCard({ profileOptions })}
+                    ${renderLucyCommandCards({ config })}
 
                     ${pageSettingsTabs({
                         config,
