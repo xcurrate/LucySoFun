@@ -190,6 +190,39 @@ function getStyles() {
             .save-toast { border-radius:14px; }
             @media(max-width:760px) { .settings-nav { grid-template-columns:1fr; gap:8px; padding:12px; } .category-heading { padding:16px; } .card { padding:16px; } .action-group .btn { min-width:0; } h2 { font-size:27px; } }
 
+
+            /* Sidebar navigation + compact dashboard layout */
+            .container { max-width: 1440px; margin: 0 auto; padding-top: 76px; padding-left: 8px; }
+            .settings-nav { position: fixed; top: 16px; left: 18px; z-index: 72; display: flex; align-items: center; gap: 14px; width: min(360px, calc(100vw - 36px)); padding: 10px 12px; border: 1px solid #34435f; border-radius: 14px; background: rgba(13,20,34,.96); box-shadow: 0 12px 30px rgba(0,0,0,.28); backdrop-filter: blur(16px); }
+            .hamburger-btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 104px; padding: 10px 12px; border: 1px solid #34435f; border-radius: 10px; background: #1b2940; color: var(--text); cursor: pointer; font-weight: 850; }
+            .hamburger-icon { font-size: 18px; line-height: 1; }
+            .settings-current { font-size: 13px; }
+            .settings-menu.settings-sidebar { display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: 90; width: 292px; max-width: min(86vw, 320px); max-height: 100vh; overflow-y: auto; padding: 22px 16px 28px; border: 0; border-right: 1px solid #34435f; border-radius: 0 18px 18px 0; background: #0d1524; box-shadow: 22px 0 54px rgba(0,0,0,.42); transform: translateX(-105%); transition: transform .22s ease; visibility: hidden; }
+            .settings-menu.settings-sidebar.open { display: flex; transform: translateX(0); visibility: visible; gap: 14px; }
+            .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 4px 4px 18px; border-bottom: 1px solid var(--border); }
+            .sidebar-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: linear-gradient(135deg,#818cf8,#4f46e5); color: white; font-size: 22px; font-weight: 900; }
+            .sidebar-brand strong,.sidebar-brand small { display: block; }
+            .sidebar-brand strong { font-size: 15px; }.sidebar-brand small { color: var(--muted); font-size: 10px; margin-top: 2px; }
+            .settings-select-label { margin: 0; }
+            .settings-category-select { margin-top: 6px !important; }
+            .sidebar-divider { height: 1px; background: var(--border); }
+            .settings-menu-group { display: grid; gap: 5px; }
+            .settings-menu-group > span { padding: 0 8px 4px; color: #8998b2; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .09em; }
+            .settings-menu-item { padding: 10px 12px; border-radius: 10px; font-size: 13px; text-align: left; }
+            .settings-menu-item.active { background: rgba(99,102,241,.16); border-color: rgba(129,140,248,.35); color: #c7d2fe; }
+            .settings-overlay { display: block; position: fixed; inset: 0; z-index: 80; border: 0; background: rgba(2,6,15,.58); opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s ease; }
+            body:has(.settings-sidebar.open) .settings-overlay { opacity: 1; visibility: visible; }
+            .account-chip-wrap { gap: 10px; }
+            .account-chip-group { padding: 5px; border: 1px solid var(--border); border-radius: 14px; background: rgba(8,15,28,.48); }
+            .account-chip { border-radius: 9px; }
+            #lucy-command-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 14px; }
+            #lucy-command-cards > .category-heading, #lucy-command-cards > .input-hint { grid-column: 1 / -1; }
+            #lucy-command-cards > .card { margin-bottom: 12px; }
+            #lucy-command-cards > .category-heading { margin-top: 8px; }
+            .profile-picker-card { display: none !important; }
+            @media(max-width: 900px) { #lucy-command-cards { grid-template-columns: 1fr; } .container { padding-left: 0; } }
+            @media(max-width: 760px) { .settings-nav { top: 8px; left: 8px; width: calc(100vw - 16px); } .container { padding-top: 72px; } }
+
         </style>
         `;
     }
