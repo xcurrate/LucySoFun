@@ -45,6 +45,12 @@
 - `state.lastLucyCommandChannelId` still records the channel of the last Custom/Fixed command so the 40s Lucy-response timeout and the `linv` recovery probe check that same server.
 - CCTV (`safety.cctv`) now scopes monitoring to `settings.messageFilter.channelIds` / `guildIds` (empty list = all channels) instead of the removed active-channel list.
 
+## Dashboard profile actions
+
+- The MULTI ACCOUNT chips (`profileAction=connect|start|pause:<id>`) live inside the main `#configForm`, so clicking one submits the ENTIRE control-panel form. `POST /save` must therefore treat these as status-only: it toggles the target account (`connectAccount`/`setAccountStatus`) and never runs `applySave` on the target profile, otherwise the panel fields (token/settings/otherCommands) overwrite and reset that profile's own config.
+- Only the profile page's own top buttons (`action=connectProfile|startProfile|pauseProfile`, submitted with `viewingProfileId`) apply the form to the profile being edited.
+- `createSlotPermissionGuard` rewrites `body.token` to the target profile's token for chip actions, but it does not protect the other settings — the status-only rule above is what keeps the profile intact.
+
 ## Fixed Commands lb/lh (satu unit pasangan)
 
 - Fixed Commands `lb` + `lh` adalah SATU UNIT: selalu dikirim berpasangan `lb` → typing (250-600ms) → `lh`. Tidak ada mode "sendiri".

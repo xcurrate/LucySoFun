@@ -25,6 +25,33 @@ async function withDashboard(callback) {
     }
 }
 
+// Builds a fake Discord token whose first segment decodes to the given user id.
+function makeToken(id) {
+    const base64Id = Buffer.from(id, 'utf8').toString('base64').replace(/=+$/, '');
+    return `${base64Id}.abcdef.ghijkl`;
+}
+
+async function withSeededDashboard({ mainConfig, profiles = {} }, callback) {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-save-'));
+    fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(mainConfig));
+    const profilesDir = path.join(baseDir, 'profiles');
+    fs.mkdirSync(profilesDir, { recursive: true });
+    for (const [id, config] of Object.entries(profiles)) {
+        fs.writeFileSync(path.join(profilesDir, `config_${id}.json`), JSON.stringify(config));
+    }
+
+    const { app } = createDashboardApp({ baseDir });
+    const server = app.listen(0);
+    await new Promise(resolve => server.once('listening', resolve));
+
+    try {
+        await callback(`http://127.0.0.1:${server.address().port}`, baseDir);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(baseDir, { recursive: true, force: true });
+    }
+}
+
 test('POST /save parses URL-encoded dashboard data and reports persistence as JSON', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
@@ -390,5 +417,58 @@ test('GET /api/rest-status responds with an account list', async () => {
         const response = await fetch(`${url}/api/rest-status`, { headers: { Authorization: authHeader() } });
         assert.equal(response.status, 200);
         assert.ok(Array.isArray((await response.json()).accounts));
+    });
+});
+
+test('MULTI ACCOUNT chip pause keeps the target profile configuration intact', async () => {
+    const mainId = '100000000000000001';
+    const profileId = '100000000000000002';
+    const profileConfig = {
+        token: makeToken(profileId),
+        botStatus: { running: true, paused: false },
+        settings: { messageFilter: { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false } },
+        otherCommands: [{ text: '!profile', delayMs: 7000, count: 3, channelId: '555', enabled: true }]
+    };
+
+    await withSeededDashboard({
+        mainConfig: {
+            token: makeToken(mainId),
+            botStatus: { running: false, paused: true },
+            multiAccount: { enabled: true, maxAccounts: 2 },
+            settings: {},
+            otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
+        },
+        profiles: { [profileId]: profileConfig }
+    }, async (url, baseDir) => {
+        // The chip buttons submit the whole control-panel form together with profileAction.
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                profileAction: `pause:${profileId}`,
+                token: makeToken(mainId),
+                other1Text: '!main',
+                other1Channel: '111',
+                other1Delay: '5',
+                other1Count: '1',
+                mfEnabled: 'on',
+                mfChannelIds: '',
+                mfGuildIds: ''
+            })
+        });
+
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
+
+        const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
+        assert.deepEqual(savedProfile.settings.messageFilter, { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false }, 'profile settings must not be reset by the panel form');
+        assert.equal(savedProfile.otherCommands[0].text, '!profile');
+        assert.equal(savedProfile.otherCommands[0].channelId, '555');
+        assert.equal(savedProfile.token, makeToken(profileId), 'profile token must be preserved');
+        assert.deepEqual(savedProfile.botStatus, { running: false, paused: true }, 'only the account status changes');
     });
 });

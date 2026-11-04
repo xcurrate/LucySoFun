@@ -517,17 +517,15 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                         return res.status(404).json({ success: false, message: 'Account not found' });
                     }
 
-                    target.config = configManager.applySave(target.config, body);
-                    const saved = saveAccountConfig(target, target.config);
-                    if (!saved) {
-                        return res.status(500).json({ success: false, message: 'Failed to save account configuration' });
-                    }
-
+                    // Chip actions submit the entire control-panel form. Only the
+                    // account status may change here: applying the panel fields
+                    // (token/settings/commands) to the target profile would reset
+                    // that profile's own configuration.
                     const completed = action === 'connect'
                         ? connectAccount(accountId)
                         : setAccountStatus(accountId, action === 'start');
                     if (!completed) return respondError(500, 'Account action could not be completed');
-                    return respondSuccess('Account configuration saved and action completed');
+                    return respondSuccess('Account action completed');
                 }
                 if (accountId && action === 'logout') {
                     if (!logoutAccount(accountId)) return respondError(404, 'Account runtime not found');
