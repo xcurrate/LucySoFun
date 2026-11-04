@@ -628,6 +628,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </aside>
                     <div class="settings-tabs">
+                        ${renderMultiAccountCard({ profileOptions: context.profileOptions || [] })}
                         ${renderMainSettings(context)}
                         ${renderAdvancedSettings(context)}
                         ${renderLucySettings(context)}
