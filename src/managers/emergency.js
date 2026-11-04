@@ -145,6 +145,16 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
             if (channelManager && typeof channelManager.updateActive === 'function') channelManager.updateActive();
             telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: Control Lucy (start).`);
+        },
+
+        // Dipakai tombol START dashboard: hentikan pemantauan linv tanpa
+        // menjalankan ulang loop (startAll ditangani runtime).
+        cancelRecovery() {
+            if (!state.emergencyRecoveryActive && !state.emergencyRecoveryTimer) return false;
+            state.emergencyRecoveryActive = false;
+            clearRecoveryProbe();
+            log.info(`${accountPrefix(state)}🧹 Pemantauan emergency (linv) dihentikan: akun dilanjutkan manual.`);
+            return true;
         }
     };
 };

@@ -381,6 +381,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             // Tombol START profile menghidupkan fitur Lucy.
             if (!wasRuntimeRunning) messageHandler.setLucyFeatures(true);
 
+            // START manual juga harus menghentikan pemantauan linv sisa emergency,
+            // supaya probe 10 menit tidak jalan terus dan tidak me-restart loop.
+            emergencyHandler?.cancelRecovery?.();
+
             if (!state.client) {
                 log.info(`${accountPrefix(state)}🚀 Menjalankan akun paralel.`);
                 clientManager.initialize();
