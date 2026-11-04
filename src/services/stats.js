@@ -91,7 +91,7 @@ const recordCommand = (state, cmd, type) => {
     const accountStats = ensureAccountStats(state);
     const commandStats = accountStats.commands;
     const safeType = type || 'Command';
-    const item = { cmd, type: safeType, at: Date.now(), channelId: state.activeChannelId || null };
+    const item = { cmd, type: safeType, at: Date.now() };
 
     commandStats.total += 1;
     commandStats.byType[safeType] = (commandStats.byType[safeType] || 0) + 1;

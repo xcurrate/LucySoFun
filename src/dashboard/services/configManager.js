@@ -23,6 +23,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         delete config.captcha;
         delete config.autosolver;
         delete config.macrodroidId;
+        delete config.channels;
         delete settings.twoCaptchaKey;
         delete settings.control;
         delete settings.boss;
@@ -50,7 +51,6 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
     ensureShape(config) {
         config.port = config.port || CONSTANTS.DEFAULT_PORT;
         config.botStatus = config.botStatus || { running: false, paused: false };
-        config.channels = Array.isArray(config.channels) ? config.channels : [];
         config.maxLogLines = config.maxLogLines || CONSTANTS.MAX_LOG_LINES;
 
         config.settings = config.settings || {};
@@ -88,11 +88,6 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.multiAccount = config.multiAccount || {};
         config.multiAccount.enabled = true;
         config.multiAccount.maxAccounts = Math.max(0, Math.min(4, this.toInt(body.maxAccounts, config.multiAccount.maxAccounts || 0)));
-
-        const channels = [body.chan1, body.chan2, body.chan3]
-            .filter(ch => ch && String(ch).trim() !== '')
-            .map(ch => String(ch).trim());
-        config.channels = channels;
 
         const readSeconds = (value, fallbackMs) => {
             const fallbackSec = Math.max(0, Math.floor((Number(fallbackMs) || 0) / 1000));

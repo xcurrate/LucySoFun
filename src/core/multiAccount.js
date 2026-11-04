@@ -124,7 +124,6 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
         const selected = firstReady || Array.from(runtimes.values())[0];
         if (!selected) return;
 
-        rootState.activeChannelId = selected.state.activeChannelId;
         rootState.client = selected.state.client;
     }
 

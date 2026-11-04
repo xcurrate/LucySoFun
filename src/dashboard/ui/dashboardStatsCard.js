@@ -29,7 +29,7 @@ function getDashboardStatsCard(snapshot) {
             <div class="stat-card">
                 <div class="stat-label">Status Info</div>
                 <div class="stat-value" data-stat="statusText" style="font-size: 18px;">${escapeHtml(snapshot.status.text)}</div>
-                <div class="stat-note" data-stat="statusNote">Channel aktif: ${escapeHtml(snapshot.status.activeChannelId)}</div>
+                <div class="stat-note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Command</div>
@@ -48,7 +48,7 @@ function getDashboardStatsCard(snapshot) {
             <div class="info-grid">
                 <div class="info-item">
                     <div class="stat-label">Status layanan</div>
-                    <div class="stat-note" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'} • Channel: ${snapshot.status.channelsTotal}</div>
+                    <div class="stat-note" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
                 </div>
             </div>
             <div class="divider"></div>

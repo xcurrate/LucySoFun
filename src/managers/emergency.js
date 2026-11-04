@@ -5,7 +5,7 @@ const statsService = require('../services/stats');
 
 const RECOVERY_PROBE_INTERVAL_MS = 10 * 60 * 1000;
 
-module.exports = (state, configManager, loopManager, channelManager, telegramService) => {
+module.exports = (state, configManager, loopManager, telegramService) => {
     const clearRecoveryProbe = () => {
         if (state.emergencyRecoveryTimer) {
             clearInterval(state.emergencyRecoveryTimer);
@@ -46,7 +46,6 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
         configManager.save();
         log.success(`${accountPrefix(state)}✅ Respons linv Lucy cocok dengan username akun; melanjutkan sesi yang terkena emergency pause.`);
         if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
-        if (channelManager && typeof channelManager.updateActive === 'function') channelManager.updateActive();
         telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: respons <code>linv</code> Lucy berisi username akun ini.`);
     };
 
@@ -57,7 +56,7 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             return;
         }
 
-        const channelId = String(state.lastLucyCommandChannelId || state.activeChannelId || '').trim();
+        const channelId = String(state.lastLucyCommandChannelId || '').trim();
         const channel = channelId ? state.client.channels.cache.get(channelId) : null;
         if (!channel || typeof channel.send !== 'function') {
             log.warn(`${accountPrefix(state)}⚠️ Recovery check linv dilewati: channel aktif tidak tersedia.`);
@@ -143,7 +142,6 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             configManager.save();
             log.success(`${accountPrefix(state)}✅ Bot dilanjutkan manual melalui Control Lucy.`);
             if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
-            if (channelManager && typeof channelManager.updateActive === 'function') channelManager.updateActive();
             telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: Control Lucy (start).`);
         },
 

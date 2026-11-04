@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, configManager, channelManager, messageHandler, telegramService, voiceManager) => ({
+module.exports = (state, configManager, messageHandler, telegramService, voiceManager) => ({
     initialize() {
         if (state.client) {
             log.warn(`${accountPrefix(state)}🔄 Merestart sesi Discord...`);
@@ -19,7 +19,6 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
             state.accountUsername = state.client.user.tag || state.client.user.username || '';
             log.success(`${accountPrefix(state)}✅ Login Sukses: ${state.client.user.tag}`);
             telegramService.send(`🤖 <b>Bot Started</b>\nUser: ${state.client.user.tag}`);
-            channelManager.updateActive();
 
             state.config.botStatus = state.config.botStatus || { running: false, paused: true };
             if (typeof state.config.botStatus.running !== 'boolean') state.config.botStatus.running = false;

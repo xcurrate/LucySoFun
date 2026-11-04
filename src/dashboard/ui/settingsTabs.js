@@ -48,20 +48,13 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderMainSettings({ config, profileOptions, channels, homePageCards = '' }) {
+    function renderMainSettings({ config, profileOptions, homePageCards = '' }) {
         return `
                     <div id="tab-main" class="tab-content active">
 
                         <div class="card">
                             <label>🔐 TEMPLATE TOKEN / KONFIG UTAMA</label>
                             <input type="password" name="token" value="${config.token || ''}" placeholder="Token">
-                        </div>
-
-                        <div class="card">
-                            <label>📡 ACTIVE CHANNELS (max 3)</label>
-                            <input type="text" name="chan1" value="${channels[0] || ''}" placeholder="Channel ID 1">
-                            <input type="text" name="chan2" value="${channels[1] || ''}" placeholder="Channel ID 2">
-                            <input type="text" name="chan3" value="${channels[2] || ''}" placeholder="Channel ID 3">
                         </div>
 
                         ${homePageCards}

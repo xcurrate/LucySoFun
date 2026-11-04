@@ -42,7 +42,7 @@ test('POST /save parses URL-encoded dashboard data and reports persistence as JS
         assert.deepEqual(await response.json(), { success: true, message: 'Configuration saved' });
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(savedConfig.token, 'saved-token');
-        assert.deepEqual(savedConfig.channels, ['12345']);
+        assert.equal(savedConfig.channels, undefined, 'channel card removed: no channels persisted');
     });
 });
 

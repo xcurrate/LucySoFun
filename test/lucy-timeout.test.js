@@ -25,7 +25,6 @@ function createSender({ timeoutMs = 300 } = {}) {
         otherCommandDelays: {},
         rest: { active: false },
         monsterCatchPaused: false,
-        activeChannelId: 'c1',
         client: {
             isReady: () => true,
             user: { id: 'self', username: SELF_USERNAME, tag: `${SELF_USERNAME}#0001` },
@@ -43,7 +42,7 @@ function createSender({ timeoutMs = 300 } = {}) {
     });
 
     const emergencyHandler = { pause: (reason) => { pausedReason = reason; } };
-    const sender = createCommandSender(state, {}, emergencyHandler);
+    const sender = createCommandSender(state, emergencyHandler);
 
     const lucyMsg = (over = {}) => ({
         author: { id: LUCY_ID },

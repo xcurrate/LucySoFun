@@ -16,7 +16,7 @@ LucySoFun adalah selfbot Discord yang dikhususkan sepenuhnya untuk **Lucy** — 
 - 🎮 **Lucy Control** — kata kunci start/pause via Discord untuk menghidupkan/mematikan seluruh fitur Lucy.
 - 😴 **Auto Rest** — jadwal istirahat (sleep schedule) dan budget istirahat harian.
 - 🔎 **Message Debug** — menangkap dan menampilkan pesan Discord untuk keperluan debugging.
-- 🛡️ **Safety / Message Filter** — filter pesan, mode CCTV, dan proteksi akun.
+- 🛡️ **Safety / Message Filter** — filter pesan, mode CCTV (memantau mention/reply di channel yang diatur pada filter pesan), dan proteksi akun.
 - 📊 **Dashboard Web** — kontrol penuh melalui browser (lihat di bawah).
 
 ## Persyaratan
@@ -50,7 +50,6 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
   "port": 2028,
   "token": "TOKEN_AKUN_DISCORD",
   "botStatus": { "running": false, "paused": true },
-  "channels": [],
   "maxLogLines": 15,
   "settings": {
     "lucyControl": {

@@ -3,7 +3,6 @@ const fs = require('fs');
 
 const createTelegramService = require('../services/telegram');
 const createMacrodroidService = require('../services/macrodroidService');
-const createChannelManager = require('../managers/channel');
 const createBoss2Manager = require('../managers/boss2');
 const { normalizeBoss2Settings } = createBoss2Manager;
 const createAdventureManager = require('../managers/adventure');
@@ -53,6 +52,7 @@ const dropOwOConfig = (config = {}) => {
     delete config.captcha;
     delete config.autosolver;
     delete config.macrodroidId;
+    delete config.channels;
     delete config.settings?.twoCaptchaKey;
     if (config.settings?.messageFilter) delete config.settings.messageFilter.debugOnlyOwO;
     delete config.delays;
@@ -86,7 +86,6 @@ const ensureRuntimeShape = (config = {}) => {
     config.otherCommands = normalizeOtherCommands(config.otherCommands);
     config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
     config.botStatus = config.botStatus || { running: false, paused: true };
-    config.channels = Array.isArray(config.channels) ? config.channels : [];
     config.safety = config.safety || { cctv: false };
     return dropOwOConfig(config);
 };
@@ -95,7 +94,6 @@ const createRuntimeState = ({ config, sharedStats }) => ({
     client: null,
     config: ensureRuntimeShape(config),
     activeToken: config.token || '',
-    activeChannelId: null,
     adventureTimer: null,
     adventurePaused: false,
     adventureProcessing: false,
@@ -165,18 +163,12 @@ const createRuntimeConfigManager = (state, filePath) => ({
         };
     },
 
-    getValidChannels() {
-        const channels = Array.isArray(state.config.channels) ? state.config.channels : [];
-        return channels.filter(c => c && String(c).length > 5);
-    },
-
     updateFromDisk() {
         const diskConfig = this.read();
         if (!diskConfig) return false;
 
         const previousToken = state.activeToken;
         const tokenChanged = diskConfig.token !== state.activeToken;
-        const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
         const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
         const otherCommandsChanged = safeJsonStringify(state.config.otherCommands) !== safeJsonStringify(diskConfig.otherCommands);
         const wasPaused = state.config.botStatus?.paused;
@@ -186,7 +178,7 @@ const createRuntimeConfigManager = (state, filePath) => ({
         const statusChanged = wasPaused !== nowPaused || wasRunning !== nowRunning;
 
         state.config = diskConfig;
-        return { tokenChanged, previousToken, channelsChanged, voiceChanged, otherCommandsChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
+        return { tokenChanged, previousToken, voiceChanged, otherCommandsChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
 });
 
@@ -199,13 +191,12 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     state.persistConfig = () => configManager.save();
     const telegramService = createTelegramService(state);
     const macrodroidService = createMacrodroidService(state);
-    const channelManager = createChannelManager(state, configManager);
     const loopManagerWrapper = {
         stopAll: () => loopManager && loopManager.stopAll(),
         startAll: () => loopManager && loopManager.startAll()
     };
-    const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService);
-    const commandSender = createCommandSender(state, channelManager, emergencyHandler);
+    const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, telegramService);
+    const commandSender = createCommandSender(state, emergencyHandler);
     const boss2Manager = createBoss2Manager(state, configManager);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);
@@ -218,7 +209,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         configManager,
         emergencyHandler,
         loopManager,
-        channelManager,
         telegramService,
         macrodroidService,
         commandSender,
@@ -229,7 +219,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         huntbot2Manager,
         monsterCatcherManager
     );
-    const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, voiceManager);
+    const clientManager = createClientManager(state, configManager, messageHandler, telegramService, voiceManager);
 
     const otherCommandReadyWatchers = new Map();
     let runtimeRunning = false;
@@ -330,7 +320,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             return restManager.getStatus();
         },
         clientManager,
-        channelManager,
         loopManager,
         voiceManager,
         adventureManager,
@@ -362,7 +351,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             }
 
             log.info(`${accountPrefix(state)}✅ Client sudah ready, tetap paused; loop tidak dijalankan.`);
-            channelManager.updateActive();
             return true;
         },
         start() {
@@ -466,7 +454,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const oldLoopSignature = getLoopConfigSignature(oldConfig);
             const oldVoice = safeJsonStringify(oldConfig.settings?.voice || {});
             const oldAdventure = safeJsonStringify(oldConfig.settings?.adventure || {});
-            const oldChannels = safeJsonStringify(oldConfig.channels || []);
             const oldStatus = safeJsonStringify(oldConfig.botStatus || {});
 
             state.config = ensureRuntimeShape(dropOwOConfig(nextConfig || {}));
@@ -475,7 +462,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const tokenChanged = oldToken !== state.activeToken;
             const voiceChanged = oldVoice !== safeJsonStringify(state.config.settings?.voice || {});
             const adventureChanged = oldAdventure !== safeJsonStringify(state.config.settings?.adventure || {});
-            const channelsChanged = oldChannels !== safeJsonStringify(state.config.channels || []);
             const statusChanged = oldStatus !== safeJsonStringify(state.config.botStatus || {});
             const loopConfigChanged = oldLoopSignature !== getLoopConfigSignature(state.config);
 
@@ -488,7 +474,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             restManager.tick();
 
             if (statusChanged) log.info(`${accountPrefix(state)}🔁 Status config berubah: running=${!!state.config.botStatus?.running}, paused=${!!state.config.botStatus?.paused}`);
-            if (channelsChanged) log.info(`${accountPrefix(state)}📡 Config channel berubah (${(state.config.channels || []).length} channel).`);
             if (voiceChanged) log.info(`${accountPrefix(state)}🔊 Config voice berubah: enabled=${state.config.settings?.voice?.enabled === true}, channel=${state.config.settings?.voice?.channelId || '-'}`);
             if (adventureChanged && state.config.settings?.adventure?.enabled !== true) adventureManager.stop();
 

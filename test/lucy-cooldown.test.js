@@ -8,7 +8,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function createSender() {
     const state = { accountId: 'test-account' };
-    const sender = createCommandSender(state, {});
+    const sender = createCommandSender(state);
     return { state, sender };
 }
 

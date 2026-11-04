@@ -3,7 +3,6 @@ module.exports = {
     client: null,
     config: {},
     activeToken: '',
-    activeChannelId: null,
     responseTimeout: null,
     emergencyRecoveryActive: false,
     emergencyRecoveryTimer: null,

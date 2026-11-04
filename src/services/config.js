@@ -60,18 +60,12 @@ module.exports = (state) => ({
         };
     },
 
-    getValidChannels() {
-        const channels = Array.isArray(state.config.channels) ? state.config.channels : [];
-        return channels.filter(c => c && String(c).length > 5);
-    },
-
     updateFromDisk() {
         const diskConfig = this.read();
         if (!diskConfig) return false;
 
         const previousToken = state.activeToken;
         const tokenChanged = diskConfig.token !== state.activeToken;
-        const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
         const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
 
         const wasPaused = state.config.botStatus?.paused;
@@ -83,6 +77,6 @@ module.exports = (state) => ({
 
         state.config = diskConfig;
 
-        return { tokenChanged, previousToken, channelsChanged, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
+        return { tokenChanged, previousToken, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
 });

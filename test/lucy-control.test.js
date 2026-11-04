@@ -44,7 +44,6 @@ function createHarness({ allowIds = [] } = {}) {
         configManager,
         emergencyHandler,
         loopManager,
-        {},
         telegramService,
         null,
         {},

@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, channelManager, emergencyHandler) => ({
+module.exports = (state, emergencyHandler) => ({
     async runLucyAction(action, options = {}) {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const previous = state.lucyActionQueue || Promise.resolve();
@@ -74,9 +74,9 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         if (!state.client?.isReady()) return false;
 
         const requestedChannelId = String(targetChannelId || '').trim();
-        if (!requestedChannelId && !state.activeChannelId && !channelManager.updateActive()) return false;
+        if (!requestedChannelId) return false;
 
-        const channel = state.client.channels.cache.get(requestedChannelId || state.activeChannelId);
+        const channel = state.client.channels.cache.get(requestedChannelId);
         if (!channel) return false;
 
         await channel.sendTyping();
@@ -138,8 +138,8 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         if (state.client?.on && state.lucyMessageTimeoutClient !== state.client) {
             state.lucyMessageTimeoutListener = (msg) => {
                 if (String(msg?.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return;
-                const activeChannelId = String(state.lastLucyCommandChannelId || state.activeChannelId || '');
-                if (activeChannelId && String(msg.channel?.id || '') !== activeChannelId) return;
+                const commandChannelId = String(state.lastLucyCommandChannelId || '');
+                if (commandChannelId && String(msg.channel?.id || '') !== commandChannelId) return;
 
                 const text = this.messageTextOf(msg);
                 const matchesOwnUsername = this.getOwnServerUsername(msg).some(username => text.includes(username));

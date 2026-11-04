@@ -4,7 +4,6 @@
     "running": false,
     "paused": true
   },
-  "channels": [],
   "maxLogLines": 15,
   "settings": {
     "lucyControl": {

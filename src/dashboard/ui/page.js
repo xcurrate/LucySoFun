@@ -5,7 +5,6 @@ function renderPage(config) {
         console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
 
         const { statusText, statusClass } = configManager.computeStatus(config);
-        const channels = config.channels || [];
         const hasTelegram = config.settings?.telegram?.token && config.settings?.telegram?.chatId;
 
         const lucyControl = config.settings.lucyControl || {};
@@ -85,7 +84,6 @@ function renderPage(config) {
                     ${pageSettingsTabs({
                         profileOptions,
                         config,
-                        channels,
                         lucyControl,
                         boss2,
                         gems,

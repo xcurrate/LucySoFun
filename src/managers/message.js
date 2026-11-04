@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, emergencyHandler, loopManager, channelManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -266,10 +266,11 @@ module.exports = (state, configManager, emergencyHandler, loopManager, channelMa
 
         if (msg.author.id === myId || msg.author.bot) return;
 
-        const isActiveChannel = (state.activeChannelId && msg.channel.id === state.activeChannelId) ||
-                                (state.config.channels && state.config.channels.includes(msg.channel.id));
-
-        if (!isActiveChannel) return;
+        const filter = state.config.settings?.messageFilter || {};
+        const channelIds = Array.isArray(filter.channelIds) ? filter.channelIds : [];
+        const guildIds = Array.isArray(filter.guildIds) ? filter.guildIds : [];
+        if (channelIds.length && !channelIds.includes(msg.channel.id)) return;
+        if (guildIds.length && !guildIds.includes(msg.guild?.id)) return;
 
         const isMentioned = msg.mentions?.users?.has(myId) || msg.content.includes(myId);
         const isReplyToMe = msg.type === 'REPLY' && msg.mentions?.repliedUser?.id === myId;

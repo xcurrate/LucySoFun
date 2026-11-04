@@ -38,8 +38,6 @@ module.exports = function createStatsService({ state, runtimeStatsService, confi
             status: {
                 text: statusText,
                 className: statusClass,
-                activeChannelId: runtimeState.activeChannelId || '-',
-                channelsTotal: Array.isArray(config.channels) ? config.channels.length : 0,
                 running: !!runtimeState.config?.botStatus?.running,
                 paused: !!runtimeState.config?.botStatus?.paused,
                 telegram: !!(config.settings?.telegram?.token && config.settings?.telegram?.chatId)

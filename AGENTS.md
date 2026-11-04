@@ -14,7 +14,7 @@
 - Slot state lives in `config.otherCommands[]` (`text`, `delayMs`, `count`, `channelId`, `enabled`). `startOtherCommand`/`stopOtherCommand`/`startAll`/`stopAll` live in `src/managers/loop.js`.
 - Loop gating: `pauseMonsterCatch`/`resumeMonsterCatch` and rest use per-slot delay objects `state.otherCommandDelays[key]` with `remainingMs` so a paused loop resumes with its remaining delay. `clearOtherCommandTimers(index)` clears timers WITHOUT disabling or persisting the slot (used by `startAll`).
 - `startAll()` MUST NOT disable slots: it clears running timers then starts every `enabled` slot, so `activateReadyRuntime` (account connect/reconcile/rest-end/config-change) resumes enabled commands. `stopAll`/`stopOtherCommand` DO disable + persist (correct for pause/stop).
-- Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. Every successful `Other Command X` send (custom 1–3 AND the fixed lb/lh pair 4–5) arms a single Lucy-response emergency timeout via `setLucyResponseTimeout(type)`; the guard `if (state.lucyResponseTimeout) return` ensures at most ONE 40s timeout is armed per pair (lb arms it, lh is skipped). The timeout is cancelled only by a Lucy message in the active channel that includes our per-server username (content or embeds), and otherwise fires `emergencyHandler.pause(...)` for that account only; the `linv` recovery probe runs every 10 minutes and `startAll` resumes the same slots. `state.lastLucyCommandChannelId` records the channel used so timeout/probe checks target the same server.
+- Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. Every successful `Other Command X` send (custom 1–3 AND the fixed lb/lh pair 4–5) arms a single Lucy-response emergency timeout via `setLucyResponseTimeout(type)`; the guard `if (state.lucyResponseTimeout) return` ensures at most ONE 40s timeout is armed per pair (lb arms it, lh is skipped). The timeout is cancelled only by a Lucy message in the command's own channel (`state.lastLucyCommandChannelId`) that includes our per-server username (content or embeds), and otherwise fires `emergencyHandler.pause(...)` for that account only; the `linv` recovery probe runs every 10 minutes and `startAll` resumes the same slots.
 - `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
 - Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images). Both contain only base64 PNG template data; the "owo" snippet inside them is incidental base64, not an OwO reference.
 
@@ -35,8 +35,16 @@
   - `loopManager.pauseMonsterCatch()` sets `state.monsterCatchPaused` and pauses all Custom Command Lucy delays with `reason: 'monster'` (remaining delay preserved).
   - `loopManager.resumeMonsterCatch()` resumes the saved Custom Command delays.
   - `command.js` `sendRaw` blocks normal commands while `state.monsterCatchPaused`; Monster Catcher DM replies pass via `options.allowDuringMonsterCatch: true`.
-- Mon Catcher manager must only handle DM messages from Lucy; dedupe uses a bounded `Set` of processed message ids (`state.monsterCatcher.processedMessageIds`).
-- Dashboard: `/api/monster-catcher-status` route in `src/dashboard/routes.js`; live status chip in the Monster Catcher settings tab polled by `src/dashboard/ui/scripts.js` (`refreshMonsterCatcher`).
+  - Mon Catcher manager must only handle DM messages from Lucy; dedupe uses a bounded `Set` of processed message ids (`state.monsterCatcher.processedMessageIds`).
+  - Dashboard: `/api/monster-catcher-status` route in `src/dashboard/routes.js`; live status chip in the Monster Catcher settings tab polled by `src/dashboard/ui/scripts.js` (`refreshMonsterCatcher`).
+
+## Channels (Active Channels removed)
+
+- The "Active Channels" dashboard card, `config.channels`, `state.activeChannelId`, and `src/managers/channel.js` were removed. There is no global channel list or `channelManager` anymore.
+- Every Lucy command must pass an explicit target channel id (`sendRaw(cmd, type, targetChannelId)`); a send with no target is rejected. Each feature uses its own configured channel (`otherCommands[].channelId`, `fixedCommands`, `adventure.channelId`, `gems.channelId`, `huntbot2.channelId`, etc.).
+- `state.lastLucyCommandChannelId` still records the channel of the last Custom/Fixed command so the 40s Lucy-response timeout and the `linv` recovery probe check that same server.
+- CCTV (`safety.cctv`) now scopes monitoring to `settings.messageFilter.channelIds` / `guildIds` (empty list = all channels) instead of the removed active-channel list.
+
 ## Fixed Commands lb/lh (satu unit pasangan)
 
 - Fixed Commands `lb` + `lh` adalah SATU UNIT: selalu dikirim berpasangan `lb` → typing (250-600ms) → `lh`. Tidak ada mode "sendiri".
