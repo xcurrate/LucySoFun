@@ -14,41 +14,47 @@ module.exports = (state, commandSender) => ({
     async otherCommand(index, remaining) {
         const command = state.config.otherCommands?.[index];
         const key = `other${index + 1}`;
-        if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return;
-
-        // count kosong/0 = infinite.
-        const infinite = !(Number(command.count) > 0);
-        const sendsLeft = infinite
-            ? Infinity
-            : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(command.count));
-        if (state.monsterCatchPaused || state.rest?.active) {
-            this._scheduleOtherCommandDelay(index, sendsLeft, 0);
-            return;
-        }
-
-        let sent = false;
+        state.otherCommandRunning = state.otherCommandRunning || {};
+        state.otherCommandRunning[key] = true;
         try {
-            sent = await commandSender.send(
-                command.text.trim(),
-                `Other Command ${index + 1}`,
-                command.channelId.trim()
-            );
-        } catch (error) {
-            log.error(`${accountPrefix(state)}❌ Gagal Other Command ${index + 1}: ${error.message || error}`);
-        }
+            if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return;
 
-        if (!command.enabled) return;
+            // count kosong/0 = infinite.
+            const infinite = !(Number(command.count) > 0);
+            const sendsLeft = infinite
+                ? Infinity
+                : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(command.count));
+            if (state.monsterCatchPaused || state.rest?.active) {
+                this._scheduleOtherCommandDelay(index, sendsLeft, 0);
+                return;
+            }
 
-        // Hanya command yang benar-benar terkirim yang mengurangi target pengiriman.
-        if (!sent) {
-            this._scheduleOtherCommandDelay(index, sendsLeft, command.delayMs);
-        } else if (sendsLeft > 1) {
-            this._scheduleOtherCommandDelay(index, infinite ? Infinity : sendsLeft - 1, command.delayMs);
-        } else {
-            state.loops[key] = null;
-            command.enabled = false;
-            if (typeof state.persistConfig === 'function') state.persistConfig();
-            log.info(`${accountPrefix(state)}✅ Other Command ${index + 1} selesai (${command.count} pengiriman).`);
+            let sent = false;
+            try {
+                sent = await commandSender.send(
+                    command.text.trim(),
+                    `Other Command ${index + 1}`,
+                    command.channelId.trim()
+                );
+            } catch (error) {
+                log.error(`${accountPrefix(state)}❌ Gagal Other Command ${index + 1}: ${error.message || error}`);
+            }
+
+            if (!command.enabled) return;
+
+            // Hanya command yang benar-benar terkirim yang mengurangi target pengiriman.
+            if (!sent) {
+                this._scheduleOtherCommandDelay(index, sendsLeft, command.delayMs);
+            } else if (sendsLeft > 1) {
+                this._scheduleOtherCommandDelay(index, infinite ? Infinity : sendsLeft - 1, command.delayMs);
+            } else {
+                state.loops[key] = null;
+                command.enabled = false;
+                if (typeof state.persistConfig === 'function') state.persistConfig();
+                log.info(`${accountPrefix(state)}✅ Other Command ${index + 1} selesai (${command.count} pengiriman).`);
+            }
+        } finally {
+            state.otherCommandRunning[key] = false;
         }
     },
 
@@ -133,16 +139,39 @@ module.exports = (state, commandSender) => ({
         log.success(`${accountPrefix(state)}🐾 Monster Catcher selesai: loop dilanjutkan dari sisa delay.`);
     },
 
-    startOtherCommand(index) {
+    startOtherCommand(index, initialDelayMs = 0, options = {}) {
         const command = state.config.otherCommands?.[index];
         if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return false;
 
         const key = `other${index + 1}`;
-        const delay = state.otherCommandDelays?.[key];
-        if (delay?.timer) clearTimeout(delay.timer);
+        const existing = state.otherCommandDelays?.[key];
+        // Saat startAll dipanggil berulang, slot yang masih berjalan tidak di-restart
+        // agar tidak memicu pengiriman beruntun.
+        if (options.skipIfRunning && (existing?.timer || state.otherCommandRunning?.[key])) return true;
+
+        if (existing?.timer) clearTimeout(existing.timer);
         if (state.otherCommandDelays) state.otherCommandDelays[key] = null;
         if (state.loops[key]) clearTimeout(state.loops[key]);
         state.loops[key] = null;
+
+        const startMs = Math.max(0, Number(initialDelayMs) || 0);
+        if (startMs > 0) {
+            // Jeda awal per slot: mencegah semua command berangkat bersamaan saat resume.
+            state.otherCommandDelays = state.otherCommandDelays || {};
+            const delay = { index, remaining: command.count, remainingMs: startMs, startedAt: Date.now(), timer: null };
+            state.otherCommandDelays[key] = delay;
+            delay.timer = setTimeout(() => {
+                if (state.otherCommandDelays?.[key] !== delay) return;
+                state.otherCommandDelays[key] = null;
+                if (state.monsterCatchPaused || state.rest?.active) {
+                    this._scheduleOtherCommandDelay(index, command.count, command.delayMs);
+                    return;
+                }
+                this.otherCommand(index, command.count);
+            }, startMs);
+            return true;
+        }
+
         this.otherCommand(index, command.count);
         return true;
     },
@@ -181,9 +210,16 @@ module.exports = (state, commandSender) => ({
         // Hentikan timer yang sedang berjalan tanpa menonaktifkan/menyimpan command,
         // lalu mulai ulang semua slot yang enabled.
         (state.config.otherCommands || []).forEach((_, index) => this.clearOtherCommandTimers(index));
+        // Mulai slot secara bertahap (bukan serempak) agar tidak mengirim beruntun
+        // ketika resume setelah emergency pause.
+        let staggerMs = 0;
+        let position = 0;
         (state.config.otherCommands || []).forEach((command, index) => {
             if (command?.enabled && command.text?.trim() && command.channelId?.trim()) {
-                this.startOtherCommand(index);
+                // Offset fase berbeda per slot supaya tidak menembak di waktu yang sama.
+                this.startOtherCommand(index, staggerMs + position * 500, { skipIfRunning: true });
+                staggerMs += Math.max(500, Number(command.delayMs) || 1000);
+                position += 1;
             }
         });
 

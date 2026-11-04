@@ -231,11 +231,16 @@ module.exports = (state, configManager, emergencyHandler, loopManager, channelMa
         if (enabled) {
             // Control Lucy start: lanjutkan akun yang terjeda emergency/timeout
             // secara manual tanpa menunggu recovery linv otomatis.
-            emergencyHandler?.resume?.();
+            // resume() sudah memulai ulang semua slot (startAll), jadi jangan
+            // memanggil startOtherCommand lagi agar command tidak terkirim ganda.
+            if (typeof emergencyHandler?.resume === 'function') {
+                emergencyHandler.resume();
+            } else {
+                loopManager?.startAll?.();
+            }
             if (adventureManager) {
                 adventureManager.start({ restart: true }).catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
             }
-            otherCommands.forEach((_, index) => loopManager?.startOtherCommand?.(index));
             log.success(`${accountPrefix(state)}▶️ Lucy start via Discord control.`);
             telegramService?.send?.(`▶️ <b>Lucy Started</b> via Discord command`);
         } else {

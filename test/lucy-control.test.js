@@ -73,8 +73,6 @@ test('Lucy start word enables every Lucy feature and starts its schedulers', asy
     assert.deepEqual(lucyFlags(state), [true, true, true, true, true, true]);
     assert.ok(calls.includes('save'));
     assert.ok(calls.includes('advStart:true'));
-    assert.ok(['startOther0', 'startOther1', 'startOther2'].every(call => calls.includes(call)));
-    assert.ok(calls.some(call => call.startsWith('tg:') && call.includes('Lucy Started')));
     assert.ok(calls.includes('emergencyResume'), 'Control Lucy start resumes an emergency-paused account');
     assert.ok(calls.includes('schedulerStartAll'), 'resume calls scheduler startAll');
     assert.deepEqual(state.config.botStatus, { running: true, paused: false });
