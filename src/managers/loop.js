@@ -1,8 +1,17 @@
 const log = require('../../logger');
-const { randomInt, accountPrefix } = require('../utils');
+const { accountPrefix } = require('../utils');
+const {
+    getCommandSlot,
+    getCommandSlots,
+    setSlotEnabled,
+    resolveDelayMs
+} = require('./commandSlots');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 module.exports = (state, commandSender) => ({
+    slotAt(index) {
+        return getCommandSlot(state.config, Number(index));
+    },
 
     // Pastikan storage loop tersimpan di state runtime masing-masing akun.
     init() {
@@ -12,8 +21,9 @@ module.exports = (state, commandSender) => ({
     },
 
     async otherCommand(index, remaining) {
-        const command = state.config.otherCommands?.[index];
-        const key = `other${index + 1}`;
+        const slot = this.slotAt(index);
+        const command = slot?.command;
+        const key = slot?.key || `other${Number(index) + 1}`;
         state.otherCommandRunning = state.otherCommandRunning || {};
         state.otherCommandRunning[key] = true;
         try {
@@ -44,14 +54,14 @@ module.exports = (state, commandSender) => ({
 
             // Hanya command yang benar-benar terkirim yang mengurangi target pengiriman.
             if (!sent) {
-                this._scheduleOtherCommandDelay(index, sendsLeft, command.delayMs);
+                this._scheduleOtherCommandDelay(index, sendsLeft, resolveDelayMs(command));
             } else if (sendsLeft > 1) {
-                this._scheduleOtherCommandDelay(index, infinite ? Infinity : sendsLeft - 1, command.delayMs);
+                this._scheduleOtherCommandDelay(index, infinite ? Infinity : sendsLeft - 1, resolveDelayMs(command));
             } else {
                 state.loops[key] = null;
-                command.enabled = false;
+                setSlotEnabled(state.config, Number(index), false);
                 if (typeof state.persistConfig === 'function') state.persistConfig();
-                log.info(`${accountPrefix(state)}✅ Other Command ${index + 1} selesai (${command.count} pengiriman).`);
+                log.info(`${accountPrefix(state)}✅ ${slot?.label || `Other Command ${Number(index) + 1}`} selesai (${command.count} pengiriman).`);
             }
         } finally {
             state.otherCommandRunning[key] = false;
@@ -59,8 +69,9 @@ module.exports = (state, commandSender) => ({
     },
 
     _scheduleOtherCommandDelay(index, remaining, delayMs) {
-        const key = `other${index + 1}`;
-        const command = state.config.otherCommands?.[index];
+        const slot = this.slotAt(index);
+        const key = slot?.key || `other${Number(index) + 1}`;
+        const command = slot?.command;
         if (!command?.enabled) return;
 
         state.otherCommandDelays = state.otherCommandDelays || {};
@@ -140,10 +151,11 @@ module.exports = (state, commandSender) => ({
     },
 
     startOtherCommand(index, initialDelayMs = 0, options = {}) {
-        const command = state.config.otherCommands?.[index];
+        const slot = this.slotAt(index);
+        const command = slot?.command;
         if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return false;
 
-        const key = `other${index + 1}`;
+        const key = slot.key;
         const existing = state.otherCommandDelays?.[key];
         // Saat startAll dipanggil berulang, slot yang masih berjalan tidak di-restart
         // agar tidak memicu pengiriman beruntun.
@@ -164,7 +176,7 @@ module.exports = (state, commandSender) => ({
                 if (state.otherCommandDelays?.[key] !== delay) return;
                 state.otherCommandDelays[key] = null;
                 if (state.monsterCatchPaused || state.rest?.active) {
-                    this._scheduleOtherCommandDelay(index, command.count, command.delayMs);
+                    this._scheduleOtherCommandDelay(index, command.count, resolveDelayMs(command));
                     return;
                 }
                 this.otherCommand(index, command.count);
@@ -177,7 +189,8 @@ module.exports = (state, commandSender) => ({
     },
 
     clearOtherCommandTimers(index) {
-        const key = `other${index + 1}`;
+        const slot = this.slotAt(index);
+        const key = slot?.key || `other${Number(index) + 1}`;
         const delay = state.otherCommandDelays?.[key];
         if (delay?.timer) clearTimeout(delay.timer);
         if (state.otherCommandDelays) state.otherCommandDelays[key] = null;
@@ -188,14 +201,14 @@ module.exports = (state, commandSender) => ({
 
     stopOtherCommand(index) {
         this.clearOtherCommandTimers(index);
-        const command = state.config.otherCommands?.[index];
-        if (command) command.enabled = false;
+        const slot = this.slotAt(index);
+        setSlotEnabled(state.config, Number(index), false);
         if (typeof state.persistConfig === 'function') state.persistConfig();
-        log.info(`${accountPrefix(state)}⏹️ Other Command ${index + 1} dihentikan.`);
+        log.info(`${accountPrefix(state)}⏹️ ${slot?.label || `Other Command ${Number(index) + 1}`} dihentikan.`);
     },
 
     stopOtherCommands() {
-        (state.config.otherCommands || []).forEach((_, index) => this.stopOtherCommand(index));
+        getCommandSlots(state.config).forEach(slot => this.stopOtherCommand(slot.index));
     },
 
     // Start All: menjalankan seluruh Custom Command Lucy yang aktif.
@@ -209,16 +222,18 @@ module.exports = (state, commandSender) => ({
 
         // Hentikan timer yang sedang berjalan tanpa menonaktifkan/menyimpan command,
         // lalu mulai ulang semua slot yang enabled.
-        (state.config.otherCommands || []).forEach((_, index) => this.clearOtherCommandTimers(index));
+        const slots = getCommandSlots(state.config);
+        slots.forEach(slot => this.clearOtherCommandTimers(slot.index));
         // Mulai slot secara bertahap (bukan serempak) agar tidak mengirim beruntun
         // ketika resume setelah emergency pause.
         let staggerMs = 0;
         let position = 0;
-        (state.config.otherCommands || []).forEach((command, index) => {
+        slots.forEach(slot => {
+            const command = slot.command;
             if (command?.enabled && command.text?.trim() && command.channelId?.trim()) {
                 // Offset fase berbeda per slot supaya tidak menembak di waktu yang sama.
-                this.startOtherCommand(index, staggerMs + position * 500, { skipIfRunning: true });
-                staggerMs += Math.max(500, Number(command.delayMs) || 1000);
+                this.startOtherCommand(slot.index, staggerMs + position * 500, { skipIfRunning: true });
+                staggerMs += Math.max(500, resolveDelayMs(command));
                 position += 1;
             }
         });
@@ -230,7 +245,7 @@ module.exports = (state, commandSender) => ({
     // stopAll: menghentikan semua loop tanpa men-disable slot, sehingga
     // emergency/resume (mis. recovery linv) bisa startAll kembali slot yang sama.
     stopAll() {
-        (state.config.otherCommands || []).forEach((_, index) => this.clearOtherCommandTimers(index));
+        getCommandSlots(state.config).forEach(slot => this.clearOtherCommandTimers(slot.index));
         if (state.lucyResponseTimeout) {
             clearTimeout(state.lucyResponseTimeout);
             state.lucyResponseTimeout = null;

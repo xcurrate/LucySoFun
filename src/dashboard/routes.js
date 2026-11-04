@@ -633,7 +633,7 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             if (saved) dashboardLog('success', savedAccountId !== 'default' ? savedAccountId : '', `💾 Config dashboard disimpan (${saveTarget === 'main' ? 'main' : 'profile'}).`);
 
             if (saved) {
-                const otherCommandAction = /^other(Command)?(Start|Stop)([1-3])$/.exec(String(body.action || ''));
+                const otherCommandAction = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(body.action || ''));
                 if (otherCommandAction) {
                     const index = Number(otherCommandAction[3]) - 1;
                     const manager = state?.multiAccountManager;

@@ -279,6 +279,8 @@ ${renderRestSettings(config.settings?.rest)}
     }
 
     function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {}, voice = {} }) {
+        const fixedCommands = config?.fixedCommands || {};
+        const fixedCommandOrder = ['lb', 'lh'];
         return `
                     <div id="tab-lucy-commands" class="tab-content">
                         <div class="category-heading">
@@ -287,21 +289,56 @@ ${renderRestSettings(config.settings?.rest)}
                                 <h3>🧩 Custom Commands Lucy</h3>
                             </div>
                         </div>
-                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut.</div>
+                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Delay memakai rentang min-max (boleh sama). Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut.</div>
                         ${(config.otherCommands || []).map((command, index) => {
                             const slot = index + 1;
                             const isInfinite = !(Number(command.count) > 0);
+                            const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                            const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
                             return `
                                 <div class="card">
                                     <label>Custom Command Lucy ${slot}</label>
                                     <label>Command Text</label>
                                     <input type="text" name="other${slot}Text" value="${escapeHtml(command.text)}" placeholder="Contoh: !test">
                                     <div class="row">
-                                        <div class="col"><label>Delay / Jeda (detik)</label><input type="number" min="0" step="1" name="other${slot}Delay" value="${Math.floor((command.delayMs || 0) / 1000)}"></div>
+                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMin" value="${minSec}"></div>
+                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMax" value="${maxSec}"></div>
                                         <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other${slot}Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
                                     </div>
                                     <label>Target Channel</label>
                                     <input type="text" name="other${slot}Channel" value="${escapeHtml(command.channelId)}" placeholder="Discord Channel ID">
+                                    <div class="action-group" style="margin-top: 12px;">
+                                        <button type="submit" name="action" value="otherCommandStart${slot}" class="btn btn-start">▶ START</button>
+                                        <button type="submit" name="action" value="otherCommandStop${slot}" class="btn btn-pause">⏸ STOP</button>
+                                        <span class="input-hint">${command.enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`}</span>
+                                    </div>
+                                </div>`;
+                        }).join('')}
+
+                        <div class="category-heading" style="margin-top: 22px;">
+                            <div>
+                                <span class="section-label">Lucy</span>
+                                <h3>📌 Command Tetap (lh &amp; lb)</h3>
+                            </div>
+                        </div>
+                        <div class="input-hint">Teks command sudah tetap (tidak perlu diisi). Cukup atur channel dan delay min-max. Command ini ikut terjeda otomatis saat Lucy tidak merespons.</div>
+                        ${fixedCommandOrder.map((key, offset) => {
+                            const slot = 4 + offset;
+                            const command = fixedCommands?.[key] || {};
+                            const isInfinite = !(Number(command.count) > 0);
+                            const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                            const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                            return `
+                                <div class="card">
+                                    <label>Command Tetap: ${escapeHtml(key)}</label>
+                                    <div class="input-hint">Command text: <strong>${escapeHtml(key)}</strong> (terkunci)</div>
+                                    <div class="row">
+                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMin" value="${minSec}"></div>
+                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMax" value="${maxSec}"></div>
+                                        <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other${slot}Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
+                                    </div>
+                                    <label>Target Channel</label>
+                                    <input type="text" name="other${slot}Channel" value="${escapeHtml(command.channelId || '')}" placeholder="Discord Channel ID">
                                     <div class="action-group" style="margin-top: 12px;">
                                         <button type="submit" name="action" value="otherCommandStart${slot}" class="btn btn-start">▶ START</button>
                                         <button type="submit" name="action" value="otherCommandStop${slot}" class="btn btn-pause">⏸ STOP</button>
@@ -566,9 +603,11 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </div>
 
+<div class="settings-tabs">
 ${renderMainSettings(context)}
 ${renderAdvancedSettings(context)}
 ${renderLucySettings(context)}
+        </div>
         `;
     }
 

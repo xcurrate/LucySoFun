@@ -12,6 +12,7 @@ const { normalizeGemsSettings } = createGemsManager;
 const createRestManager = require('../managers/rest');
 const { normalizeRestSettings } = createRestManager;
 const createCommandSender = require('../managers/command');
+const { normalizeOtherCommands, normalizeFixedCommands } = require('../managers/commandSlots');
 const createLoopManager = require('../managers/loop');
 const createEmergencyHandler = require('../managers/emergency');
 const createMessageHandler = require('../managers/message');
@@ -82,17 +83,8 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.messageDebug = config.settings.messageDebug || { enabled: false, targetId: '', channelId: '', guildId: '' };
     config.settings.debug2 = config.settings.debug2 === true;
     config.settings.telegram = config.settings.telegram || { token: '', chatId: '' };
-    config.otherCommands = Array.isArray(config.otherCommands) ? config.otherCommands : [];
-    config.otherCommands = [0, 1, 2].map(index => {
-        const command = config.otherCommands[index] || {};
-        return {
-            text: String(command.text || ''),
-            delayMs: Math.max(0, parseInt(command.delayMs, 10) || 5000),
-            count: normalizeSendCount(command.count),
-            channelId: String(command.channelId || ''),
-            enabled: command.enabled === true
-        };
-    });
+    config.otherCommands = normalizeOtherCommands(config.otherCommands);
+    config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
     config.botStatus = config.botStatus || { running: false, paused: true };
     config.channels = Array.isArray(config.channels) ? config.channels : [];
     config.safety = config.safety || { cctv: false };
@@ -251,11 +243,13 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             || settings.adventure?.enabled === true
             || settings.huntbot2?.enabled === true
             || settings.monsterCatcher?.enabled === true
-            || (Array.isArray(state.config.otherCommands) && state.config.otherCommands.some(command => command?.enabled === true));
+            || (Array.isArray(state.config.otherCommands) && state.config.otherCommands.some(command => command?.enabled === true))
+            || Object.values(state.config.fixedCommands || {}).some(command => command?.enabled === true);
     };
 
     const getLoopConfigSignature = (nextConfig = state.config) => safeJsonStringify({
-        otherCommands: nextConfig.otherCommands || []
+        otherCommands: nextConfig.otherCommands || [],
+        fixedCommands: nextConfig.fixedCommands || {}
     });
 
     const activateReadyRuntime = (source = 'start') => {
@@ -406,7 +400,8 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             }
         },
         startOtherCommand(index) {
-            const command = state.config.otherCommands?.[index];
+            const slot = loopManager.slotAt(index);
+            const command = slot?.command;
             if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return false;
 
             if (state.client?.isReady()) return loopManager.startOtherCommand(index);

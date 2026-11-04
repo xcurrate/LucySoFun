@@ -4,6 +4,7 @@ const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
 const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
 const { normalizeSendCount } = require('../../utils');
+const { normalizeOtherCommands, normalizeFixedCommands, FIXED_COMMANDS, setSlotEnabled } = require('../../managers/commandSlots');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
     return {
     get() {
@@ -72,17 +73,8 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.debug2 = config.settings.debug2 === true;
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
         config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
-        config.otherCommands = Array.isArray(config.otherCommands) ? config.otherCommands : [];
-        config.otherCommands = [0, 1, 2].map(index => {
-            const command = config.otherCommands[index] || {};
-            return {
-                text: String(command.text || ''),
-                delayMs: Math.max(0, this.toInt(command.delayMs, 5000)),
-                count: normalizeSendCount(command.count),
-                channelId: String(command.channelId || ''),
-                enabled: command.enabled === true
-            };
-        });
+        config.otherCommands = normalizeOtherCommands(config.otherCommands);
+        config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
 
         // Bersihkan properti OwO yang masih tersisa dari profile lama.
         this.dropOwOConfig(config);
@@ -102,13 +94,41 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             .map(ch => String(ch).trim());
         config.channels = channels;
 
+        const readSeconds = (value, fallbackMs) => {
+            const fallbackSec = Math.max(0, Math.floor((Number(fallbackMs) || 0) / 1000));
+            return Math.max(0, this.toInt(value, fallbackSec)) * 1000;
+        };
+
         config.otherCommands = [0, 1, 2].map(index => {
             const current = config.otherCommands[index] || {};
+            const slot = index + 1;
+            const minMs = readSeconds(body[`other${slot}DelayMin`] ?? body[`other${slot}Delay`], current.delayMinMs ?? current.delayMs);
+            const maxMs = readSeconds(body[`other${slot}DelayMax`] ?? body[`other${slot}Delay`], current.delayMaxMs ?? current.delayMinMs ?? current.delayMs);
             return {
-                text: String(body[`other${index + 1}Text`] || '').trim(),
-                delayMs: Math.max(0, this.toInt(body[`other${index + 1}Delay`], Math.floor((current.delayMs || 5000) / 1000))) * 1000,
-                count: normalizeSendCount(body[`other${index + 1}Count`], normalizeSendCount(current.count)),
-                channelId: String(body[`other${index + 1}Channel`] || '').trim(),
+                text: String(body[`other${slot}Text`] || '').trim(),
+                delayMs: Math.min(minMs, maxMs),
+                delayMinMs: Math.min(minMs, maxMs),
+                delayMaxMs: Math.max(minMs, maxMs),
+                count: normalizeSendCount(body[`other${slot}Count`], normalizeSendCount(current.count)),
+                channelId: String(body[`other${slot}Channel`] || '').trim(),
+                enabled: current.enabled === true
+            };
+        });
+
+        // Command tetap (lb & lh): teks terkunci, hanya channel dan delay yang diatur.
+        const previousFixed = config.fixedCommands || {};
+        config.fixedCommands = {};
+        FIXED_COMMANDS.forEach((fixed, offset) => {
+            const slot = 4 + offset;
+            const current = previousFixed[fixed.key] || {};
+            const minMs = readSeconds(body[`other${slot}DelayMin`] ?? body[`other${slot}Delay`], current.delayMinMs ?? current.delayMs);
+            const maxMs = readSeconds(body[`other${slot}DelayMax`] ?? body[`other${slot}Delay`], current.delayMaxMs ?? current.delayMinMs ?? current.delayMs);
+            config.fixedCommands[fixed.key] = {
+                delayMs: Math.min(minMs, maxMs),
+                delayMinMs: Math.min(minMs, maxMs),
+                delayMaxMs: Math.max(minMs, maxMs),
+                count: normalizeSendCount(body[`other${slot}Count`], normalizeSendCount(current.count)),
+                channelId: String(body[`other${slot}Channel`] || '').trim(),
                 enabled: current.enabled === true
             };
         });
@@ -233,12 +253,9 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
                 config.botStatus.running = false;
                 break;
             default: {
-                const match = /^other(Command)?(Start|Stop)([1-3])$/.exec(String(action || ''));
+                const match = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(action || ''));
                 if (match) {
-                    const index = Number(match[3]) - 1;
-                    config.otherCommands = config.otherCommands || [];
-                    config.otherCommands[index] = config.otherCommands[index] || {};
-                    config.otherCommands[index].enabled = match[2] === 'Start';
+                    setSlotEnabled(config, Number(match[3]) - 1, match[2] === 'Start');
                 }
             }
         }
