@@ -420,7 +420,7 @@ test('GET /api/rest-status responds with an account list', async () => {
     });
 });
 
-test('MULTI ACCOUNT chip pause keeps the target profile configuration intact', async () => {
+test('MULTI ACCOUNT chip actions keep the target profile configuration intact', async () => {
     const mainId = '100000000000000001';
     const profileId = '100000000000000002';
     const profileConfig = {
@@ -430,17 +430,64 @@ test('MULTI ACCOUNT chip pause keeps the target profile configuration intact', a
         otherCommands: [{ text: '!profile', delayMs: 7000, count: 3, channelId: '555', enabled: true }]
     };
 
-    await withSeededDashboard({
-        mainConfig: {
-            token: makeToken(mainId),
-            botStatus: { running: false, paused: true },
-            multiAccount: { enabled: true, maxAccounts: 2 },
-            settings: {},
-            otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
-        },
-        profiles: { [profileId]: profileConfig }
-    }, async (url, baseDir) => {
-        // The chip buttons submit the whole control-panel form together with profileAction.
+    for (const action of ['connect', 'start', 'pause']) {
+        await withSeededDashboard({
+            mainConfig: {
+                token: makeToken(mainId),
+                botStatus: { running: false, paused: true },
+                multiAccount: { enabled: true, maxAccounts: 2 },
+                settings: {},
+                otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
+            },
+            profiles: { [profileId]: profileConfig }
+        }, async (url, baseDir) => {
+            // The chip buttons submit the whole control-panel form together with profileAction.
+            const response = await fetch(`${url}/save`, {
+                method: 'POST',
+                headers: {
+                    Authorization: authHeader(),
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    Accept: 'application/json'
+                },
+                body: new URLSearchParams({
+                    profileAction: `${action}:${profileId}`,
+                    token: makeToken(mainId),
+                    other1Text: '!main',
+                    other1Channel: '111',
+                    other1Delay: '5',
+                    other1Count: '1',
+                    mfEnabled: 'on',
+                    mfChannelIds: '',
+                    mfGuildIds: ''
+                })
+            });
+
+            assert.equal(response.status, 200);
+            assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
+
+            const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
+            assert.deepEqual(savedProfile.settings.messageFilter, { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false }, `chip ${action} must not reset profile settings`);
+            assert.equal(savedProfile.otherCommands[0].text, '!profile');
+            assert.equal(savedProfile.otherCommands[0].channelId, '555');
+            assert.equal(savedProfile.token, makeToken(profileId), `chip ${action} must preserve the profile token`);
+
+            const expectedRunning = action === 'start';
+            assert.deepEqual(savedProfile.botStatus, { running: expectedRunning, paused: !expectedRunning }, `chip ${action} must only change the account status`);
+        });
+    }
+});
+
+test('MULTI ACCOUNT chip start for the main account keeps the main configuration intact', async () => {
+    const mainId = '100000000000000001';
+    const mainConfig = {
+        token: makeToken(mainId),
+        botStatus: { running: false, paused: true },
+        multiAccount: { enabled: true, maxAccounts: 2 },
+        settings: { messageFilter: { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false } },
+        otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
+    };
+
+    await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
             method: 'POST',
             headers: {
@@ -449,12 +496,12 @@ test('MULTI ACCOUNT chip pause keeps the target profile configuration intact', a
                 Accept: 'application/json'
             },
             body: new URLSearchParams({
-                profileAction: `pause:${profileId}`,
+                profileAction: `start:${mainId}`,
                 token: makeToken(mainId),
-                other1Text: '!main',
-                other1Channel: '111',
-                other1Delay: '5',
-                other1Count: '1',
+                other1Text: '',
+                other1Channel: '',
+                other1Delay: '',
+                other1Count: '',
                 mfEnabled: 'on',
                 mfChannelIds: '',
                 mfGuildIds: ''
@@ -462,13 +509,9 @@ test('MULTI ACCOUNT chip pause keeps the target profile configuration intact', a
         });
 
         assert.equal(response.status, 200);
-        assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
-
-        const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
-        assert.deepEqual(savedProfile.settings.messageFilter, { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false }, 'profile settings must not be reset by the panel form');
-        assert.equal(savedProfile.otherCommands[0].text, '!profile');
-        assert.equal(savedProfile.otherCommands[0].channelId, '555');
-        assert.equal(savedProfile.token, makeToken(profileId), 'profile token must be preserved');
-        assert.deepEqual(savedProfile.botStatus, { running: false, paused: true }, 'only the account status changes');
+        const savedMain = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.deepEqual(savedMain.settings.messageFilter, { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false }, 'main config settings must not be reset by its own chip');
+        assert.equal(savedMain.otherCommands[0].text, '!main');
+        assert.deepEqual(savedMain.botStatus, { running: true, paused: false });
     });
 });
