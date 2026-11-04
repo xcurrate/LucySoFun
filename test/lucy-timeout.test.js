@@ -6,6 +6,9 @@ const createCommandSender = require('../src/managers/command');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const LUCY_ID = CONSTANTS.LUCY_BOT_ID;
+const SELF_USERNAME = 'Tester';
+
 function createSender({ timeoutMs = 300 } = {}) {
     const original = CONSTANTS.RESPONSE_TIMEOUT_MS;
     CONSTANTS.RESPONSE_TIMEOUT_MS = timeoutMs;
@@ -15,6 +18,7 @@ function createSender({ timeoutMs = 300 } = {}) {
 
     const state = {
         accountId: 'acc-test',
+        accountUsername: SELF_USERNAME,
         config: { botStatus: { running: true, paused: false }, otherCommands: [] },
         nextAt: {},
         loops: {},
@@ -24,7 +28,7 @@ function createSender({ timeoutMs = 300 } = {}) {
         activeChannelId: 'c1',
         client: {
             isReady: () => true,
-            user: { id: 'self', username: 'Tester', tag: 'Tester#0001' },
+            user: { id: 'self', username: SELF_USERNAME, tag: `${SELF_USERNAME}#0001` },
             channels: { cache: new Map() },
             guilds: { cache: new Map() },
             on: (evt, fn) => { if (evt === 'messageCreate') emit = fn; },
@@ -41,26 +45,84 @@ function createSender({ timeoutMs = 300 } = {}) {
     const emergencyHandler = { pause: (reason) => { pausedReason = reason; } };
     const sender = createCommandSender(state, {}, emergencyHandler);
 
+    const lucyMsg = (over = {}) => ({
+        author: { id: LUCY_ID },
+        channel: { id: 'c1' },
+        content: '',
+        embeds: [],
+        createdTimestamp: Date.now(),
+        ...over
+    });
+
     return {
         state,
         sender,
+        lucyMsg,
         get emit() { return emit; },
         get pausedReason() { return pausedReason; },
         restore: () => { CONSTANTS.RESPONSE_TIMEOUT_MS = original; }
     };
 }
 
-test('Lucy response cancels the 40s timeout for Other Command', async () => {
+test('Lucy message containing our server nickname cancels the 40s timeout', async () => {
     const ctx = createSender();
     const { state, sender, restore } = ctx;
     try {
         await sender.send('!minta', 'Other Command 1', 'c1');
-        assert.ok(state.lucyResponseTimeout, 'timeout should be armed after send');
+        assert.ok(state.lucyResponseTimeout, 'timeout armed after send');
 
-        ctx.emit({ author: { id: CONSTANTS.LUCY_BOT_ID }, channel: { id: 'c1' }, content: 'oke' });
+        ctx.emit(ctx.lucyMsg({ content: `öh kamu **${SELF_USERNAME}**! ada minta?` }));
         await wait(20);
-        assert.equal(state.lucyResponseTimeout, null, 'Lucy message clears the timeout');
-        assert.equal(state.config.botStatus.paused, false, 'no pause when Lucy replied');
+        assert.equal(state.lucyResponseTimeout, null, 'nickname in message clears the timeout');
+        assert.equal(state.config.botStatus.paused, false);
+    } finally {
+        if (state.lucyResponseTimeout) clearTimeout(state.lucyResponseTimeout);
+        restore();
+    }
+});
+
+test('Lucy embed containing our account username cancels the timeout', async () => {
+    const ctx = createSender();
+    const { state, sender, restore } = ctx;
+    try {
+        await sender.send('!minta', 'Other Command 1', 'c1');
+        assert.ok(state.lucyResponseTimeout, 'timeout armed');
+
+        ctx.emit(ctx.lucyMsg({ embeds: [{ description: `Inventory ${SELF_USERNAME}` }] }));
+        await wait(20);
+        assert.equal(state.lucyResponseTimeout, null, 'username in embed clears the timeout');
+    } finally {
+        if (state.lucyResponseTimeout) clearTimeout(state.lucyResponseTimeout);
+        restore();
+    }
+});
+
+test('Lucy message in another channel does NOT cancel the timeout', async () => {
+    const ctx = createSender();
+    const { state, sender, restore } = ctx;
+    try {
+        await sender.send('!minta', 'Other Command 1', 'c1');
+        assert.ok(state.lucyResponseTimeout, 'timeout armed');
+
+        ctx.emit(ctx.lucyMsg({ channel: { id: 'channel-lain' }, content: SELF_USERNAME }));
+        await wait(20);
+        assert.ok(state.lucyResponseTimeout, 'timeout still armed: wrong channel');
+    } finally {
+        if (state.lucyResponseTimeout) clearTimeout(state.lucyResponseTimeout);
+        restore();
+    }
+});
+
+test('Lucy message without our username does NOT cancel the timeout', async () => {
+    const ctx = createSender();
+    const { state, sender, restore } = ctx;
+    try {
+        await sender.send('!minta', 'Other Command 1', 'c1');
+        assert.ok(state.lucyResponseTimeout, 'timeout armed');
+
+        ctx.emit(ctx.lucyMsg({ content: 'hai teman-teman semua!' }));
+        await wait(20);
+        assert.ok(state.lucyResponseTimeout, 'timeout still armed: no username in message');
     } finally {
         if (state.lucyResponseTimeout) clearTimeout(state.lucyResponseTimeout);
         restore();

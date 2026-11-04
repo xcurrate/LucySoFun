@@ -127,13 +127,18 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             return;
         }
 
-        // Batalkan hanya ketika Lucy benar-benar mengirim pesan, sehingga
-        // command yang tidak berbalas akan memicu emergency pause akun ini.
+        // Respons yang valid: pesan dari Lucy di channel aktif yang memuat
+        // username akun ini (nickname per-server), baik di teks maupun embed.
+        // Pesan Lucy lain (chat orang lain, notifikasi, dll.) tidak membatalkan.
         if (state.client?.on && state.lucyMessageTimeoutClient !== state.client) {
             state.lucyMessageTimeoutListener = (msg) => {
-                if (String(msg?.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {
-                    this.clearLucyResponseTimeout();
-                }
+                if (String(msg?.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return;
+                const activeChannelId = String(state.lastLucyCommandChannelId || state.activeChannelId || '');
+                if (activeChannelId && String(msg.channel?.id || '') !== activeChannelId) return;
+
+                const text = this.messageTextOf(msg);
+                const matchesOwnUsername = this.getOwnServerUsername(msg).some(username => text.includes(username));
+                if (matchesOwnUsername) this.clearLucyResponseTimeout();
             };
             state.client.on('messageCreate', state.lucyMessageTimeoutListener);
             state.lucyMessageTimeoutClient = state.client;
@@ -156,5 +161,23 @@ module.exports = (state, channelManager, emergencyHandler) => ({
             state.lucyResponseTimeout = null;
             log.info(`${accountPrefix(state)}✅ Timeout Lucy dibatalkan: respons dari bot Lucy diterima.`);
         }
+    },
+
+    messageTextOf(msg) {
+        const parts = [msg.content || ''];
+        for (const embed of msg.embeds || []) {
+            parts.push(embed.author?.name || '', embed.title || '', embed.description || '', embed.footer?.text || '');
+            for (const field of embed.fields || []) parts.push(field.name || '', field.value || '');
+        }
+        return parts.join('\n').toLowerCase();
+    },
+
+    getOwnServerUsername(msg) {
+        const memberName = msg.guild?.members?.me?.displayName;
+        const username = state.client?.user?.username;
+        const tag = state.client?.user?.tag;
+        return [memberName, username, tag, state.accountUsername]
+            .map(value => String(value || '').trim().toLowerCase())
+            .filter(Boolean);
     }
 });
