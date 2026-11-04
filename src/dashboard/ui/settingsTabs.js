@@ -319,37 +319,41 @@ ${renderRestSettings(config.settings?.rest)}
                                 </div>`;
                         }).join('')}
 
-                        <div class="category-heading" style="margin-top: 22px;">
-                            <div>
-                                <span class="section-label">Lucy</span>
-                                <h3>📌 Command Tetap (lh &amp; lb)</h3>
+                        <details class="command-dropdown">
+                            <summary>📌 Command Tetap (lh &amp; lb) <span class="dropdown-hint">Pengaturan pasangan command</span></summary>
+                            <div class="category-heading" style="margin-top: 22px;">
+                                <div>
+                                    <span class="section-label">Lucy</span>
+                                    <h3>📌 Command Tetap (lh &amp; lb)</h3>
+                                </div>
                             </div>
-                        </div>
-                        <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
-                        ${(() => {
-                            const command = fixedCommands?.lb || fixedCommands?.lh || {};
-                            const isInfinite = !(Number(command.count) > 0);
-                            const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
-                            const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
-                            const channel = command.channelId || '';
-                            const enabled = fixedCommands?.lb?.enabled === true || fixedCommands?.lh?.enabled === true;
-                            return `
-                                <div class="card">
-                                    <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
-                                    <div class="row">
-                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
-                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
-                                        <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
-                                    </div>
-                                    <label>Target Channel</label>
-                                    <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
-                                    <div class="action-group" style="margin-top: 12px;">
-                                        <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
-                                        <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
-                                        <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
-                                    </div>
-                                </div>`;
-                        })()}
+                            <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
+                            ${(() => {
+                                const command = fixedCommands?.lb || fixedCommands?.lh || {};
+                                const isInfinite = !(Number(command.count) > 0);
+                                const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                                const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                                const channel = command.channelId || '';
+                                const enabled = fixedCommands?.lb?.enabled === true || fixedCommands?.lh?.enabled === true;
+                                return `
+                                    <div class="card">
+                                        <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
+                                        <div class="row">
+                                            <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
+                                            <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
+                                            <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
+                                        </div>
+                                        <label>Target Channel</label>
+                                        <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
+                                        <div class="action-group" style="margin-top: 12px;">
+                                            <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
+                                            <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
+                                            <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
+                                        </div>
+                                    </div>`;
+                            })()}
+    
+                        </details>
                     </div>
                 `;
     }
@@ -628,7 +632,6 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </aside>
                     <div class="settings-tabs">
-                        ${renderMultiAccountCard({ profileOptions: context.profileOptions || [] })}
                         ${renderMainSettings(context)}
                         ${renderAdvancedSettings(context)}
                         ${renderLucySettings(context)}
