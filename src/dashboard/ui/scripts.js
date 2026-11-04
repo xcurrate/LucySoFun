@@ -266,17 +266,10 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 target.classList.add('active');
 
                 if (event && event.currentTarget) {
-                    const control = event.currentTarget;
-                    if (control.tagName === 'SELECT') {
-                        const option = control.options[control.selectedIndex];
-                        const currentLabel = document.getElementById('settingsCurrentLabel');
-                        if (currentLabel) currentLabel.textContent = option ? option.textContent.trim() : 'Pengaturan';
-                    } else {
-                        control.classList.add('active');
-                        const label = control.getAttribute('data-menu-label') || control.textContent.trim();
-                        const currentLabel = document.getElementById('settingsCurrentLabel');
-                        if (currentLabel) currentLabel.textContent = label;
-                    }
+                    event.currentTarget.classList.add('active');
+                    const label = event.currentTarget.getAttribute('data-menu-label') || event.currentTarget.textContent.trim();
+                    const currentLabel = document.getElementById('settingsCurrentLabel');
+                    if (currentLabel) currentLabel.textContent = label;
                 }
 
                 closeSettingsMenu();
