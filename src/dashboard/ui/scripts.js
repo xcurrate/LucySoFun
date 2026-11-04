@@ -259,6 +259,12 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 document.querySelectorAll('.settings-menu-item').forEach(el => el.classList.remove('active'));
                 target.classList.add('active');
 
+                // Profile-only controls must never leak into feature pages.
+                const profilePinSection = document.getElementById('profilePinSection');
+                if (profilePinSection) {
+                    profilePinSection.style.display = tabId === 'tab-main' ? '' : 'none';
+                }
+
                 const categorySelect = document.getElementById('settingsCategory');
                 const currentLabel = document.getElementById('settingsCurrentLabel');
                 if (categorySelect) categorySelect.value = tabId;
