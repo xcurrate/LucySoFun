@@ -48,7 +48,7 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderMainSettings({ config, profileOptions, channels }) {
+    function renderMainSettings({ config, profileOptions, channels, homePageCards = '' }) {
         return `
                     <div id="tab-main" class="tab-content active">
 
@@ -63,6 +63,8 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                             <input type="text" name="chan2" value="${channels[1] || ''}" placeholder="Channel ID 2">
                             <input type="text" name="chan3" value="${channels[2] || ''}" placeholder="Channel ID 3">
                         </div>
+
+                        ${homePageCards}
 
                     </div>
 
