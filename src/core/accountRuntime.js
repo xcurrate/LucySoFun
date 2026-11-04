@@ -213,7 +213,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         startAll: () => loopManager && loopManager.startAll()
     };
     const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService);
-    const commandSender = createCommandSender(state, channelManager, emergencyHandler);
+    const commandSender = createCommandSender(state, channelManager);
     const boss2Manager = createBoss2Manager(state, configManager);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);

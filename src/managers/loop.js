@@ -148,14 +148,19 @@ module.exports = (state, commandSender) => ({
         return true;
     },
 
-    stopOtherCommand(index) {
-        const command = state.config.otherCommands?.[index];
+    clearOtherCommandTimers(index) {
         const key = `other${index + 1}`;
         const delay = state.otherCommandDelays?.[key];
         if (delay?.timer) clearTimeout(delay.timer);
         if (state.otherCommandDelays) state.otherCommandDelays[key] = null;
         if (state.loops[key]) clearTimeout(state.loops[key]);
         state.loops[key] = null;
+        delete state.nextAt[key];
+    },
+
+    stopOtherCommand(index) {
+        this.clearOtherCommandTimers(index);
+        const command = state.config.otherCommands?.[index];
         if (command) command.enabled = false;
         if (typeof state.persistConfig === 'function') state.persistConfig();
         log.info(`${accountPrefix(state)}⏹️ Other Command ${index + 1} dihentikan.`);
@@ -168,13 +173,15 @@ module.exports = (state, commandSender) => ({
     // Start All: menjalankan seluruh Custom Command Lucy yang aktif.
     startAll() {
         this.init();
-        this.stopOtherCommands();
 
         if (state.rest?.active) {
             log.info(`${accountPrefix(state)}😴 Start loop ditunda: sedang istirahat.`);
             return false;
         }
 
+        // Hentikan timer yang sedang berjalan tanpa menonaktifkan/menyimpan command,
+        // lalu mulai ulang semua slot yang enabled.
+        (state.config.otherCommands || []).forEach((_, index) => this.clearOtherCommandTimers(index));
         (state.config.otherCommands || []).forEach((command, index) => {
             if (command?.enabled && command.text?.trim() && command.channelId?.trim()) {
                 this.startOtherCommand(index);

@@ -8,6 +8,14 @@
   - `gems`, `boss2`, `adventure`, `lucy-cooldown`, and two `dashboard-save` tests were already failing (as of branch `main` at `c61ef1f`).
   - When adding features, run the full suite and compare `fail` count against the baseline before/after.
 - Usage/installation docs live in `README.md` (created during the Lucy-only refactor; the repo previously had no README).
+
+## Custom Command Lucy loop (Other Commands)
+
+- Slot state lives in `config.otherCommands[]` (`text`, `delayMs`, `count`, `channelId`, `enabled`). `startOtherCommand`/`stopOtherCommand`/`startAll`/`stopAll` live in `src/managers/loop.js`.
+- Loop gating: `pauseMonsterCatch`/`resumeMonsterCatch` and rest use per-slot delay objects `state.otherCommandDelays[key]` with `remainingMs` so a paused loop resumes with its remaining delay. `clearOtherCommandTimers(index)` clears timers WITHOUT disabling or persisting the slot (used by `startAll`).
+- `startAll()` MUST NOT disable slots: it clears running timers then starts every `enabled` slot, so `activateReadyRuntime` (account connect/reconcile/rest-end/config-change) resumes enabled commands. `stopAll`/`stopOtherCommand` DO disable + persist (correct for pause/stop).
+- Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. They must NOT arm the Lucy-response emergency timeout: a custom command is arbitrary text Lucy may not reply to, so an emergency `pause()` would kill the loop after the first send (this was a reported bug; the Lucy-response timeout code was removed from `command.js` and `RESPONSE_TIMEOUT_MS` deleted from `src/constants.js`). `state.lastLucyCommandChannelId` is still recorded for the `linv` recovery probe.
+- `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
 - Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images). Both contain only base64 PNG template data; the "owo" snippet inside them is incidental base64, not an OwO reference.
 
 ## Lucy bot integrations

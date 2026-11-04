@@ -77,7 +77,7 @@ test('command sender blocks commands during rest', async () => {
         config: { botStatus: { running: true, paused: false } },
         client: { isReady() { throw new Error('must not reach the client'); } }
     };
-    const sender = createCommandSender(state, {}, {});
+    const sender = createCommandSender(state, {});
     assert.equal(await sender.send('wh', 'Hunt'), false);
 });
 
@@ -121,7 +121,7 @@ test('command sender blocks commands during Monster Catcher but allows monster D
         activeChannelId: ''
     };
     const channelManager = { updateActive: async () => false };
-    const sender = createCommandSender(state, channelManager, {});
+    const sender = createCommandSender(state, channelManager);
     assert.equal(await sender.send('wh', 'Hunt'), false, 'blocked by monster catch gate before reaching channels');
 
     // With allowDuringMonsterCatch the gate is bypassed: a target channel ID is supplied so

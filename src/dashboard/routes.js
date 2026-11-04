@@ -638,21 +638,27 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                     const index = Number(otherCommandAction[3]) - 1;
                     const manager = state?.multiAccountManager;
                     if (manager) {
-                        const actionMethod = otherCommandAction[2] === 'Start' ? 'startOtherCommand' : 'stopOtherCommand';
+                        const isStart = otherCommandAction[2] === 'Start';
+                        const actionMethod = isStart ? 'startOtherCommand' : 'stopOtherCommand';
                         const acted = typeof manager[actionMethod] === 'function' && manager[actionMethod](savedAccountId, index);
                         dashboardLog(acted ? 'info' : 'warn', savedAccountId !== 'default' ? savedAccountId : '', acted
-                            ? `🧩 Other Command ${index + 1} ${otherCommandAction[2] === 'Start' ? 'dimulai' : 'dihentikan'} tanpa memengaruhi START Global.`
-                            : `⚠️ Other Command ${index + 1} tidak dapat ${otherCommandAction[2] === 'Start' ? 'dimulai' : 'dihentikan'}: runtime akun belum tersedia.`);
+                            ? `🧩 Other Command ${index + 1} ${isStart ? 'dimulai' : 'dihentikan'} tanpa memengaruhi START Global.`
+                            : isStart
+                                ? `⚠️ Other Command ${index + 1} ditandai aktif, tetapi runtime akun belum siap. Command akan otomatis dimulai saat akun terhubung (cek token/akun di Main Settings).`
+                                : `⚠️ Other Command ${index + 1} tidak dapat dihentikan: runtime akun belum tersedia.`);
                     }
                 }
                 const adventureAction = /^adventure(Start|Stop)$/.exec(String(body.action || ''));
                 if (adventureAction) {
                     const manager = state?.multiAccountManager;
-                    const actionMethod = adventureAction[1] === 'Start' ? 'startAdventure' : 'stopAdventure';
+                    const isStart = adventureAction[1] === 'Start';
+                    const actionMethod = isStart ? 'startAdventure' : 'stopAdventure';
                     const acted = typeof manager?.[actionMethod] === 'function' && manager[actionMethod](savedAccountId);
                     dashboardLog(acted ? 'info' : 'warn', savedAccountId !== 'default' ? savedAccountId : '', acted
-                        ? `🗺️ Auto Adventure ${adventureAction[1] === 'Start' ? 'diaktifkan' : 'dinonaktifkan'}.`
-                        : `⚠️ Auto Adventure tidak dapat ${adventureAction[1] === 'Start' ? 'diaktifkan' : 'dinonaktifkan'}: runtime akun belum tersedia.`);
+                        ? `🗺️ Auto Adventure ${isStart ? 'diaktifkan' : 'dinonaktifkan'}.`
+                        : isStart
+                            ? `⚠️ Auto Adventure ditandai aktif, tetapi runtime akun belum siap. Akan berjalan otomatis saat akun terhubung.`
+                            : `⚠️ Auto Adventure tidak dapat dinonaktifkan: runtime akun belum tersedia.`);
                 }
                 if (saveTarget === 'main') {
                     const activeId = profileManager.getUserId(config.token);
