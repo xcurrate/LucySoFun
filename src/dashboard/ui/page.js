@@ -82,9 +82,6 @@ function renderPage(config) {
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
-                    ${!viewingProfileId ? renderMultiAccountCard({ profileOptions }) : ''}
-                    ${renderLucyCommandCards({ config })}
-
                     ${pageSettingsTabs({
                         profileOptions,
                         config,
@@ -97,6 +94,7 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
+                        homePageCards: `${!viewingProfileId ? renderMultiAccountCard({ profileOptions }) : ''}${renderLucyCommandCards({ config })}`,
                     })}
                     <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>
