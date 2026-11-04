@@ -613,24 +613,12 @@ ${renderRestSettings(config.settings?.rest)}
                                 <option value="tab-lucy-control">🎮 Kontrol Lucy</option>
                             </optgroup>
                         </select>
-                    </div>                            <div class="settings-menu-group">
-                                <span>Lucy</span>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
-                            </div>
-                        </div>
                     </div>
-
-<div class="settings-tabs">
-${renderMainSettings(context)}
-${renderAdvancedSettings(context)}
-${renderLucySettings(context)}
-        </div>
+                    <div class="settings-tabs">
+                        ${renderMainSettings(context)}
+                        ${renderAdvancedSettings(context)}
+                        ${renderLucySettings(context)}
+                    </div>
         `;
     }
 
