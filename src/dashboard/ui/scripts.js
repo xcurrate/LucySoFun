@@ -259,16 +259,17 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 document.querySelectorAll('.settings-menu-item').forEach(el => el.classList.remove('active'));
                 target.classList.add('active');
 
+                const categorySelect = document.getElementById('settingsCategory');
+                const currentLabel = document.getElementById('settingsCurrentLabel');
+                if (categorySelect) categorySelect.value = tabId;
                 if (event && event.currentTarget) {
                     const control = event.currentTarget;
                     if (control.tagName === 'SELECT') {
                         const option = control.options[control.selectedIndex];
-                        const currentLabel = document.getElementById('settingsCurrentLabel');
                         if (currentLabel) currentLabel.textContent = option ? option.textContent.trim() : 'Pengaturan';
                     } else {
                         control.classList.add('active');
                         const label = control.getAttribute('data-menu-label') || control.textContent.trim();
-                        const currentLabel = document.getElementById('settingsCurrentLabel');
                         if (currentLabel) currentLabel.textContent = label;
                     }
                 }
