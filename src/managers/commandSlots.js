@@ -52,12 +52,27 @@ const normalizeOtherCommands = (commands, fallbackMs = DEFAULT_DELAY_MS) => {
     return Array.from({ length: CUSTOM_SLOT_COUNT }, (_, index) => normalizeCustomCommand(list[index] || {}, fallbackMs));
 };
 
+// Command Tetap (lb + lh) adalah SATU UNIT: keduanya menyala/berhenti bersama
+// dan lh mewarisi channel/delay/count dari leader (lb) saat kosong.
 const normalizeFixedCommands = (fixedCommands = {}, fallbackMs = DEFAULT_DELAY_MS) => {
     const source = fixedCommands && typeof fixedCommands === 'object' ? fixedCommands : {};
     const out = {};
+    // Jika salah satu slot masih enabled (dari config lama), pasangan dianggap aktif.
+    const pairEnabled = FIXED_COMMANDS.some(({ key }) => source[key]?.enabled === true);
     FIXED_COMMANDS.forEach(({ key }) => {
         out[key] = normalizeFixedCommand(source[key] || {}, fallbackMs);
+        out[key].enabled = pairEnabled;
     });
+    // Unit: follower lh mengikuti leader lb (channel & delay) jika miliknya kosong.
+    const lb = out.lb;
+    const lh = out.lh;
+    if (lb.channelId && !lh.channelId) {
+        lh.channelId = lb.channelId;
+        lh.delayMs = lb.delayMs;
+        lh.delayMinMs = lb.delayMinMs;
+        lh.delayMaxMs = lb.delayMaxMs;
+        lh.count = lb.count;
+    }
     return out;
 };
 
@@ -101,8 +116,12 @@ const setSlotEnabled = (config, index, enabled) => {
     if (typeof index === 'string') {
         const slot = getCommandSlot(config, index);
         const command = config.otherCommands?.[slot?.index];
-        if (slot && slot.fixed) config.fixedCommands[slot.fixed].enabled = enabled;
-        else if (command) command.enabled = enabled;
+        if (slot && slot.fixed) {
+            // Command Tetap = satu unit: ubah enabled kedua slot (lb & lh) sekaligus.
+            FIXED_COMMANDS.forEach(({ key }) => {
+                if (config.fixedCommands?.[key]) config.fixedCommands[key].enabled = enabled;
+            });
+        } else if (command) command.enabled = enabled;
         return;
     }
     if (index < CUSTOM_SLOT_COUNT) {
@@ -111,7 +130,11 @@ const setSlotEnabled = (config, index, enabled) => {
         return;
     }
     const key = FIXED_COMMANDS[index - CUSTOM_SLOT_COUNT]?.key;
-    if (key && config.fixedCommands?.[key]) config.fixedCommands[key].enabled = enabled;
+    if (key && config.fixedCommands?.[key]) {
+        FIXED_COMMANDS.forEach(({ key: k }) => {
+            if (config.fixedCommands?.[k]) config.fixedCommands[k].enabled = enabled;
+        });
+    }
 };
 
 // Jeda acak dalam rentang min-max (inklusif).

@@ -278,11 +278,11 @@ ${renderRestSettings(config.settings?.rest)}
         `;
     }
 
-    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {}, voice = {} }) {
+    // Kartu Custom Command + Command Tetap. Dipakai di halaman utama.
+    function renderLucyCommandCards({ config }) {
         const fixedCommands = config?.fixedCommands || {};
-        const fixedCommandOrder = ['lb', 'lh'];
         return `
-                    <div id="tab-lucy-commands" class="tab-content">
+                    <div id="lucy-command-cards">
                         <div class="category-heading">
                             <div>
                                 <span class="section-label">Lucy</span>
@@ -321,32 +321,37 @@ ${renderRestSettings(config.settings?.rest)}
                                 <h3>📌 Command Tetap (lh &amp; lb)</h3>
                             </div>
                         </div>
-                        <div class="input-hint">Teks command sudah tetap (tidak perlu diisi). Cukup atur channel dan delay min-max. Command ini ikut terjeda otomatis saat Lucy tidak merespons.</div>
-                        ${fixedCommandOrder.map((key, offset) => {
-                            const slot = 4 + offset;
-                            const command = fixedCommands?.[key] || {};
+                        <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
+                        ${(() => {
+                            const command = fixedCommands?.lb || fixedCommands?.lh || {};
                             const isInfinite = !(Number(command.count) > 0);
                             const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
                             const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                            const channel = command.channelId || '';
+                            const enabled = fixedCommands?.lb?.enabled === true || fixedCommands?.lh?.enabled === true;
                             return `
                                 <div class="card">
-                                    <label>Command Tetap: ${escapeHtml(key)}</label>
-                                    <div class="input-hint">Command text: <strong>${escapeHtml(key)}</strong> (terkunci)</div>
+                                    <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
                                     <div class="row">
-                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMin" value="${minSec}"></div>
-                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMax" value="${maxSec}"></div>
-                                        <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other${slot}Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
+                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
+                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
+                                        <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
                                     </div>
                                     <label>Target Channel</label>
-                                    <input type="text" name="other${slot}Channel" value="${escapeHtml(command.channelId || '')}" placeholder="Discord Channel ID">
+                                    <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
                                     <div class="action-group" style="margin-top: 12px;">
-                                        <button type="submit" name="action" value="otherCommandStart${slot}" class="btn btn-start">▶ START</button>
-                                        <button type="submit" name="action" value="otherCommandStop${slot}" class="btn btn-pause">⏸ STOP</button>
-                                        <span class="input-hint">${command.enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`}</span>
+                                        <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
+                                        <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
+                                        <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
                                     </div>
                                 </div>`;
-                        }).join('')}
+                        })()}
                     </div>
+                `;
+    }
+
+    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {}, voice = {} }) {
+        return `
 
                     <div id="tab-lucy-boss2" class="tab-content">
                         <div class="category-heading">
@@ -591,7 +596,6 @@ ${renderRestSettings(config.settings?.rest)}
                             </div>
                             <div class="settings-menu-group">
                                 <span>Lucy</span>
-                                <button type="button" class="settings-menu-item" data-menu-label="Custom Commands Lucy" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands Lucy</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
                                 <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
@@ -611,5 +615,5 @@ ${renderLucySettings(context)}
         `;
     }
 
-    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderSettingsTabs };
+    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderSettingsTabs };
 };

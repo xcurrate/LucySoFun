@@ -102,6 +102,10 @@ function getStyles() {
             .save-toast.visible { opacity: 1; transform: translateY(0); }
             .save-toast.success { border-color: #2e7a52; color: var(--green); background: var(--green-soft); }
             .save-toast.error { border-color: #7a363c; color: var(--red); background: var(--red-soft); }
+            .unsaved-banner { position: fixed; top: 12px; right: 16px; z-index: 200; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-strong); color: var(--text); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); font-weight: 800; font-size: 14px; }
+            .unsaved-banner .unsaved-dot { width: 10px; height: 10px; border-radius: 50%; background: #e6a23c; box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.5); animation: unsavedPulse 1.6s ease-out infinite; }
+            .unsaved-banner.warning { border-color: #a8782f; color: #e6a23c; background: var(--panel-strong); }
+            @keyframes unsavedPulse { 0% { box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.45); } 70% { box-shadow: 0 0 0 8px rgba(230, 162, 60, 0); } 100% { box-shadow: 0 0 0 0 rgba(230, 162, 60, 0); } }
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }
             .dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }

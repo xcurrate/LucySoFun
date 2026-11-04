@@ -4,7 +4,7 @@ const { sleep, randomInt, accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
 module.exports = (state, channelManager, emergencyHandler) => ({
-    async runLucyAction(action) {
+    async runLucyAction(action, options = {}) {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const previous = state.lucyActionQueue || Promise.resolve();
         let release;
@@ -13,7 +13,7 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         try {
             const remaining = (state.lucyCooldownUntil || 0) - Date.now();
             if (remaining > 0) await wait(remaining + 1500);
-            state.lucyCooldownLastAction = action;
+            if (!options.skipRetry) state.lucyCooldownLastAction = action;
             return await action();
         } finally {
             release();
@@ -50,7 +50,12 @@ module.exports = (state, channelManager, emergencyHandler) => ({
 
     async send(cmd, type = '', targetChannelId = '', options = {}) {
         const sendAction = () => this.sendRaw(cmd, type, targetChannelId, options);
-        if (String(type).startsWith('Other Command')) return sendAction();
+        // Pair Command Tetap (lb/lh): harus berurutan dalam antrian aksi Lucy agar
+        // tidak bertabrakan dengan Adventure/Gems; TANPA retry cooldown (agar tidak
+        // mengirim duplikat lh saat Lucy meminta "pelan-pelan").
+        if (type === 'Other Command 4' || type === 'Other Command 5') {
+            return this.runLucyAction(sendAction, { skipRetry: true });
+        }
         if (/^(Adventure|Gems)/i.test(String(type))) return this.runLucyAction(sendAction);
         return sendAction();
     },

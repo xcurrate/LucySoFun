@@ -21,6 +21,13 @@ function renderPage(config) {
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
 
+        const renderLucyCommandCards = renderSettingsTabs.renderLucyCommandCards || (() => '');
+
+        // renderSettingsTabs sekarang objek berisi { renderSettingsTabs, renderLucyCommandCards }.
+        const pageSettingsTabs = renderSettingsTabs.renderSettingsTabs
+            ? renderSettingsTabs.renderSettingsTabs
+            : renderSettingsTabs;
+
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
         const profileOptions = profiles.map(id => {
@@ -74,7 +81,9 @@ function renderPage(config) {
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
-                    ${renderSettingsTabs({
+                    ${renderLucyCommandCards({ config })}
+
+                    ${pageSettingsTabs({
                         config,
                         profileOptions,
                         channels,
@@ -130,6 +139,10 @@ function renderPage(config) {
                 ${getLogCard()}
             </div>
             <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
+            <div id="unsavedBanner" class="unsaved-banner warning" style="display:none" role="status" aria-live="polite">
+                <span class="unsaved-dot"></span>
+                <span>⚠️ Ada perubahan yang belum disimpan</span>
+            </div>
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
 
@@ -206,6 +219,44 @@ function renderPage(config) {
                 if (!form) return;
                 let toastTimeout;
 
+                const unsavedBanner = document.getElementById('unsavedBanner');
+                let isSaving = false;
+
+                function trackUnsaved() {
+                    let dirty = false;
+                    const showBanner = () => {
+                        if (!unsavedBanner) return;
+                        if (dirty && !isSaving) {
+                            unsavedBanner.style.display = 'flex';
+                        } else {
+                            unsavedBanner.style.display = 'none';
+                        }
+                    };
+                    const markDirty = () => {
+                        dirty = true;
+                        showBanner();
+                    };
+                    const markClean = () => {
+                        dirty = false;
+                        showBanner();
+                    };
+
+                    form.addEventListener('input', markDirty);
+                    form.addEventListener('change', markDirty);
+
+                    window.addEventListener('beforeunload', (event) => {
+                        if (dirty && !isSaving) {
+                            event.preventDefault();
+                            event.returnValue = '';
+                            return '';
+                        }
+                    });
+
+                    return { markClean, isDirty: () => dirty, refresh: showBanner };
+                }
+
+                const unsaved = form ? trackUnsaved() : null;
+
                 function showToast(type, message) {
                     if (!toast) return;
                     clearTimeout(toastTimeout);
@@ -233,6 +284,7 @@ function renderPage(config) {
                     const originalText = submitter.textContent;
                     submitter.disabled = true;
                     submitter.textContent = '⏳ PROCESSING...';
+                    isSaving = true;
 
                     try {
                         const formData = new FormData(form);
@@ -281,6 +333,7 @@ function renderPage(config) {
 
                         submitter.textContent = '✓ BERHASIL';
                         showToast('success', 'Tersimpan');
+                        unsaved?.markClean();
 
                         setTimeout(() => {
                             submitter.disabled = false;
@@ -295,6 +348,14 @@ function renderPage(config) {
                         setTimeout(() => {
                             submitter.textContent = originalText;
                         }, 1500);
+                    } finally {
+                        isSaving = false;
+                        // Jika aksi gagal, tetap tampilkan indikator kalau masih ada perubahan.
+                        if (unsaved?.isDirty()) {
+                            unsaved.refresh();
+                        } else {
+                            unsaved?.markClean();
+                        }
                     }
                 });
             })();

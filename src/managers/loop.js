@@ -1,5 +1,5 @@
 const log = require('../../logger');
-const { accountPrefix } = require('../utils');
+const { accountPrefix, randomInt } = require('../utils');
 const {
     getCommandSlot,
     getCommandSlots,
@@ -13,6 +13,21 @@ module.exports = (state, commandSender) => ({
         return getCommandSlot(state.config, Number(index));
     },
 
+    // Command Tetap lh+lb adalah SATU UNIT: selalu dikirim berpasangan.
+    // - Unit dimulai pada slot lb (leader); setiap iterasi: lb -> (typing) -> lh -> tunggu
+    // - Tersedia hanya jika salah satu slot masih menyalakan; enabled selalu sinkron.
+    _getRotation() {
+        const lb = getCommandSlot(state.config, 3);
+        const lh = getCommandSlot(state.config, 4);
+        const lbOk = lb?.command?.enabled && lb.command.text?.trim() && lb.command.channelId?.trim();
+        const lhOk = lh?.command?.enabled && lh.command.text?.trim() && lh.command.channelId?.trim();
+        if (!lbOk && !lhOk) return null;
+        return [
+            { slot: lb, pairWith: lh },
+            { slot: lh }
+        ];
+    },
+
     // Pastikan storage loop tersimpan di state runtime masing-masing akun.
     init() {
         state.nextAt = state.nextAt || {};
@@ -20,7 +35,18 @@ module.exports = (state, commandSender) => ({
         state.isBusy = !!state.isBusy;
     },
 
+    // Command Tetap lh+lb adalah SATU UNIT: urutan lb -> (typing) -> lh.
+    // Kedua slot (index 3 & 4) mengarah ke leader pair (index 3 = lb).
     async otherCommand(index, remaining) {
+        const isFixedSlot = Number(index) === 3 || Number(index) === 4;
+        if (isFixedSlot && this._getRotation()) return this._otherCommandPair(3, remaining);
+
+        if (isFixedSlot) {
+            // Normalisasi seharusnya menjaga enabled sinkron; jika unit tak tersedia,
+            // abaikan (jangan kirim lb/lh sendirian).
+            return;
+        }
+
         const slot = this.slotAt(index);
         const command = slot?.command;
         const key = slot?.key || `other${Number(index) + 1}`;
@@ -65,6 +91,67 @@ module.exports = (state, commandSender) => ({
             }
         } finally {
             state.otherCommandRunning[key] = false;
+        }
+    },
+
+    async _otherCommandPair(leaderIndex, remaining) {
+        const leader = getCommandSlot(state.config, 3);
+        const follower = getCommandSlot(state.config, 4);
+        const leaderCommand = leader?.command;
+        const PairKey = 'fixedlb';
+        state.otherCommandRunning = state.otherCommandRunning || {};
+        state.otherCommandRunning[PairKey] = true;
+        try {
+            if (!leaderCommand?.enabled || !leaderCommand.text?.trim() || !leaderCommand.channelId?.trim()) return;
+            const infinite = !(Number(leaderCommand.count) > 0);
+            const sendsLeft = infinite
+                ? Infinity
+                : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(leaderCommand.count));
+            if (state.monsterCatchPaused || state.rest?.active) {
+                this._scheduleOtherCommandDelay(leaderIndex, sendsLeft, 0);
+                return;
+            }
+
+            // lb -> (jeda mengetik) -> lh
+            let lbOk = false;
+            try {
+                lbOk = await commandSender.send(
+                    leaderCommand.text.trim(),
+                    'Other Command 4', leaderCommand.channelId.trim()
+                );
+            } catch (error) {
+                log.error(`${accountPrefix(state)}❌ Gagal ${leader.text} : ${error.message || error}`);
+            }
+
+            const followerCommand = follower?.command;
+            let lhOk = false;
+            if (lbOk && followerCommand?.enabled && followerCommand.text?.trim() && followerCommand.channelId?.trim()) {
+                await wait(randomInt(250, 600)); // jeda "sedang mengetik" alami
+                try {
+                    lhOk = await commandSender.send(
+                        followerCommand.text.trim(),
+                        'Other Command 5', followerCommand.channelId.trim()
+                    );
+                } catch (error) {
+                    log.error(`${accountPrefix(state)}❌ Gagal ${follower.text} : ${error.message || error}`);
+                }
+            }
+
+            if (!leaderCommand.enabled) return;
+
+            if (!lbOk && !lhOk) {
+                this._scheduleOtherCommandDelay(leaderIndex, sendsLeft, resolveDelayMs(leaderCommand));
+            } else if (sendsLeft > 1) {
+                this._scheduleOtherCommandDelay(leaderIndex, infinite ? Infinity : sendsLeft - 1, resolveDelayMs(leaderCommand));
+            } else {
+                state.loops[PairKey] = null;
+                setSlotEnabled(state.config, Number(leaderIndex), false);
+                setSlotEnabled(state.config, Number(leaderIndex) + 1, false);
+                if (typeof state.persistConfig === 'function') state.persistConfig();
+                log.info(`${accountPrefix(state)}✅ Pair ${leader.text}+${follower.text} selesai (${leaderCommand.count} pengiriman).`);
+            }
+        } finally {
+            state.otherCommandRunning[PairKey] = false;
         }
     },
 
@@ -151,6 +238,31 @@ module.exports = (state, commandSender) => ({
     },
 
     startOtherCommand(index, initialDelayMs = 0, options = {}) {
+        // START di follower lh mengarah ke leader lb; keduanya selalu satu unit.
+        const lbSlot = getCommandSlot(state.config, 3);
+        const lhSlot = getCommandSlot(state.config, 4);
+        if (Number(index) === lhSlot?.index) {
+            return this.startOtherCommand(lbSlot.index, initialDelayMs, options);
+        }
+        if (Number(index) === lbSlot?.index) {
+            const lbCmd = lbSlot?.command;
+            const lhCmd = lhSlot?.command;
+            if (!lbCmd?.enabled || !lbCmd.text?.trim() || !lbCmd.channelId?.trim()) {
+                if (!lhCmd?.enabled || !lhCmd.text?.trim() || !lhCmd.channelId?.trim()) return false;
+                // Normalisasi menjaga keduanya sinkron; jika data lama tidak sinkron,
+                // pakai data lh untuk leader agar pair tetap jalan (bukan lh saja).
+                state.config.fixedCommands.lb = {
+                    ...state.config.fixedCommands.lb,
+                    text: 'lb',
+                    channelId: lhCmd.channelId,
+                    delayMinMs: lhCmd.delayMinMs,
+                    delayMaxMs: lhCmd.delayMaxMs,
+                    count: lhCmd.count,
+                    enabled: true
+                };
+            }
+        }
+
         const slot = this.slotAt(index);
         const command = slot?.command;
         if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return false;
@@ -200,6 +312,18 @@ module.exports = (state, commandSender) => ({
     },
 
     stopOtherCommand(index) {
+        // STOP pada salah satu slot pasangan lh+lb menghentikan keduanya.
+        if (Number(index) === 3 || Number(index) === 4) {
+            if (getCommandSlot(state.config, 3)?.command?.enabled || getCommandSlot(state.config, 4)?.command?.enabled) {
+                this.clearOtherCommandTimers(3);
+                this.clearOtherCommandTimers(4);
+                setSlotEnabled(state.config, 3, false);
+                setSlotEnabled(state.config, 4, false);
+                if (typeof state.persistConfig === 'function') state.persistConfig();
+                log.info(`${accountPrefix(state)}⏹️ Pasangan lh+lb dihentikan.`);
+                return true;
+            }
+        }
         this.clearOtherCommandTimers(index);
         const slot = this.slotAt(index);
         setSlotEnabled(state.config, Number(index), false);
@@ -230,12 +354,12 @@ module.exports = (state, commandSender) => ({
         let position = 0;
         slots.forEach(slot => {
             const command = slot.command;
-            if (command?.enabled && command.text?.trim() && command.channelId?.trim()) {
-                // Offset fase berbeda per slot supaya tidak menembak di waktu yang sama.
-                this.startOtherCommand(slot.index, staggerMs + position * 500, { skipIfRunning: true });
-                staggerMs += Math.max(500, resolveDelayMs(command));
-                position += 1;
-            }
+            if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return;
+            // lh ikut dikirim bersama lb (pasangan); jangan mulai lh sendiri.
+            if (slot.fixed === 'lh' && this._getRotation()?.length === 2) return;
+            this.startOtherCommand(slot.index, staggerMs + position * 500, { skipIfRunning: true });
+            staggerMs += Math.max(500, resolveDelayMs(command));
+            position += 1;
         });
 
         log.success(`${accountPrefix(state)}🔄 Semua Custom Command Lucy dimulai / resume`);

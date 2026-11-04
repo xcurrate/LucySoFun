@@ -75,7 +75,11 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false },
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false },
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false }
-  ]
+  ],
+  "fixedCommands": {
+    "lb": { "channelId": "", "delayMs": 5000, "count": 0, "enabled": false },
+    "lh": { "channelId": "", "delayMs": 5000, "count": 0, "enabled": false }
+  }
 }
 ```
 
@@ -98,7 +102,8 @@ Dashboard menyediakan:
 
 - **Profile Manager** — multi-profile dengan `?profileId=<id>`, PIN per-profile, dan simpan buka/kunci.
 - **Control Panel** — START/PAUSE ALL, start/pause per-akun.
-- **Tab pengaturan Lucy** — Custom Commands Lucy, Auto Boss2, Auto Use Gems, Auto Adventure, Huntbot2, Monster Catcher, Voice Channel, Kontrol Lucy.
+- **Tab pengaturan Lucy** — Auto Boss2, Auto Use Gems, Auto Adventure, Huntbot2, Monster Catcher, Voice Channel, Kontrol Lucy.
+- **Kartu di halaman utama** — Custom Commands (3 loop kustom) dan Command Tetap (pasangan `lb` + `lh` yang selalu dikirim berurutan `lb` → "sedang mengetik" → `lh` sebagai satu unit).
 - **Tab umum** — Main Settings, Notifikasi (Telegram), Integrasi Sistem, Safety & Filter, Istirahat, Debug Pesan, Kontrol & Sistem.
 
 ### Autentikasi

@@ -123,6 +123,40 @@ test('Lucy Custom Commands never enable CAPTCHA, even if a legacy field is submi
     });
 });
 
+test('POST /save persists fixed lb/lh pair (single config synced to both slots) separately from custom commands', async () => {
+    await withDashboard(async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                action: 'save',
+                other1Text: '!custom',
+                other1Channel: '111',
+                other1Delay: '3',
+                other1Count: '1',
+                other4DelayMin: '4',
+                other4DelayMax: '6',
+                other4Channel: '222',
+                other4Count: '0'
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.equal(savedConfig.fixedCommands.lb.channelId, '222');
+        assert.equal(savedConfig.fixedCommands.lb.delayMinMs, 4000);
+        assert.equal(savedConfig.fixedCommands.lb.delayMaxMs, 6000);
+        assert.equal(savedConfig.fixedCommands.lb.count, 0);
+        assert.deepEqual(savedConfig.fixedCommands.lh, savedConfig.fixedCommands.lb, 'lh disinkronkan dari lb (unit tunggal)');
+        assert.equal(savedConfig.otherCommands[0].text, '!custom');
+        assert.equal(savedConfig.otherCommands[0].channelId, '111');
+    });
+});
+
 test('POST /save persists Lucy Discord control and the dashboard renders the Lucy menu', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
@@ -148,10 +182,13 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /<span>Lucy<\/span>/);
-        for (const tabId of ['tab-lucy-commands', 'tab-lucy-boss2', 'tab-lucy-gems', 'tab-lucy-adventure', 'tab-lucy-control']) {
+        for (const tabId of ['tab-lucy-boss2', 'tab-lucy-gems', 'tab-lucy-adventure', 'tab-lucy-control']) {
             assert.match(page, new RegExp(`id="${tabId}"`));
             assert.match(page, new RegExp(`switchTab\\(event, '${tabId}'\\)`));
         }
+        // Custom Commands kini kartu di halaman utama, bukan tab Settings.
+        assert.match(page, /id="lucy-command-cards"/);
+        assert.doesNotMatch(page, /id="tab-lucy-commands"/);
         assert.doesNotMatch(page, /tab-other/);
         assert.doesNotMatch(page, /name="other1Captcha"/);
         assert.match(page, /Custom Command Lucy 1/);

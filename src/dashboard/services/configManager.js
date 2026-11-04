@@ -4,7 +4,7 @@ const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
 const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
 const { normalizeSendCount } = require('../../utils');
-const { normalizeOtherCommands, normalizeFixedCommands, FIXED_COMMANDS, setSlotEnabled } = require('../../managers/commandSlots');
+const { normalizeOtherCommands, normalizeFixedCommands, setSlotEnabled } = require('../../managers/commandSlots');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
     return {
     get() {
@@ -115,23 +115,23 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             };
         });
 
-        // Command tetap (lb & lh): teks terkunci, hanya channel dan delay yang diatur.
+        // Command Tetap (lb & lh) adalah SATU UNIT: teks terkunci; channel & delay
+        // diatur satu set dan disinkronkan ke kedua slot.
         const previousFixed = config.fixedCommands || {};
-        config.fixedCommands = {};
-        FIXED_COMMANDS.forEach((fixed, offset) => {
-            const slot = 4 + offset;
-            const current = previousFixed[fixed.key] || {};
-            const minMs = readSeconds(body[`other${slot}DelayMin`] ?? body[`other${slot}Delay`], current.delayMinMs ?? current.delayMs);
-            const maxMs = readSeconds(body[`other${slot}DelayMax`] ?? body[`other${slot}Delay`], current.delayMaxMs ?? current.delayMinMs ?? current.delayMs);
-            config.fixedCommands[fixed.key] = {
-                delayMs: Math.min(minMs, maxMs),
-                delayMinMs: Math.min(minMs, maxMs),
-                delayMaxMs: Math.max(minMs, maxMs),
-                count: normalizeSendCount(body[`other${slot}Count`], normalizeSendCount(current.count)),
-                channelId: String(body[`other${slot}Channel`] || '').trim(),
-                enabled: current.enabled === true
-            };
-        });
+        const configCount = normalizeSendCount(body.other4Count, normalizeSendCount(previousFixed.lb?.count));
+        const min4 = readSeconds(body.other4DelayMin ?? body.other4Delay, previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
+        const max4 = readSeconds(body.other4DelayMax ?? body.other4Delay, previousFixed.lb?.delayMaxMs ?? previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
+        const pairChannel = String(body.other4Channel || '').trim();
+        const pairEnabled = previousFixed.lb?.enabled === true || previousFixed.lh?.enabled === true;
+        const pair = {
+            delayMs: Math.min(min4, max4),
+            delayMinMs: Math.min(min4, max4),
+            delayMaxMs: Math.max(min4, max4),
+            count: configCount,
+            channelId: pairChannel,
+            enabled: pairEnabled
+        };
+        config.fixedCommands = { lb: { ...pair }, lh: { ...pair } };
 
         config.settings.telegram.token = body.tgToken || '';
         config.settings.telegram.chatId = body.tgChat || '';

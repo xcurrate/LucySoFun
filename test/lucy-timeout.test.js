@@ -153,3 +153,26 @@ test('Other Command timeout does not register a Lucy retry action', async () => 
         restore();
     }
 });
+
+test('pair lb/lh (Other Command 4/5) berjalan berurutan di antrian aksi Lucy, tanpa retry cooldown', async () => {
+    const ctx = createSender();
+    const { state, sender, restore } = ctx;
+    try {
+        // Simulasikan lb lalu lh masuk ke antrian yang sama (serial), bukan tumpang tindih.
+        const order = [];
+        const p1 = sender.runLucyAction(async () => { order.push('lb-start'); await wait(60); order.push('lb-end'); }, { skipRetry: true });
+        const p2 = sender.runLucyAction(async () => { order.push('lh-start'); await wait(10); order.push('lh-end'); }, { skipRetry: true });
+        await Promise.all([p1, p2]);
+        assert.deepEqual(order, ['lb-start', 'lb-end', 'lh-start', 'lh-end'], 'aksi berjalan satu per satu (serial)');
+
+        // Kirim pair lewat sender.send -> harus lewat runLucyAction dengan skipRetry,
+        // sehingga cooldownLastAction TIDAK diisi (mencegah retry duplikat lh).
+        await sender.send('lb', 'Other Command 4', 'c1');
+        assert.equal(state.lucyCooldownLastAction, undefined, 'pair tidak mendaftarkan retry action');
+        await sender.send('lh', 'Other Command 5', 'c1');
+        assert.equal(state.lucyCooldownLastAction, undefined, 'pair tidak mendaftarkan retry action');
+    } finally {
+        if (state.lucyResponseTimeout) clearTimeout(state.lucyResponseTimeout);
+        restore();
+    }
+});
