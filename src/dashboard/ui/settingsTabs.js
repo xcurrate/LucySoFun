@@ -1,12 +1,9 @@
 module.exports = function createSettingsTabs({ escapeHtml }) {
-    function renderMainSettings({ config, profileOptions, channels }) {
+    function renderMultiAccountCard({ profileOptions = [] }) {
         const usedSlots = Math.min(4, profileOptions.length);
         const remainingSlots = Math.max(0, 4 - usedSlots);
-
         return `
-                    <div id="tab-main" class="tab-content active">
-
-                        <div class="card" style="border-color: var(--accent);">
+<div class="card" style="border-color: var(--accent);">
                             <label style="color: var(--accent);">👥 MULTI ACCOUNT</label>
                             
                             <div style="margin-bottom: 12px;">
@@ -48,6 +45,13 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 </div>
                             </div>
                         </div>
+        `;
+    }
+
+    function renderMainSettings({ config, profileOptions, channels }) {
+        return `
+                    <div id="tab-main" class="tab-content active">
+
                         <div class="card">
                             <label>🔐 TEMPLATE TOKEN / KONFIG UTAMA</label>
                             <input type="password" name="token" value="${config.token || ''}" placeholder="Token">
@@ -279,21 +283,10 @@ ${renderRestSettings(config.settings?.rest)}
     }
 
     // Kartu Custom Command + Command Tetap. Dipakai di halaman utama.
-    function renderLucyCommandCards({ config, profileOptions = [] }) {
+    function renderLucyCommandCards({ config }) {
         const fixedCommands = config?.fixedCommands || {};
         return `
                     <div id="lucy-command-cards">
-                        <div class="card profile-picker-card">
-                            <div class="profile-picker-heading">
-                                <div><span class="section-label">AKUN AKTIF</span><strong>👤 Pilih Profil</strong></div>
-                                <span class="profile-picker-count">${profileOptions.length} profil</span>
-                            </div>
-                            <select class="input-select profile-picker-select" aria-label="Pilih profil Lucy" onchange="if(this.value) window.location.href='/?profileId='+encodeURIComponent(this.value)">
-                                <option value="">Pilih profil akun…</option>
-                                ${(profileOptions || []).map(profile => `<option value="${escapeHtml(profile.id)}" ${profile.isViewing ? 'selected' : ''}>${escapeHtml(profile.displayName)} · ${profile.running ? 'RUNNING' : 'PAUSED'}</option>`).join('')}
-                            </select>
-                            <div class="input-hint">Pilih profil untuk membuka konfigurasi Custom Command Lucy milik akun tersebut.</div>
-                        </div>
                         <div class="category-heading">
                             <div>
                                 <span class="section-label">Lucy</span>
@@ -586,34 +579,54 @@ ${renderRestSettings(config.settings?.rest)}
     function renderSettingsTabs(context) {
         return `
                     <div class="settings-nav">
-                        <div class="settings-nav-heading">
-                            <span class="section-label">NAVIGASI DASHBOARD</span>
-                            <strong id="settingsCurrentLabel">Main Settings</strong>
+                        <button type="button" class="hamburger-btn" aria-expanded="false" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">
+                            <span class="hamburger-icon">☰</span><span>MENU</span>
+                        </button>
+                        <strong id="settingsCurrentLabel" class="settings-current">Main Settings</strong>
+                    </div>
+                    <button type="button" class="settings-overlay" aria-label="Tutup navigasi" onclick="closeSettingsMenu()"></button>
+                    <aside id="settingsMenu" class="settings-menu settings-sidebar" aria-label="Navigasi dashboard">
+                        <div class="sidebar-brand">
+                            <span class="sidebar-brand-mark">L</span>
+                            <div><strong>LucySoFun</strong><small>Dashboard Navigation</small></div>
                         </div>
                         <label class="settings-select-label" for="settingsCategory">Kategori Fitur</label>
                         <select id="settingsCategory" class="input-select settings-category-select" aria-label="Pilih kategori fitur" onchange="switchTab(event, this.value)">
-                            <optgroup label="Dasar">
-                                <option value="tab-main" selected>🏠 Main Settings</option>
-                            </optgroup>
+                            <optgroup label="Dasar"><option value="tab-main" selected>🏠 Main Settings</option></optgroup>
                             <optgroup label="Advanced / Add-ons">
-                                <option value="tab-notifications">📱 Notifikasi</option>
-                                <option value="tab-integrations">🔌 Integrasi Sistem</option>
-                                <option value="tab-safety">🛡️ Safety &amp; Filter</option>
-                                <option value="tab-rest">😴 Istirahat</option>
-                                <option value="tab-message-debug">🔎 Debug Pesan</option>
-                                <option value="tab-control">🎮 Kontrol &amp; Sistem</option>
+                                <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
+                                <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
+                                <option value="tab-message-debug">🔎 Debug Pesan</option><option value="tab-control">🎮 Kontrol &amp; Sistem</option>
                             </optgroup>
                             <optgroup label="Lucy">
-                                <option value="tab-lucy-boss2">🐲 Auto Boss2</option>
-                                <option value="tab-lucy-gems">💎 Auto Use Gems</option>
-                                <option value="tab-lucy-adventure">🗺️ Auto Adventure</option>
-                                <option value="tab-lucy-huntbot2">🤖 Huntbot2</option>
-                                <option value="tab-lucy-monster-catcher">🐾 Monster Catcher</option>
-                                <option value="tab-lucy-voice">🔊 Voice Channel</option>
+                                <option value="tab-lucy-boss2">🐲 Auto Boss2</option><option value="tab-lucy-gems">💎 Auto Use Gems</option>
+                                <option value="tab-lucy-adventure">🗺️ Auto Adventure</option><option value="tab-lucy-huntbot2">🤖 Huntbot2</option>
+                                <option value="tab-lucy-monster-catcher">🐾 Monster Catcher</option><option value="tab-lucy-voice">🔊 Voice Channel</option>
                                 <option value="tab-lucy-control">🎮 Kontrol Lucy</option>
                             </optgroup>
                         </select>
-                    </div>
+                        <div class="sidebar-divider"></div>
+                        <div class="settings-menu-group"><span>Dasar</span>
+                            <button type="button" class="settings-menu-item active" data-menu-label="Main Settings" onclick="switchTab(event, 'tab-main')">🏠 Main Settings</button>
+                        </div>
+                        <div class="settings-menu-group"><span>Advanced / Add-ons</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety &amp; Filter</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol &amp; Sistem</button>
+                        </div>
+                        <div class="settings-menu-group"><span>Lucy Features</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
+                        </div>
+                    </aside>
                     <div class="settings-tabs">
                         ${renderMainSettings(context)}
                         ${renderAdvancedSettings(context)}
@@ -622,5 +635,5 @@ ${renderRestSettings(config.settings?.rest)}
         `;
     }
 
-    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderSettingsTabs };
+    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderMultiAccountCard, renderSettingsTabs };
 };
