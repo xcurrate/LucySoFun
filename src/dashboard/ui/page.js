@@ -6,15 +6,9 @@ function renderPage(config) {
 
         const { statusText, statusClass } = configManager.computeStatus(config);
         const channels = config.channels || [];
-        const custom1 = config.delays.custom1 || CONSTANTS.DEFAULT_DELAYS.custom1;
-        const custom2 = config.delays.custom2 || CONSTANTS.DEFAULT_DELAYS.custom2;
         const hasTelegram = config.settings?.telegram?.token && config.settings?.telegram?.chatId;
 
-        const huntbot = config.huntbot || {};
-        const control = config.settings.control || {};
         const lucyControl = config.settings.lucyControl || {};
-        const rotation = config.settings.channelRotation || {};
-        const boss = config.settings.boss || {};
         const boss2 = config.settings.boss2 || {};
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
@@ -50,24 +44,18 @@ function renderPage(config) {
             };
         });
 
-        // Captcha config
-        const captchaConfig = config.captcha || {};
-        const nopechaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.NopechaSolver) || '';
-        const twoCaptchaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.TwoCaptchaSolver) || '';
-        const fallbackSolvers = captchaConfig.fallbackSolvers || [];
-
         return `
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>OWO FARMING</title>
+            <title>LucySoFun Dashboard</title>
             ${getStyles()}
         </head>
         <body>
             <div class="container">
-                <h2>OWO Farming Dashboard</h2>
+                <h2>LucySoFun Dashboard</h2>
                 <div class="subtitle">${isControlPanel ? 'Control Panel utama untuk mengontrol semua akun dan slot paralel; halaman ini bukan akun default.' : `Sedang melihat akun: ${viewingProfileId}`}</div>
 
                 <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="${isControlPanel ? 'true' : 'false'}">
@@ -90,13 +78,7 @@ function renderPage(config) {
                         config,
                         profileOptions,
                         channels,
-                        custom1,
-                        custom2,
-                        huntbot,
-                        control,
                         lucyControl,
-                        rotation,
-                        boss,
                         boss2,
                         gems,
                         adventure,
@@ -104,10 +86,6 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
-                        captchaConfig,
-                        nopechaKey,
-                        twoCaptchaKey,
-                        fallbackSolvers
                     })}
                     <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>

@@ -105,8 +105,7 @@ module.exports = (state, configManager, commandSender) => ({
     return commandSender.send(
         ADVENTURE_COMMAND,
         'Adventure',
-        settings.channelId,
-        { allowDuringCaptcha: true }
+        settings.channelId
     );
 },
 

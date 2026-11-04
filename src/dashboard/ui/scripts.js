@@ -119,17 +119,11 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         const lastCommand = data.commands.last ? data.commands.last.cmd + ' • ' + data.commands.last.type : 'Belum ada command terkirim';
                         updateText('[data-stat="commandTotal"]', data.commands.total);
                         updateText('[data-stat="lastCommand"]', lastCommand);
-                        updateText('[data-stat="captchaSolved"]', data.captcha.solved + '/' + data.captcha.detected);
-                        updateText('[data-stat="captchaStatus"]', data.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif');
                         updateText('[data-stat="uptimeText"]', data.uptime.text);
                         updateText('[data-stat="startedAt"]', 'Start: ' + data.uptime.startedAt);
                         updateText('[data-stat="statusText"]', data.status.text);
                         updateText('[data-stat="statusNote"]', 'Channel aktif: ' + data.status.activeChannelId);
-                        updateText('[data-stat="captchaSolvedOnly"]', data.captcha.solved);
-                        updateText('[data-stat="captchaDetectedOnly"]', data.captcha.detected);
-                        updateText('[data-stat="captchaLastSolved"]', 'Terakhir: ' + (data.captcha.lastSolvedAtFormatted || '-'));
-                        updateText('[data-stat="captchaLastDetected"]', 'Terakhir: ' + (data.captcha.lastDetectedAtFormatted || '-'));
-                        updateText('[data-stat="serviceFlags"]', 'Autosolver: ' + (data.status.autosolver ? 'ON' : 'OFF') + ' • Telegram: ' + (data.status.telegram ? 'ON' : 'OFF') + ' • Channel: ' + data.status.channelsTotal);
+                        updateText('[data-stat="serviceFlags"]', 'Telegram: ' + (data.status.telegram ? 'ON' : 'OFF') + ' • Channel: ' + data.status.channelsTotal);
                         renderCommandTypes(data.commands.byType);
                         renderRecentCommands(data.commands.recent);
                     } catch (err) {

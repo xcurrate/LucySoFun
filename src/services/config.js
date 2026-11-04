@@ -3,7 +3,6 @@ const { normalizeGemsSettings } = require('../managers/gems');
 const { normalizeMonsterCatcherSettings } = require('../managers/monsterCatcher');
 const { normalizeRestSettings } = require('../managers/rest');
 const fs = require('fs');
-const CONSTANTS = require('../constants');
 const { safeJsonStringify } = require('../utils');
 
 const ensureRuntimeShape = (config = {}) => {
@@ -31,38 +30,12 @@ module.exports = (state) => ({
         fs.writeFileSync('./config.json', JSON.stringify(state.config, null, 2));
     },
 
-    getRotationSettings() {
-        const r = state.config.settings?.channelRotation || {};
-        return {
-            enabled: r.enabled === true,
-            minMs: Math.max(1000, parseInt(r.minMs, 10) || 8 * 60 * 1000),
-            maxMs: Math.max(1000, parseInt(r.maxMs, 10) || 15 * 60 * 1000)
-        };
-    },
-
-    getControlCommands() {
-        const ctrl = state.config.settings?.control || {};
-        return {
-            startCmd: String(ctrl.start || "wo").toLowerCase(),
-            pauseCmd: String(ctrl.pause || "winv").toLowerCase(),
-            allowIds: Array.isArray(ctrl.allowIds) ? ctrl.allowIds.map(String) : []
-        };
-    },
-
     getLucyControlCommands() {
         const ctrl = state.config.settings?.lucyControl || {};
         return {
             startCmd: String(ctrl.start || 'lucy start').trim().toLowerCase(),
             pauseCmd: String(ctrl.pause || 'lucy pause').trim().toLowerCase(),
             allowIds: Array.isArray(ctrl.allowIds) ? ctrl.allowIds.map(String) : []
-        };
-    },
-
-    getBossSettings() {
-        const boss = state.config.settings?.boss || {};
-        return {
-            enabled: boss.enabled === true,
-            allowedGuilds: Array.isArray(boss.allowedGuilds) ? boss.allowedGuilds : []
         };
     },
 
@@ -100,12 +73,12 @@ module.exports = (state) => ({
         const tokenChanged = diskConfig.token !== state.activeToken;
         const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
         const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
-        
+
         const wasPaused = state.config.botStatus?.paused;
         const wasRunning = state.config.botStatus?.running;
         const nowPaused = diskConfig.botStatus?.paused;
         const nowRunning = diskConfig.botStatus?.running;
-        
+
         const statusChanged = wasPaused !== nowPaused || wasRunning !== nowRunning;
 
         state.config = diskConfig;

@@ -381,8 +381,6 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                 }
             }
             const snapshot = statsService.getSnapshot(config);
-            snapshot.captcha.lastDetectedAtFormatted = statsService.formatTime(snapshot.captcha.lastDetectedAt);
-            snapshot.captcha.lastSolvedAtFormatted = statsService.formatTime(snapshot.captcha.lastSolvedAt);
             snapshot.commands.recent = (snapshot.commands.recent || []).map(item => ({
                 ...item,
                 atFormatted: statsService.formatTime(item.at)
@@ -399,7 +397,7 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             const config = configManager.ensureShape(configManager.get());
             const activeId = profileManager.getUserId(config.token);
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `owo-config-${activeId}-${timestamp}.json`;
+            const filename = `lucy-config-${activeId}-${timestamp}.json`;
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

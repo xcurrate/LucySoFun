@@ -130,10 +130,6 @@ function getStyles() {
             .log-level-warn .log-level, .log-level-warn .log-message { color: #ffd27a; }
             .log-level-err { border-left-color: #f04438; }
             .log-level-err .log-level, .log-level-err .log-message { color: #ff9b96; }
-            .log-level-battle { border-left-color: #d444f1; }
-            .log-level-battle .log-level, .log-level-battle .log-message { color: #efa8ff; }
-            .log-level-captcha { border-left-color: #ff4d6d; background: rgba(255, 77, 109, 0.08); }
-            .log-level-captcha .log-level, .log-level-captcha .log-message { color: #ffb3c1; }
             .log-empty { min-height: 318px; display: flex; align-items: center; justify-content: center; padding: 16px; color: #98a2b3; }
             .input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
             .debug-output-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

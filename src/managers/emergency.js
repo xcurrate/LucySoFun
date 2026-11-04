@@ -112,8 +112,6 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
                 log.warn(`${accountPrefix(state)}loopManager not available, skipping stopAll`);
             }
 
-            if (channelManager) channelManager.stopRotation();
-
             // Recovery probing only verifies Lucy availability; it does not run normal bot commands.
             state.emergencyRecoveryActive = true;
             ensureRecoveryListener();

@@ -18,13 +18,12 @@ function createHarness({ allowIds = [] } = {}) {
         }
     };
     const configManager = {
-        getControlCommands: () => ({ startCmd: 'wcash', pauseCmd: 'wbuy 1', allowIds: [] }),
         getLucyControlCommands: () => ({ startCmd: 'lucy start', pauseCmd: 'lucy pause', allowIds }),
         save: () => calls.push('save')
     };
     const loopManager = {
-        startAll: () => calls.push('owoStartAll'),
-        stopAll: () => calls.push('owoStopAll'),
+        startAll: () => calls.push('schedulerStartAll'),
+        stopAll: () => calls.push('schedulerStopAll'),
         startOtherCommand: (index) => calls.push(`startOther${index}`),
         stopOtherCommand: (index) => calls.push(`stopOther${index}`)
     };
@@ -34,10 +33,19 @@ function createHarness({ allowIds = [] } = {}) {
         stop: () => calls.push('advStop')
     };
     const handler = createMessageHandler(
-        state, configManager, {}, {}, loopManager, {}, telegramService, null, null, {}, null,
+        state,
+        configManager,
+        loopManager,
+        {},
+        telegramService,
+        null,
+        {},
+        null,
         adventureManager,
         { stop: () => calls.push('boss2Stop') },
-        { stop: () => calls.push('gemsStop') }
+        { stop: () => calls.push('gemsStop') },
+        null,
+        null
     );
     const send = (content, authorId = 'self') => handler.handleControlCommands({ content, author: { id: authorId }, channel: { id: 'ch' } });
     return { state, calls, send };
@@ -50,7 +58,7 @@ const lucyFlags = (state) => [
     ...state.config.otherCommands.map(command => command.enabled)
 ];
 
-test('Lucy start word enables every Lucy feature and starts its schedulers without touching OwO', async () => {
+test('Lucy start word enables every Lucy feature and starts its schedulers', async () => {
     const { state, calls, send } = createHarness();
     await send('Lucy Start');
 
@@ -59,7 +67,7 @@ test('Lucy start word enables every Lucy feature and starts its schedulers witho
     assert.ok(calls.includes('advStart:true'));
     assert.ok(['startOther0', 'startOther1', 'startOther2'].every(call => calls.includes(call)));
     assert.ok(calls.some(call => call.startsWith('tg:') && call.includes('Lucy Started')));
-    assert.ok(!calls.includes('owoStartAll'));
+    assert.ok(!calls.includes('schedulerStartAll'));
     assert.deepEqual(state.config.botStatus, { running: false, paused: true });
 });
 
@@ -74,7 +82,7 @@ test('Lucy pause word disables every Lucy feature and stops timers', async () =>
         assert.ok(calls.includes(call), `expected ${call}`);
     }
     assert.ok(calls.some(call => call.startsWith('tg:') && call.includes('Lucy Paused')));
-    assert.ok(!calls.includes('owoStopAll'));
+    assert.ok(!calls.includes('schedulerStopAll'));
 });
 
 test('Lucy control ignores senders outside lucyControl.allowIds', async () => {

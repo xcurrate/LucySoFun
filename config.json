@@ -5,30 +5,15 @@
     "paused": true
   },
   "channels": [],
-  "macrodroidId": "",
-  "autosolver": false,
   "maxLogLines": 15,
   "settings": {
-    "twoCaptchaKey": "",
-    "control": {
-      "start": "wcash",
-      "pause": "wbuy 1",
+    "lucyControl": {
+      "start": "lucy start",
+      "pause": "lucy pause",
       "allowIds": []
-    },
-    "channelRotation": {
-      "enabled": false,
-      "minMs": 180000,
-      "maxMs": 360000
-    },
-    "boss": {
-      "enabled": true,
-      "allowedGuilds": [
-        "559475774441259008"
-      ]
     },
     "adventure": {
       "enabled": false,
-      "targetId": "",
       "channelId": "",
       "guildId": ""
     },
@@ -36,8 +21,7 @@
       "enabled": true,
       "channelIds": [],
       "guildIds": [],
-      "debug": false,
-      "debugOnlyOwO": false
+      "debug": false
     },
     "messageDebug": {
       "enabled": false,
@@ -49,67 +33,33 @@
       "token": "",
       "chatId": ""
     },
-    "battle": false,
-    "hunt": false,
-    "pray": false,
-    "custom": false,
-    "text1": "owo",
-    "text2": "",
     "autoResume": false,
     "voice": {
-      "enabled": true,
-      "channelId": "1508750293842657316"
-    }
-  },
-  "delays": {
-    "hunt": {
-      "min": 15000,
-      "max": 15000
+      "enabled": false,
+      "channelId": ""
     },
-    "battle": {
-      "min": 15000,
-      "max": 15000
-    },
-    "pray": {
-      "min": 15000,
-      "max": 15000
-    },
-    "custom1": {
-      "min": 10000,
-      "max": 10000
-    },
-    "custom2": {
-      "min": 60000,
-      "max": 120000
+    "boss2": {},
+    "gems": {},
+    "huntbot2": {},
+    "monsterCatcher": {},
+    "rest": {
+      "schedule": {
+        "enabled": false,
+        "start": "05:00",
+        "end": "10:00"
+      },
+      "budget": {
+        "enabled": false,
+        "maxMinutes": 300,
+        "minSessionMinutes": 15,
+        "maxSessionMinutes": 60
+      }
     }
   },
   "safety": {
     "cctv": false
   },
-  "tiketandhb": {
-    "channelId": "1504047169718452274"
-  },
-  "huntbot": {
-    "enabled": true,
-    "autoMode": true,
-    "defaultUpgrade": "radar",
-    "defaultDuration": "1D",
-    "notifyProgress": true,
-    "sellAllAfterReturn": false
-  },
   "token": "",
-  "captcha": {
-    "enabled": false,
-    "primarySolver": "NopechaSolver",
-    "fallbackSolvers": [],
-    "maxTotalTimeMs": 600000,
-    "retryPerSolver": 2,
-    "timeoutPerAttemptMs": 30000,
-    "apiKeys": {
-      "NopechaSolver": "",
-      "TwoCaptchaSolver": ""
-    }
-  },
   "multiAccount": {
     "enabled": true,
     "maxAccounts": 3
@@ -120,7 +70,6 @@
       "delayMs": 5000,
       "count": 1,
       "channelId": "",
-      "captchaEnabled": true,
       "enabled": false
     },
     {
@@ -128,7 +77,6 @@
       "delayMs": 5000,
       "count": 1,
       "channelId": "",
-      "captchaEnabled": true,
       "enabled": false
     },
     {
@@ -136,7 +84,6 @@
       "delayMs": 5000,
       "count": 1,
       "channelId": "",
-      "captchaEnabled": true,
       "enabled": false
     }
   ]

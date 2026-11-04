@@ -56,12 +56,7 @@ module.exports = (state, channelManager, emergencyHandler) => ({
     },
 
     async sendRaw(cmd, type = '', targetChannelId = '', options = {}) {
-        const allowDuringCaptcha = options.allowDuringCaptcha === true;
         const allowWhilePaused = options.allowWhilePaused === true;
-        if (state.hasActiveCaptcha && !allowDuringCaptcha) {
-            log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] ditahan: CAPTCHA sedang aktif.`);
-            return false;
-        }
         if (state.monsterCatchPaused && options.allowDuringMonsterCatch !== true) {
             log.warn(`${accountPrefix(state)}🐾 Command [${cmd}] ditahan: Monster Catcher sedang aktif.`);
             return false;
@@ -82,27 +77,16 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         await channel.sendTyping();
         await sleep(randomInt(CONSTANTS.MIN_TYPING_DELAY, CONSTANTS.MAX_TYPING_DELAY));
 
-        if (state.hasActiveCaptcha && !allowDuringCaptcha) {
-            log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] dibatalkan setelah typing: CAPTCHA sedang aktif.`);
-            return false;
-        }
-
         const maxRetries = 2;
         let lastError = null;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            if (state.hasActiveCaptcha && !allowDuringCaptcha) {
-                log.warn(`${accountPrefix(state)}⚠️ Command [${cmd}] dibatalkan sebelum pengiriman: CAPTCHA sedang aktif.`);
-                return false;
-            }
             try {
                 await channel.send(cmd);
                 statsService.recordCommand(state, cmd, type);
                 log.info(`${accountPrefix(state)}📨 Sent: ${cmd} [${type}]`);
 
-                if (type === 'Battle' || type === 'Hunt') {
-                    this.setResponseTimeout(type);
-                } else if (String(type).startsWith('Other Command')) {
+                if (String(type).startsWith('Other Command')) {
                     // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
                     state.lastLucyCommandChannelId = channel.id;
                     this.setLucyResponseTimeout(type);
@@ -121,13 +105,12 @@ module.exports = (state, channelManager, emergencyHandler) => ({
                     continue;
                 }
 
-                // Final error after retries or non-retryable error
                 log.error(`${accountPrefix(state)}❌ Gagal mengirim command [${cmd}] [${type}] setelah ${attempt} percobaan: ${e.message}`, {
                     code: e.code,
                     status: e.status,
                     command: cmd,
                     type: type,
-                    stack: e.stack?.split('\n').slice(0, 5).join('\n') // partial stack
+                    stack: e.stack?.split('\n').slice(0, 5).join('\n')
                 });
                 break;
             }
@@ -136,35 +119,13 @@ module.exports = (state, channelManager, emergencyHandler) => ({
         return false;
     },
 
-    setResponseTimeout(type) {
-        if (state.responseTimeout) {
-            log.warn(`${accountPrefix(state)}⏳ Timeout already active, skipping new timeout for ${type}`);
-            return;
-        }
-
-        state.responseTimeout = setTimeout(() => {
-            log.error(`${accountPrefix(state)}⛔ TIMEOUT 40s - No response from OwO for ${type}`);
-            emergencyHandler.pause('TIMEOUT 40s (OwO No Response)');
-        }, CONSTANTS.RESPONSE_TIMEOUT_MS);
-
-        log.info(`${accountPrefix(state)}⏲️ Response timeout set for ${type}: ${CONSTANTS.RESPONSE_TIMEOUT_MS / 1000}s`);
-    },
-
-    clearResponseTimeout() {
-        if (state.responseTimeout) {
-            clearTimeout(state.responseTimeout);
-            state.responseTimeout = null;
-            log.info(`${accountPrefix(state)}✅ Response timeout cleared - OwO responded in time`);
-        }
-    },
-
     setLucyResponseTimeout(type) {
         if (state.lucyResponseTimeout) {
             log.warn(`${accountPrefix(state)}⏳ Timeout Lucy masih aktif; timeout baru untuk ${type} dilewati.`);
             return;
         }
 
-        // Dengarkan hanya balasan dari bot Lucy; pesan OwO tidak boleh membatalkan timeout ini.
+        // Dengarkan hanya balasan dari bot Lucy.
         if (state.client?.on && state.lucyMessageTimeoutClient !== state.client) {
             state.lucyMessageTimeoutListener = (msg) => {
                 if (String(msg?.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {

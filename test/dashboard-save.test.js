@@ -119,7 +119,7 @@ test('Lucy Custom Commands never enable CAPTCHA, even if a legacy field is submi
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(savedConfig.otherCommands[0].text, '!test');
-        assert.deepEqual(savedConfig.otherCommands.map(command => command.captchaEnabled), [false, false, false]);
+        assert.deepEqual(savedConfig.otherCommands.map(command => command.captchaEnabled), [undefined, undefined, undefined]);
     });
 });
 
@@ -144,7 +144,7 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.deepEqual(savedConfig.settings.lucyControl, { start: 'lgo', pause: 'lstop', allowIds: ['111', '222'] });
-        assert.equal(savedConfig.settings.control.start, 'wcash');
+        assert.equal(savedConfig.settings.control, undefined);
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /<span>Lucy<\/span>/);
@@ -154,17 +154,21 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
         }
         assert.doesNotMatch(page, /tab-other/);
         assert.doesNotMatch(page, /name="other1Captcha"/);
-        assert.match(page, /data-menu-label="Automasi OwO"/);
         assert.match(page, /Custom Command Lucy 1/);
         assert.match(page, /LUCY DISCORD CONTROL/);
         assert.match(page, /name="lucyCtrlStart" value="lgo"/);
         assert.match(page, /name="lucyCtrlAllowIds" value="111,222"/);
-        assert.match(page, /name="text1"/);
+        assert.doesNotMatch(page, /name="text1"/);
 
-        const automation = page.slice(page.indexOf('id="tab-automation"'), page.indexOf('id="tab-control"'));
-        assert.match(automation, /HUNTBOT AUTOMATION/);
-        assert.match(automation, /BOSS AUTOMATION \(OwO\)/);
-        assert.doesNotMatch(automation, /AUTO BOSS2|AUTO USE GEMS|AUTO ADVENTURE/);
+        assert.doesNotMatch(page, /tab-automation/);
+        assert.doesNotMatch(page, /data-menu-label="Automasi OwO"/);
+        assert.doesNotMatch(page, /HUNTBOT AUTOMATION/);
+        assert.match(page, /name="hb2Enabled"/);
+        assert.match(page, /name="voiceEnabled"/);
+        assert.doesNotMatch(page, /name="rotationEnabled"/);
+        assert.doesNotMatch(page, /name="bossEnabled"/);
+        assert.doesNotMatch(page, /name="captchaPrimary"/);
+        assert.doesNotMatch(page, /name="twoCaptchaKey"/);
     });
 });
 

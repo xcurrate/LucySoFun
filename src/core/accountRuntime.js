@@ -4,7 +4,6 @@ const fs = require('fs');
 const createTelegramService = require('../services/telegram');
 const createMacrodroidService = require('../services/macrodroidService');
 const createChannelManager = require('../managers/channel');
-const createBossManager = require('../managers/boss');
 const createBoss2Manager = require('../managers/boss2');
 const { normalizeBoss2Settings } = createBoss2Manager;
 const createAdventureManager = require('../managers/adventure');
@@ -12,21 +11,16 @@ const createGemsManager = require('../managers/gems');
 const { normalizeGemsSettings } = createGemsManager;
 const createRestManager = require('../managers/rest');
 const { normalizeRestSettings } = createRestManager;
-const createCaptchaHandler = require('../managers/captcha');
 const createCommandSender = require('../managers/command');
 const createLoopManager = require('../managers/loop');
 const createEmergencyHandler = require('../managers/emergency');
 const createMessageHandler = require('../managers/message');
-const createHuntbotManager = require('../managers/huntbot');
 const createHuntbot2Manager = require('../managers/Huntbot2');
 const createMonsterCatcherManager = require('../managers/monsterCatcher');
 const { normalizeMonsterCatcherSettings } = createMonsterCatcherManager;
-const createDailyResetManager = require('../managers/dailyReset');
 const createVoiceManager = require('../managers/voice');
 const createClientManager = require('./client');
-const captchaSolver = require('../services/captchaSolver');
 const log = require('../../logger');
-const CONSTANTS = require('../constants');
 const { accountPrefix, safeJsonStringify, normalizeSendCount } = require('../utils');
 
 const getAccountIdFromToken = (token) => {
@@ -41,13 +35,41 @@ const getAccountIdFromToken = (token) => {
     }
 };
 
+// Menghapus properti konfigurasi khusus OwO tanpa menghapus konfigurasi Lucy.
+const dropOwOConfig = (config = {}) => {
+    delete config.settings?.boss;
+    delete config.settings?.huntbot;
+    delete config.settings?.channelRotation;
+    delete config.settings?.control;
+    delete config.settings?.battle;
+    delete config.settings?.hunt;
+    delete config.settings?.pray;
+    delete config.settings?.custom;
+    delete config.settings?.text1;
+    delete config.settings?.text2;
+    delete config.tiketandhb;
+    delete config.huntbot;
+    delete config.captcha;
+    delete config.autosolver;
+    delete config.macrodroidId;
+    delete config.settings?.twoCaptchaKey;
+    if (config.settings?.messageFilter) delete config.settings.messageFilter.debugOnlyOwO;
+    delete config.delays;
+    if (Array.isArray(config.otherCommands)) {
+        config.otherCommands = config.otherCommands.map(command => {
+            if (!command) return command;
+            const cleaned = { ...command };
+            delete cleaned.captchaEnabled;
+            return cleaned;
+        });
+    }
+    return config;
+};
+
 const ensureRuntimeShape = (config = {}) => {
     config.settings = config.settings || {};
     config.settings.voice = config.settings.voice || { enabled: false, channelId: '' };
-    config.settings.channelRotation = config.settings.channelRotation || { enabled: false, minMs: 180000, maxMs: 360000 };
-    config.settings.control = config.settings.control || { start: 'wcash', pause: 'wbuy 1', allowIds: [] };
     config.settings.lucyControl = config.settings.lucyControl || { start: 'lucy start', pause: 'lucy pause', allowIds: [] };
-    config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
     config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
     config.settings.gems = normalizeGemsSettings(config.settings.gems);
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
@@ -55,7 +77,8 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.rest = normalizeRestSettings(config.settings.rest);
     config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
     delete config.settings.adventure.targetId;
-    config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
+    config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false };
+    delete config.settings.messageFilter.debugOnlyOwO;
     config.settings.messageDebug = config.settings.messageDebug || { enabled: false, targetId: '', channelId: '', guildId: '' };
     config.settings.debug2 = config.settings.debug2 === true;
     config.settings.telegram = config.settings.telegram || { token: '', chatId: '' };
@@ -67,26 +90,13 @@ const ensureRuntimeShape = (config = {}) => {
             delayMs: Math.max(0, parseInt(command.delayMs, 10) || 5000),
             count: normalizeSendCount(command.count),
             channelId: String(command.channelId || ''),
-            captchaEnabled: false,
             enabled: command.enabled === true
         };
     });
-    config.settings.huntbot = config.settings.huntbot || { enabled: true };
     config.botStatus = config.botStatus || { running: false, paused: true };
     config.channels = Array.isArray(config.channels) ? config.channels : [];
-    config.tiketandhb = config.tiketandhb || { channelId: '' };
     config.safety = config.safety || { cctv: false };
-    config.delays = config.delays || {};
-    Object.keys(CONSTANTS.DEFAULT_DELAYS || {}).forEach(key => {
-        config.delays[key] = {
-            ...CONSTANTS.DEFAULT_DELAYS[key],
-            ...(config.delays[key] || {})
-        };
-    });
-    config.huntbot = config.huntbot || { enabled: true, autoMode: true, defaultUpgrade: 'duration', defaultDuration: '1D', notifyProgress: true, sellAllAfterReturn: false };
-    config.huntbot.sellAllAfterReturn = config.huntbot.sellAllAfterReturn === true;
-    config.captcha = config.captcha || {};
-    return config;
+    return dropOwOConfig(config);
 };
 
 const createRuntimeState = ({ config, sharedStats }) => ({
@@ -94,45 +104,24 @@ const createRuntimeState = ({ config, sharedStats }) => ({
     config: ensureRuntimeShape(config),
     activeToken: config.token || '',
     activeChannelId: null,
-    stopBossHunt: false,
-    lastRefillTimestamp: 0,
-    foughtBosses: new Set(),
-    bossCooldowns: new Map(),
-    bossRespawnTimers: new Map(),
-    bossTicketCheckTimers: new Set(),
-    pendingBossTicketCheck: null,
     adventureTimer: null,
     adventurePaused: false,
     adventureProcessing: false,
     adventureActive: false,
-    responseTimeout: null,
-    hasActiveCaptcha: false,
     accountUsername: '',
-    hasRunInitialReadyCommands: false,
     isStartupReadyRoutine: false,
     startupReadyRoutineUntil: 0,
-    hasUsedFirstLoopStartupStagger: false,
     isBusy: false,
     nextAt: {},
     otherCommandDelays: {},
-    startupJitterMs: Math.floor(Math.random() * 4500),
-    captchaSolverAbortController: null,
-    captchaSolveRunId: 0,
-    stats: sharedStats,
-    channelRotateTimer: null,
-    lastChannelId: null,
-    lastTicketCheck: 0,
     messageDebugEntries: [],
-    loops: {
-        battle: null,
-        hunt: null,
-        pray: null,
-        custom1: null,
-        custom2: null,
-        other1: null,
-        other2: null,
-        other3: null
-    }
+    emergencyRecoveryActive: false,
+    emergencyRecoveryTimer: null,
+    emergencyRecoveryListener: null,
+    emergencyRecoveryClient: null,
+    emergencyRecoveryPending: null,
+    stats: sharedStats,
+    loops: {}
 });
 
 const createRuntimeConfigManager = (state, filePath) => ({
@@ -150,38 +139,12 @@ const createRuntimeConfigManager = (state, filePath) => ({
         fs.writeFileSync(filePath, JSON.stringify(state.config, null, 2));
     },
 
-    getRotationSettings() {
-        const r = state.config.settings?.channelRotation || {};
-        return {
-            enabled: r.enabled === true,
-            minMs: Math.max(1000, parseInt(r.minMs, 10) || 8 * 60 * 1000),
-            maxMs: Math.max(1000, parseInt(r.maxMs, 10) || 15 * 60 * 1000)
-        };
-    },
-
-    getControlCommands() {
-        const ctrl = state.config.settings?.control || {};
-        return {
-            startCmd: String(ctrl.start || 'wo').toLowerCase(),
-            pauseCmd: String(ctrl.pause || 'winv').toLowerCase(),
-            allowIds: Array.isArray(ctrl.allowIds) ? ctrl.allowIds.map(String) : []
-        };
-    },
-
     getLucyControlCommands() {
         const ctrl = state.config.settings?.lucyControl || {};
         return {
             startCmd: String(ctrl.start || 'lucy start').trim().toLowerCase(),
             pauseCmd: String(ctrl.pause || 'lucy pause').trim().toLowerCase(),
             allowIds: Array.isArray(ctrl.allowIds) ? ctrl.allowIds.map(String) : []
-        };
-    },
-
-    getBossSettings() {
-        const boss = state.config.settings?.boss || {};
-        return {
-            enabled: boss.enabled === true,
-            allowedGuilds: Array.isArray(boss.allowedGuilds) ? boss.allowedGuilds : []
         };
     },
 
@@ -223,6 +186,7 @@ const createRuntimeConfigManager = (state, filePath) => ({
         const tokenChanged = diskConfig.token !== state.activeToken;
         const channelsChanged = safeJsonStringify(state.config.channels) !== safeJsonStringify(diskConfig.channels);
         const voiceChanged = safeJsonStringify(state.config.settings?.voice) !== safeJsonStringify(diskConfig.settings?.voice);
+        const otherCommandsChanged = safeJsonStringify(state.config.otherCommands) !== safeJsonStringify(diskConfig.otherCommands);
         const wasPaused = state.config.botStatus?.paused;
         const wasRunning = state.config.botStatus?.running;
         const nowPaused = diskConfig.botStatus?.paused;
@@ -230,22 +194,10 @@ const createRuntimeConfigManager = (state, filePath) => ({
         const statusChanged = wasPaused !== nowPaused || wasRunning !== nowRunning;
 
         state.config = diskConfig;
-        return { tokenChanged, previousToken, channelsChanged, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
+        return { tokenChanged, previousToken, channelsChanged, voiceChanged, otherCommandsChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
 });
 
-const createHuntbotState = () => ({
-    autoMode: false,
-    activeHunt: null,
-    pendingCaptcha: null,
-    lastUpgradeLevel: null,
-    lastProgress: null,
-    lastResponse: null,
-    monitorInterval: null,
-    outgoingCommands: new Map(),
-    timeouts: new Set(),
-    notifiedSoon: false
-});
 
 module.exports = function createAccountRuntime({ config, filePath, sharedStats }) {
     const accountId = getAccountIdFromToken(config.token);
@@ -254,35 +206,28 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const configManager = createRuntimeConfigManager(state, filePath);
     state.persistConfig = () => configManager.save();
     const telegramService = createTelegramService(state);
-    const dailyResetManager = createDailyResetManager(state, telegramService);
     const macrodroidService = createMacrodroidService(state);
     const channelManager = createChannelManager(state, configManager);
     const loopManagerWrapper = {
         stopAll: () => loopManager && loopManager.stopAll(),
         startAll: () => loopManager && loopManager.startAll()
     };
-    const bossManager = createBossManager(state, configManager, telegramService);
-    const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService, macrodroidService);
+    const emergencyHandler = createEmergencyHandler(state, configManager, loopManagerWrapper, channelManager, telegramService);
     const commandSender = createCommandSender(state, channelManager, emergencyHandler);
     const boss2Manager = createBoss2Manager(state, configManager);
     const adventureManager = createAdventureManager(state, configManager, commandSender);
     const gemsManager = createGemsManager(state, configManager, commandSender);
     const loopManager = createLoopManager(state, commandSender);
-    const captchaHandler = createCaptchaHandler(state, configManager, loopManager, telegramService, channelManager, macrodroidService);
     const voiceManager = createVoiceManager(state, configManager);
-    const huntbotManager = createHuntbotManager(state, createHuntbotState(), configManager, commandSender, telegramService, captchaSolver);
     const huntbot2Manager = createHuntbot2Manager(state, commandSender);
     const monsterCatcherManager = createMonsterCatcherManager(state, configManager, loopManager, commandSender);
     const messageHandler = createMessageHandler(
         state,
         configManager,
-        bossManager,
-        captchaHandler,
         loopManager,
         channelManager,
         telegramService,
         macrodroidService,
-        huntbotManager,
         commandSender,
         voiceManager,
         adventureManager,
@@ -291,9 +236,8 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         huntbot2Manager,
         monsterCatcherManager
     );
-    const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager);
+    const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, voiceManager);
 
-    let readyLoopWatcher = null;
     const otherCommandReadyWatchers = new Map();
     let runtimeRunning = false;
     let loopsActive = false;
@@ -304,45 +248,17 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         return settings.boss2?.enabled === true
             || settings.gems?.enabled === true
             || settings.adventure?.enabled === true
+            || settings.huntbot2?.enabled === true
+            || settings.monsterCatcher?.enabled === true
             || (Array.isArray(state.config.otherCommands) && state.config.otherCommands.some(command => command?.enabled === true));
     };
 
     const getLoopConfigSignature = (nextConfig = state.config) => safeJsonStringify({
-        channels: nextConfig.channels || [],
-        delays: nextConfig.delays || {},
-        commands: {
-            battle: nextConfig.settings?.battle,
-            hunt: nextConfig.settings?.hunt,
-            pray: nextConfig.settings?.pray,
-            custom: nextConfig.settings?.custom,
-            text1: nextConfig.settings?.text1,
-            text2: nextConfig.settings?.text2,
-            otherCommands: nextConfig.otherCommands || []
-        },
-        rotation: nextConfig.settings?.channelRotation || {}
+        otherCommands: nextConfig.otherCommands || []
     });
-
-    const originalLoopStartAll = loopManager.startAll.bind(loopManager);
-    const originalLoopStopAll = loopManager.stopAll.bind(loopManager);
-    loopManager.startAll = () => {
-        const started = originalLoopStartAll();
-        loopsActive = started !== false;
-        if (loopsActive) loopConfigSignature = getLoopConfigSignature();
-        return started;
-    };
-    loopManager.stopAll = () => {
-        originalLoopStopAll();
-        loopsActive = false;
-    };
-
-    const joinConfiguredVoice = (source) => {
-        if (!state.client?.isReady()) return;
-        voiceManager.joinConfigured(source).catch(err => log.error(`${accountPrefix(state)}❌ Auto Join VC gagal: ${err.message}`));
-    };
 
     const activateReadyRuntime = (source = 'start') => {
         if (!state.client?.isReady()) return false;
-        // Saat istirahat jangan menjalankan loop; restManager memanggil ulang setelah istirahat selesai.
         if (state.rest?.active) return false;
         const nextLoopSignature = getLoopConfigSignature();
         if (!loopsActive || nextLoopSignature !== loopConfigSignature) {
@@ -350,38 +266,34 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             loopConfigSignature = nextLoopSignature;
             loopsActive = true;
         }
-        channelManager.scheduleRotation();
-        joinConfiguredVoice(source);
         adventureManager.start().catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
         return true;
     };
 
     const startLoopsWhenReady = () => {
-        if (readyLoopWatcher) clearInterval(readyLoopWatcher);
-        readyLoopWatcher = setInterval(() => {
+        if (state.readyLoopWatcher) clearInterval(state.readyLoopWatcher);
+        state.readyLoopWatcher = setInterval(() => {
             if (!state.config.botStatus?.running || state.config.botStatus?.paused) {
-                clearInterval(readyLoopWatcher);
-                readyLoopWatcher = null;
+                clearInterval(state.readyLoopWatcher);
+                state.readyLoopWatcher = null;
                 return;
             }
             if (state.client?.isReady()) {
                 activateReadyRuntime('ready');
-                clearInterval(readyLoopWatcher);
-                readyLoopWatcher = null;
+                clearInterval(state.readyLoopWatcher);
+                state.readyLoopWatcher = null;
             }
         }, 1000);
     };
 
-    // Boss2 sengaja tidak dijeda saat istirahat.
     const restManager = createRestManager(state, configManager, {
-        onStart(status) {
+        onStart() {
             loopManager.stopAll();
-            channelManager.stopRotation();
             loopManager.pauseOtherCommandDelays({ reason: 'rest' });
             state.adventureResumeAfterRest = state.adventureResumeAfterRest || !!state.adventureActive;
             adventureManager.stopTimer();
             state.adventureActive = false;
-            telegramService.send(`😴 <b>Istirahat dimulai</b>\nSampai: ${createRestManager.formatWib(status.until)}`);
+            telegramService.send(`😴 <b>Istirahat dimulai</b>`);
         },
         onEnd() {
             loopManager.resumeOtherCommandDelays({ reason: 'rest' });
@@ -428,10 +340,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         voiceManager,
         adventureManager,
         monsterCatcherManager,
-        dailyResetManager,
-        checkDailyReset() {
-            dailyResetManager.checkAndReset();
-        },
         getDisplayName() {
             return state.client?.user?.tag || accountId;
         },
@@ -440,13 +348,12 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             runtimeRunning = false;
             state.config.botStatus = { running: false, paused: true };
             if (statusChanged) configManager.save();
-            if (readyLoopWatcher) {
-                clearInterval(readyLoopWatcher);
-                readyLoopWatcher = null;
+            if (state.readyLoopWatcher) {
+                clearInterval(state.readyLoopWatcher);
+                state.readyLoopWatcher = null;
             }
             loopManager.stopAll();
             loopsActive = false;
-            channelManager.stopRotation();
 
             if (!state.client) {
                 log.info(`${accountPrefix(state)}🔌 Connect/Login akun tanpa start loop.`);
@@ -470,8 +377,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             state.config.botStatus = { running: true, paused: false };
             if (statusChanged) configManager.save();
 
-            // The profile Start button controls both OwO loops and Lucy features.
-            // Only apply this transition once; reconcile() runs periodically.
+            // Tombol START profile menghidupkan fitur Lucy.
             if (!wasRuntimeRunning) messageHandler.setLucyFeatures(true);
 
             if (!state.client) {
@@ -490,7 +396,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             }
 
             if (!wasRuntimeRunning || !loopsActive) {
-                if (!wasRuntimeRunning) log.info(`${accountPrefix(state)}▶️ Melanjutkan loop akun paralel.`);
+                if (!wasRuntimeRunning) log.info(`${accountPrefix(state)}▶️ Melanjutkan sisa fitur akun paralel.`);
                 activateReadyRuntime(wasRuntimeRunning ? 'reconcile' : 'start');
             }
         },
@@ -530,31 +436,22 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             state.config.botStatus = { running: false, paused: true };
             if (statusChanged) configManager.save();
 
-            // Also stop Lucy when this profile was already paused at startup.
-            // Avoid repeatedly saving/logging while the periodic reconciler runs.
             if (wasRuntimeRunning || hasEnabledLucyFeatures()) messageHandler.setLucyFeatures(false);
             if (!wasRuntimeRunning && !loopsActive) return;
             if (wasRuntimeRunning) log.info(`${accountPrefix(state)}⏸ Menjeda akun paralel.`);
             loopManager.stopAll();
             loopsActive = false;
-            channelManager.stopRotation();
         },
         destroy() {
             restManager.stop();
             this.pause();
             loopManager.stopOtherCommands();
-            if (readyLoopWatcher) clearInterval(readyLoopWatcher);
-            readyLoopWatcher = null;
+            if (state.readyLoopWatcher) clearInterval(state.readyLoopWatcher);
+            state.readyLoopWatcher = null;
             otherCommandReadyWatchers.forEach(watcher => clearInterval(watcher));
             otherCommandReadyWatchers.clear();
-            if (huntbotManager && typeof huntbotManager.stop === 'function') {
-                huntbotManager.stop({ notify: false });
-            }
             huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
-            if (bossManager && typeof bossManager.stop === 'function') {
-                bossManager.stop();
-            }
             boss2Manager.stop();
             gemsManager.stop();
             adventureManager.stop();
@@ -572,7 +469,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const oldChannels = safeJsonStringify(oldConfig.channels || []);
             const oldStatus = safeJsonStringify(oldConfig.botStatus || {});
 
-            state.config = ensureRuntimeShape(nextConfig);
+            state.config = ensureRuntimeShape(dropOwOConfig(nextConfig || {}));
             state.activeToken = state.config.token || '';
 
             const tokenChanged = oldToken !== state.activeToken;
@@ -594,16 +491,14 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             if (channelsChanged) log.info(`${accountPrefix(state)}📡 Config channel berubah (${(state.config.channels || []).length} channel).`);
             if (voiceChanged) log.info(`${accountPrefix(state)}🔊 Config voice berubah: enabled=${state.config.settings?.voice?.enabled === true}, channel=${state.config.settings?.voice?.channelId || '-'}`);
             if (adventureChanged && state.config.settings?.adventure?.enabled !== true) adventureManager.stop();
-            if (loopConfigChanged && !channelsChanged) log.info(`${accountPrefix(state)}⚙️ Config loop/delay berubah.`);
 
             if (!runtimeRunning || !state.client?.isReady()) return;
 
-            if (channelsChanged) channelManager.updateActive();
-            if (loopConfigChanged || channelsChanged) {
+            if (loopConfigChanged) {
                 loopsActive = false;
                 activateReadyRuntime('config');
             } else if (voiceChanged) {
-                joinConfiguredVoice('config');
+                this.joinVoice('config');
             }
         }
     };
@@ -611,3 +506,4 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
 
 module.exports.getAccountIdFromToken = getAccountIdFromToken;
 module.exports.ensureRuntimeShape = ensureRuntimeShape;
+module.exports.dropOwOConfig = dropOwOConfig;
