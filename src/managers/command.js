@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { sleep, randomInt, accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, channelManager) => ({
+module.exports = (state, channelManager, emergencyHandler) => ({
     async runLucyAction(action) {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const previous = state.lucyActionQueue || Promise.resolve();
@@ -89,6 +89,9 @@ module.exports = (state, channelManager) => ({
                 if (String(type).startsWith('Other Command')) {
                     // Simpan channel yang dipakai Custom Command agar recovery linv mengecek server yang sama.
                     state.lastLucyCommandChannelId = channel.id;
+                    // Timer 40s: jika Lucy tidak merespons, emergency pause akun ini
+                    // lalu probe linv tiap 10 menit akan melanjutkan slot yang sama.
+                    this.setLucyResponseTimeout(type);
                 }
                 return true;
             } catch (e) {
@@ -116,5 +119,42 @@ module.exports = (state, channelManager) => ({
         }
 
         return false;
+    },
+
+    setLucyResponseTimeout(type) {
+        if (state.lucyResponseTimeout) {
+            log.warn(`${accountPrefix(state)}⏳ Timeout Lucy masih aktif; timeout baru untuk ${type} dilewati.`);
+            return;
+        }
+
+        // Batalkan hanya ketika Lucy benar-benar mengirim pesan, sehingga
+        // command yang tidak berbalas akan memicu emergency pause akun ini.
+        if (state.client?.on && state.lucyMessageTimeoutClient !== state.client) {
+            state.lucyMessageTimeoutListener = (msg) => {
+                if (String(msg?.author?.id || '') === CONSTANTS.LUCY_BOT_ID) {
+                    this.clearLucyResponseTimeout();
+                }
+            };
+            state.client.on('messageCreate', state.lucyMessageTimeoutListener);
+            state.lucyMessageTimeoutClient = state.client;
+        }
+
+        state.lucyResponseTimeout = setTimeout(() => {
+            state.lucyResponseTimeout = null;
+            log.error(`${accountPrefix(state)}⛔ TIMEOUT ${CONSTANTS.RESPONSE_TIMEOUT_MS / 1000}s - Tidak ada respons dari Lucy untuk ${type}.`);
+            if (emergencyHandler?.pause) {
+                emergencyHandler.pause(`TIMEOUT ${CONSTANTS.RESPONSE_TIMEOUT_MS / 1000}s (Lucy No Response)`);
+            }
+        }, CONSTANTS.RESPONSE_TIMEOUT_MS);
+
+        log.info(`${accountPrefix(state)}⏲️ Lucy response timeout aktif untuk ${type}: ${CONSTANTS.RESPONSE_TIMEOUT_MS / 1000}s`);
+    },
+
+    clearLucyResponseTimeout() {
+        if (state.lucyResponseTimeout) {
+            clearTimeout(state.lucyResponseTimeout);
+            state.lucyResponseTimeout = null;
+            log.info(`${accountPrefix(state)}✅ Timeout Lucy dibatalkan: respons dari bot Lucy diterima.`);
+        }
     }
 });

@@ -54,6 +54,7 @@ minTicketLeft: 1,
         inventoryTimeoutMs: 60000
     },
     MAX_LOG_LINES: 20,
+    RESPONSE_TIMEOUT_MS: 40000,
     MAX_SET_SIZE: 500,
     MIN_TYPING_DELAY: 290,
     MAX_TYPING_DELAY: 300,

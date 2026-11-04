@@ -31,8 +31,7 @@ module.exports = (state, commandSender) => ({
             sent = await commandSender.send(
                 command.text.trim(),
                 `Other Command ${index + 1}`,
-                command.channelId.trim(),
-                { allowWhilePaused: true }
+                command.channelId.trim()
             );
         } catch (error) {
             log.error(`${accountPrefix(state)}❌ Gagal Other Command ${index + 1}: ${error.message || error}`);
@@ -192,13 +191,18 @@ module.exports = (state, commandSender) => ({
         return true;
     },
 
-    // stopAll: menghentikan semuanya (tidak menghapus sisa delay milik Monster Catcher).
+    // stopAll: menghentikan semua loop tanpa men-disable slot, sehingga
+    // emergency/resume (mis. recovery linv) bisa startAll kembali slot yang sama.
     stopAll() {
-        this.stopOtherCommands();
+        (state.config.otherCommands || []).forEach((_, index) => this.clearOtherCommandTimers(index));
+        if (state.lucyResponseTimeout) {
+            clearTimeout(state.lucyResponseTimeout);
+            state.lucyResponseTimeout = null;
+        }
         if (state.responseTimeout) {
             clearTimeout(state.responseTimeout);
             state.responseTimeout = null;
         }
-        log.info(`${accountPrefix(state)}⏹️ Semua loop dihentikan`);
+        log.info(`${accountPrefix(state)}⏹️ Semua loop dihentikan (slot tetap aktif).`);
     }
 });
