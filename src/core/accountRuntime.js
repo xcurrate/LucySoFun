@@ -19,6 +19,8 @@ const createEmergencyHandler = require('../managers/emergency');
 const createMessageHandler = require('../managers/message');
 const createHuntbotManager = require('../managers/huntbot');
 const createHuntbot2Manager = require('../managers/Huntbot2');
+const createMonsterCatcherManager = require('../managers/monsterCatcher');
+const { normalizeMonsterCatcherSettings } = createMonsterCatcherManager;
 const createDailyResetManager = require('../managers/dailyReset');
 const createVoiceManager = require('../managers/voice');
 const createClientManager = require('./client');
@@ -49,6 +51,7 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
     config.settings.gems = normalizeGemsSettings(config.settings.gems);
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
+    config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
     config.settings.rest = normalizeRestSettings(config.settings.rest);
     config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
     delete config.settings.adventure.targetId;
@@ -194,6 +197,10 @@ const createRuntimeConfigManager = (state, filePath) => ({
         return normalizeRestSettings(state.config.settings?.rest);
     },
 
+    getMonsterCatcherSettings() {
+        return normalizeMonsterCatcherSettings(state.config.settings?.monsterCatcher);
+    },
+
     getAdventureSettings() {
         const adventure = state.config.settings?.adventure || {};
         return {
@@ -265,6 +272,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const voiceManager = createVoiceManager(state, configManager);
     const huntbotManager = createHuntbotManager(state, createHuntbotState(), configManager, commandSender, telegramService, captchaSolver);
     const huntbot2Manager = createHuntbot2Manager(state, commandSender);
+    const monsterCatcherManager = createMonsterCatcherManager(state, configManager, loopManager, commandSender);
     const messageHandler = createMessageHandler(
         state,
         configManager,
@@ -280,7 +288,8 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         adventureManager,
         boss2Manager,
         gemsManager,
-        huntbot2Manager
+        huntbot2Manager,
+        monsterCatcherManager
     );
     const clientManager = createClientManager(state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager);
 
@@ -418,6 +427,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         loopManager,
         voiceManager,
         adventureManager,
+        monsterCatcherManager,
         dailyResetManager,
         checkDailyReset() {
             dailyResetManager.checkAndReset();
@@ -541,6 +551,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
                 huntbotManager.stop({ notify: false });
             }
             huntbot2Manager?.stop?.();
+            monsterCatcherManager?.stop?.();
             if (bossManager && typeof bossManager.stop === 'function') {
                 bossManager.stop();
             }

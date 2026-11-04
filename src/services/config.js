@@ -1,5 +1,6 @@
 const { normalizeBoss2Settings } = require('../managers/boss2');
 const { normalizeGemsSettings } = require('../managers/gems');
+const { normalizeMonsterCatcherSettings } = require('../managers/monsterCatcher');
 const { normalizeRestSettings } = require('../managers/rest');
 const fs = require('fs');
 const CONSTANTS = require('../constants');
@@ -71,6 +72,10 @@ module.exports = (state) => ({
 
     getGemsSettings() {
         return normalizeGemsSettings(state.config.settings?.gems);
+    },
+
+    getMonsterCatcherSettings() {
+        return normalizeMonsterCatcherSettings(state.config.settings?.monsterCatcher);
     },
 
     getAdventureSettings() {

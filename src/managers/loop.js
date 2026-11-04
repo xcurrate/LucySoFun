@@ -22,8 +22,8 @@ module.exports = (state, commandSender) => ({
 
         if (state.loops[key]) clearTimeout(state.loops[key]);
         state.loops[key] = null;
-        // Saat istirahat jadwal disimpan di nextAt saja; startAll() melanjutkannya setelah istirahat.
-        if (state.rest?.active) return;
+        // Saat istirahat atau Monster Catcher aktif jadwal disimpan di nextAt saja.
+        if (state.rest?.active || state.monsterCatchPaused) return;
         state.loops[key] = setTimeout(fn, delay);
     },
 
@@ -70,6 +70,7 @@ module.exports = (state, commandSender) => ({
 
     async hunt() {
         if (state.config.botStatus.paused || !state.config.settings?.hunt) return;
+        if (state.monsterCatchPaused) return;
 
         // HAPUS: commandSender.clearResponseTimeout();
 
@@ -89,6 +90,7 @@ module.exports = (state, commandSender) => ({
     
     async battle() {
         if (state.config.botStatus.paused || !state.config.settings?.battle) return;
+        if (state.monsterCatchPaused) return;
 
         while (state.isBusy) {
             await new Promise(resolve => setTimeout(resolve, 0));
@@ -116,6 +118,7 @@ module.exports = (state, commandSender) => ({
 
     async pray() {
         if (state.config.botStatus.paused || !state.config.settings?.pray) return;
+        if (state.monsterCatchPaused) return;
 
         try {
             await commandSender.send('wpray', 'Pray');
@@ -132,6 +135,7 @@ module.exports = (state, commandSender) => ({
 
     async custom1() {
         if (state.config.botStatus.paused || !state.config.settings?.custom) return;
+        if (state.monsterCatchPaused) return;
 
         const text = state.config.settings.text1?.trim();
         if (!text) return;
@@ -158,6 +162,7 @@ module.exports = (state, commandSender) => ({
 
     async custom2() {
         if (state.config.botStatus.paused || !state.config.settings?.custom) return;
+        if (state.monsterCatchPaused) return;
 
         const text = state.config.settings.text2?.trim();
         if (!text) return;
@@ -185,7 +190,7 @@ module.exports = (state, commandSender) => ({
             ? Infinity
             : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(command.count));
         const pauseOnCaptcha = command.captchaEnabled !== false;
-        if (state.rest?.active || (pauseOnCaptcha && state.hasActiveCaptcha)) {
+        if (state.monsterCatchPaused || state.rest?.active || (pauseOnCaptcha && state.hasActiveCaptcha)) {
             this._scheduleOtherCommandDelay(index, sendsLeft, 0);
             return;
         }
@@ -231,13 +236,18 @@ module.exports = (state, commandSender) => ({
             startedAt: null,
             timer: null,
             paused: command.captchaEnabled !== false && state.hasActiveCaptcha,
-            restPaused: !!state.rest?.active
+            restPaused: !!state.rest?.active,
+            monsterPaused: !!state.monsterCatchPaused
         };
         state.otherCommandDelays[key] = delay;
 
         const resumeDelay = () => {
             if (state.otherCommandDelays?.[key] !== delay || !command.enabled) return;
-            if (delay.paused || delay.restPaused) return;
+            if (delay.paused || delay.restPaused || delay.monsterPaused) return;
+            if (state.monsterCatchPaused) {
+                delay.remainingMs = Math.max(0, Number(delay.remainingMs) || 0);
+                return;
+            }
             delay.startedAt = Date.now();
             delay.timer = setTimeout(() => {
                 if (state.otherCommandDelays?.[key] !== delay || !command.enabled) return;
@@ -252,14 +262,14 @@ module.exports = (state, commandSender) => ({
         resumeDelay();
     },
 
-    // reason 'captcha' (default) hanya untuk slot dengan captcha; 'rest' menjeda semua slot.
+    // reason 'captcha' (default) hanya untuk slot dengan captcha; 'rest' & 'monster' menjeda semua slot.
     pauseOtherCommandDelays({ reason = 'captcha' } = {}) {
-        const flag = reason === 'rest' ? 'restPaused' : 'paused';
+        const flag = reason === 'rest' ? 'restPaused' : reason === 'monster' ? 'monsterPaused' : 'paused';
         Object.entries(state.otherCommandDelays || {}).forEach(([key, delay]) => {
             const command = state.config.otherCommands?.[delay?.index];
             if (!delay || delay[flag]) return;
-            if (reason !== 'rest' && command?.captchaEnabled === false) return;
-            const wasRunning = !delay.paused && !delay.restPaused;
+            if (reason !== 'rest' && reason !== 'monster' && command?.captchaEnabled === false) return;
+            const wasRunning = !delay.paused && !delay.restPaused && !delay.monsterPaused;
             delay[flag] = true;
             if (!wasRunning) return;
             if (delay.timer) clearTimeout(delay.timer);
@@ -272,12 +282,42 @@ module.exports = (state, commandSender) => ({
     },
 
     resumeOtherCommandDelays({ reason = 'captcha' } = {}) {
-        const flag = reason === 'rest' ? 'restPaused' : 'paused';
+        const flag = reason === 'rest' ? 'restPaused' : reason === 'monster' ? 'monsterPaused' : 'paused';
         Object.values(state.otherCommandDelays || {}).forEach(delay => {
             if (!delay?.[flag]) return;
             delay[flag] = false;
-            if (!delay.paused && !delay.restPaused) delay.resume();
+            if (!delay.paused && !delay.restPaused && !delay.monsterPaused) delay.resume();
         });
+    },
+
+    // Monster Catcher: jeda seluruh loop command Lucy dengan menyimpan sisa delay.
+    pauseMonsterCatch() {
+        if (state.monsterCatchPaused) {
+            log.info(`${accountPrefix(state)}🐾 Monster Catcher sudah menjeda loop; sisa delay tetap tersimpan.`);
+            return;
+        }
+        state.monsterCatchPaused = true;
+        this.pauseOtherCommandDelays({ reason: 'monster' });
+        // Progress loop utama (nextAt) tidak direset; timer dibatalkan agar tidak mengirim command
+        // saat proses catch sedang berjalan.
+        ['battle', 'hunt', 'pray', 'custom1', 'custom2'].forEach(key => {
+            if (state.loops[key]) {
+                clearTimeout(state.loops[key]);
+                state.loops[key] = null;
+            }
+        });
+        log.warn(`${accountPrefix(state)}🐾 MONSTER CATCHER aktif: seluruh loop command dijeda (sisa delay tersimpan).`);
+    },
+
+    resumeMonsterCatch() {
+        if (!state.monsterCatchPaused) return;
+        state.monsterCatchPaused = false;
+        this.resumeOtherCommandDelays({ reason: 'monster' });
+        ['battle', 'hunt', 'pray', 'custom1', 'custom2'].forEach(key => {
+            if (state.loops[key] || typeof state.nextAt[key] !== 'number') return;
+            this._resumeLoop(key, () => this[key]());
+        });
+        log.success(`${accountPrefix(state)}🐾 Monster Catcher selesai: loop dilanjutkan dari sisa delay.`);
     },
 
     startOtherCommand(index) {

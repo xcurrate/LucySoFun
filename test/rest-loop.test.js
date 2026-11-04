@@ -104,3 +104,72 @@ test('Auto Adventure started during rest is deferred until rest ends', async () 
     assert.equal(state.adventureResumeAfterRest, true);
     assert.deepEqual(sent, []);
 });
+
+test('Monster Catcher pauses all Lucy command delays with remaining delay saved', async () => {
+    const { state, loopManager, sent } = setupOther({ count: 3, delayMs: 40 });
+    loopManager.startOtherCommand(0);
+    await wait(5);
+    assert.equal(sent.length, 1);
+
+    loopManager.pauseMonsterCatch();
+    await wait(80);
+    assert.equal(sent.length, 1, 'nothing is sent while Monster Catcher is active');
+    assert.ok(state.monsterCatchPaused, true);
+
+    loopManager.resumeMonsterCatch();
+    await wait(130);
+    assert.equal(sent.length, 3);
+    assert.equal(state.monsterCatchPaused, false);
+});
+
+test('Monster Catcher pauses OwO loops and resumes with remaining delay', async () => {
+    const sent = [];
+    const state = {
+        config: {
+            settings: { battle: true, hunt: true },
+            botStatus: { running: true, paused: false },
+            delays: { battle: { min: 1000, max: 1000 }, hunt: { min: 1000, max: 1000 } }
+        },
+        loops: {},
+        nextAt: {},
+        otherCommandDelays: {},
+        rest: { active: false }
+    };
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+    loopManager._scheduleLoop('battle', () => loopManager.battle(), 1000);
+    assert.ok(state.nextAt.battle > Date.now());
+
+    loopManager.pauseMonsterCatch();
+    assert.equal(state.loops.battle, null, 'timer cleared while paused');
+    assert.ok(state.nextAt.battle > Date.now(), 'scheduled time preserved');
+
+    const preserved = state.nextAt.battle;
+    await wait(5);
+    loopManager.resumeMonsterCatch();
+    assert.ok(state.loops.battle, 'loop re-scheduled on resume');
+    loopManager.stopAll();
+});
+
+test('command sender blocks commands during Monster Catcher but allows monster DM sends', async () => {
+    const reachedClient = [];
+    const state = {
+        monsterCatchPaused: true,
+        hasActiveCaptcha: false,
+        config: { botStatus: { running: true, paused: false } },
+        client: {
+            isReady: () => true,
+            channels: { cache: new Map() }
+        },
+        activeChannelId: ''
+    };
+    const channelManager = { updateActive: async () => false };
+    const sender = createCommandSender(state, channelManager, {});
+    assert.equal(await sender.send('wh', 'Hunt'), false, 'blocked by monster catch gate before reaching channels');
+
+    // With allowDuringMonsterCatch the gate is bypassed: a target channel ID is supplied so
+    // channelManager.updateActive() is NOT needed (requestedChannelId set), and the DM channel exists.
+    state.client.channels.cache.set('dm-1', { id: 'dm-1', sendTyping: async () => {}, send: async () => { reachedClient.push('ABC123'); } });
+    const ok = await sender.send('ABC123', 'Monster Catcher', 'dm-1', { allowDuringMonsterCatch: true });
+    assert.equal(ok, true, 'monster DM send is allowed while catch paused');
+    assert.deepEqual(reachedClient, ['ABC123']);
+});

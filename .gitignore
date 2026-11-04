@@ -2,3 +2,5 @@
 slot-permissions.json
 slot-permissions.json.tmp
 slot-owner-password.txt
+
+node_modules/

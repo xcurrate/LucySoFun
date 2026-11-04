@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager) => {
+module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -81,10 +81,13 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     };
     return ({
     async handleUpdate(msg) {
-        if (!state.client?.isReady() || !boss2Manager) return;
+        if (!state.client?.isReady()) return;
         try {
             if (msg.partial) msg = await msg.fetch();
-            await boss2Manager.handle(msg);
+            if (boss2Manager) await boss2Manager.handle(msg);
+            if (monsterCatcherManager && typeof monsterCatcherManager.handle === 'function') {
+                await monsterCatcherManager.handle(msg);
+            }
         } catch (error) {
             log.error(`${accountPrefix(state)}Gagal memproses edit pesan: ${error.message}`);
         }
@@ -97,6 +100,11 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         if (commandSender?.handleLucyCooldownMessage) commandSender.handleLucyCooldownMessage(msg);
         handleLucyTeamDebug(msg);
         this.captureMessageDebug(msg);
+
+        // Monster Catcher: mendeteksi sensor dan respons DM dari Bot Lucy.
+        if (monsterCatcherManager && typeof monsterCatcherManager.handle === 'function') {
+            await monsterCatcherManager.handle(msg);
+        }
         if (huntbot2Manager && typeof huntbot2Manager.handle === 'function') {
             await huntbot2Manager.handle(msg);
         }
@@ -256,12 +264,13 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         }
     },
 
-    // Lucy (Boss2, Gems, Adventure, Custom Commands Lucy) berjalan terpisah dari loop OwO.
+    // Lucy (Boss2, Gems, Adventure, Custom Commands Lucy, Monster Catcher) berjalan terpisah dari loop OwO.
     setLucyFeatures(enabled) {
         const settings = state.config.settings = state.config.settings || {};
         settings.boss2 = { ...(settings.boss2 || {}), enabled };
         settings.gems = { ...(settings.gems || {}), enabled };
         settings.adventure = { ...(settings.adventure || {}), enabled };
+        settings.monsterCatcher = { ...(settings.monsterCatcher || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
         configManager.save();
@@ -280,6 +289,7 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
             boss2Manager?.stop?.();
             gemsManager?.stop?.();
+            monsterCatcherManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
         }

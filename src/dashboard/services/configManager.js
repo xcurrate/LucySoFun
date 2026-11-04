@@ -2,6 +2,7 @@ const { normalizeBoss2Settings } = require('../../managers/boss2');
 const { normalizeGemsSettings } = require('../../managers/gems');
 const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
+const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
 const { normalizeSendCount } = require('../../utils');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
     return {
@@ -39,6 +40,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
         config.settings.gems = normalizeGemsSettings(config.settings.gems);
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
+        config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
         config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
         delete config.settings.adventure.targetId;
@@ -231,6 +233,14 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             sellAnimals: this.toBool(body.hb2SellAnimals),
             upgradeEnabled: this.toBool(body.hb2UpgradeEnabled),
             upgradeGain: String(body.hb2UpgradeGain || '').trim()
+        });
+        config.settings.monsterCatcher = normalizeMonsterCatcherSettings({
+            ...config.settings.monsterCatcher,
+            enabled: this.toBool(body.mcEnabled),
+            autoPauseLoops: this.toBool(body.mcAutoPauseLoops),
+            retryWaitMs: Math.max(0, this.toInt(body.mcRetryWaitSec, 60) * 1000),
+            maxRetries: Math.max(0, this.toInt(body.mcMaxRetries, 5)),
+            dmChannelId: String(body.mcDmChannelId || '').trim()
         });
         config.tiketandhb.channelId = body.tiketandhbChannel || '';
         

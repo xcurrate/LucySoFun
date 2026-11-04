@@ -317,6 +317,22 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         res.json({ accounts });
     });
 
+    router.get('/api/monster-catcher-status', (req, res) => {
+        if (req.query.profileId && !requireProfileAccess(req.query.profileId, req, res)) return;
+        const accountId = String(req.query.profileId || '');
+        const runtimes = Array.from(state?.accountRuntimes?.values?.() || []);
+        const accounts = runtimes
+            .filter(runtime => !accountId || String(runtime.accountId) === accountId)
+            .filter(runtime => typeof runtime?.monsterCatcherManager?.getStatus === 'function')
+            .map(runtime => ({
+                accountId: runtime.accountId,
+                name: typeof runtime.getDisplayName === 'function' ? runtime.getDisplayName() : runtime.accountId,
+                status: runtime.monsterCatcherManager.getStatus()
+            }));
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ accounts });
+    });
+
     router.post('/api/message-debug/clear', (req, res) => {
         if (req.body?.profileId && !requireProfileAccess(req.body.profileId, req, res)) return;
         const accountId = String(req.body?.profileId || '');
@@ -401,18 +417,19 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         const targetId = viewedId || (['connect', 'start', 'pause', 'logout', 'delete'].includes(String(saveBody.profileAction || '').split(':')[0]) ? profileActionId : '');
         if (targetId && !requireProfileAccess(targetId, req, res)) return;
         if (saveBody.action === 'loadProfile' && saveBody.selectedProfile && !requireProfileAccess(saveBody.selectedProfile, req, res)) return;
+        // Diangkat ke scope handler agar tersedia juga di blok catch.
+        const isAjax = req.get('X-Requested-With') === 'XMLHttpRequest'
+            || String(req.get('Accept') || '').includes('application/json');
+        const respondSuccess = (message) => isAjax
+            ? res.json({ success: true, message })
+            : res.send(uiComponents.getSavedResponse());
+        const respondError = (status, message) => isAjax
+            ? res.status(status).json({ success: false, message })
+            : res.status(status).send(message);
         try {
             // Some reverse proxies strip X-Requested-With. The dashboard also
             // explicitly asks for JSON, so accept that as the AJAX contract.
-            const isAjax = req.get('X-Requested-With') === 'XMLHttpRequest'
-                || String(req.get('Accept') || '').includes('application/json');
             const body = req.body || {};
-            const respondSuccess = (message) => isAjax
-                ? res.json({ success: true, message })
-                : res.send(uiComponents.getSavedResponse());
-            const respondError = (status, message) => isAjax
-                ? res.status(status).json({ success: false, message })
-                : res.status(status).send(message);
             
             if (body.action === 'loadProfile') {
                 const targetId = body.selectedProfile;
