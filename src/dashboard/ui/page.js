@@ -100,7 +100,7 @@ function renderPage(config) {
                 </form>
 
                 ${viewingProfileId ? `
-                <section class="card" style="margin-top:16px">
+                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px">
                     <label>🔒 PIN PROFILE</label>
                     <p style="font-size:13px;color:#aeb7c8">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional. Tanpa PIN, profile dapat dibuka langsung.'}</p>
                     ${viewingProfileHasPin ? `
