@@ -16,12 +16,6 @@ const createEmptyAccountStats = () => ({
         recent: [],
         last: null
     },
-    captcha: {
-        detected: 0,
-        solved: 0,
-        lastDetectedAt: null,
-        lastSolvedAt: null
-    },
     uptime: {
         accumulatedMs: 0,
         startedAt: null,
@@ -53,27 +47,16 @@ const ensureAccountStats = (state, token = state.activeToken || state.config?.to
                 };
                 stats.commands.__migratedToAccount = true;
             }
-
-            if (stats.captcha && !stats.captcha.__migratedToAccount) {
-                stats.accounts[accountId].captcha = {
-                    detected: stats.captcha.detected || 0,
-                    solved: stats.captcha.solved || 0,
-                    lastDetectedAt: stats.captcha.lastDetectedAt || null,
-                    lastSolvedAt: stats.captcha.lastSolvedAt || null
-                };
-                stats.captcha.__migratedToAccount = true;
-            }
         }
     }
 
     stats.accounts[accountId].commands = stats.accounts[accountId].commands || createEmptyAccountStats().commands;
-    stats.accounts[accountId].captcha = stats.accounts[accountId].captcha || createEmptyAccountStats().captcha;
     stats.accounts[accountId].uptime = stats.accounts[accountId].uptime || createEmptyAccountStats().uptime;
 
     return stats.accounts[accountId];
 };
 
-const isUptimeActive = (state) => !!state.config?.botStatus?.running || !!state.hasActiveCaptcha;
+const isUptimeActive = (state) => !!state.config?.botStatus?.running && !state.config?.botStatus?.paused;
 
 const syncBotUptime = (state, options = {}) => {
     const accountStats = ensureAccountStats(state, options.token);
@@ -108,7 +91,7 @@ const recordCommand = (state, cmd, type) => {
     const accountStats = ensureAccountStats(state);
     const commandStats = accountStats.commands;
     const safeType = type || 'Command';
-    const item = { cmd, type: safeType, at: Date.now(), channelId: state.activeChannelId || null };
+    const item = { cmd, type: safeType, at: Date.now() };
 
     commandStats.total += 1;
     commandStats.byType[safeType] = (commandStats.byType[safeType] || 0) + 1;
@@ -120,24 +103,10 @@ const recordCommand = (state, cmd, type) => {
     }
 };
 
-const recordCaptchaDetected = (state) => {
-    const captchaStats = ensureAccountStats(state).captcha;
-    captchaStats.detected += 1;
-    captchaStats.lastDetectedAt = Date.now();
-};
-
-const recordCaptchaSolved = (state) => {
-    const captchaStats = ensureAccountStats(state).captcha;
-    captchaStats.solved += 1;
-    captchaStats.lastSolvedAt = Date.now();
-};
-
 module.exports = {
     getAccountIdFromToken,
     ensureAccountStats,
     syncBotUptime,
     getUptimeMs,
-    recordCommand,
-    recordCaptchaDetected,
-    recordCaptchaSolved
+    recordCommand
 };

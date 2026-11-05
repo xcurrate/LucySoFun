@@ -29,7 +29,6 @@ module.exports = function createStatsService({ state, runtimeStatsService, confi
         const runtime = state.accountRuntimes?.get(snapshotAccountId);
         const runtimeState = runtime?.state || state;
         const commandStats = accountStats.commands || { total: 0, byType: {}, recent: [], last: null };
-        const captchaStats = accountStats.captcha || { detected: 0, solved: 0, lastDetectedAt: null, lastSolvedAt: null };
         const uptimeMs = runtimeStatsService.getUptimeMs(runtimeState, config.token, {
             sync: snapshotAccountId === activeAccountId || !!runtime
         });
@@ -39,12 +38,8 @@ module.exports = function createStatsService({ state, runtimeStatsService, confi
             status: {
                 text: statusText,
                 className: statusClass,
-                activeChannelId: runtimeState.activeChannelId || '-',
-                channelsTotal: Array.isArray(config.channels) ? config.channels.length : 0,
                 running: !!runtimeState.config?.botStatus?.running,
                 paused: !!runtimeState.config?.botStatus?.paused,
-                captchaActive: !!runtimeState.hasActiveCaptcha,
-                autosolver: !!config.autosolver,
                 telegram: !!(config.settings?.telegram?.token && config.settings?.telegram?.chatId)
             },
             commands: {
@@ -52,13 +47,6 @@ module.exports = function createStatsService({ state, runtimeStatsService, confi
                 byType: commandStats.byType || {},
                 recent: Array.isArray(commandStats.recent) ? commandStats.recent : [],
                 last: commandStats.last || null
-            },
-            captcha: {
-                detected: captchaStats.detected || 0,
-                solved: captchaStats.solved || 0,
-                active: !!runtimeState.hasActiveCaptcha,
-                lastDetectedAt: captchaStats.lastDetectedAt || null,
-                lastSolvedAt: captchaStats.lastSolvedAt || null
             },
             uptime: {
                 ms: uptimeMs,

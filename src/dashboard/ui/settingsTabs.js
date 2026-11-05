@@ -1,12 +1,9 @@
 module.exports = function createSettingsTabs({ escapeHtml }) {
-    function renderMainSettings({ config, profileOptions, channels, custom1, custom2 }) {
+    function renderMultiAccountCard({ profileOptions = [] }) {
         const usedSlots = Math.min(4, profileOptions.length);
         const remainingSlots = Math.max(0, 4 - usedSlots);
-
         return `
-                    <div id="tab-main" class="tab-content active">
-
-                        <div class="card" style="border-color: var(--accent);">
+<div class="card" style="border-color: var(--accent);">
                             <label style="color: var(--accent);">👥 MULTI ACCOUNT</label>
                             
                             <div style="margin-bottom: 12px;">
@@ -48,80 +45,26 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 </div>
                             </div>
                         </div>
+        `;
+    }
+
+    function renderMainSettings({ config, profileOptions, homePageCards = '' }) {
+        return `
+                    <div id="tab-main" class="tab-content active">
+
                         <div class="card">
                             <label>🔐 TEMPLATE TOKEN / KONFIG UTAMA</label>
                             <input type="password" name="token" value="${config.token || ''}" placeholder="Token">
                         </div>
 
-                        <div class="card">
-                            <label>📡 ACTIVE CHANNELS (max 3)</label>
-                            <input type="text" name="chan1" value="${channels[0] || ''}" placeholder="Channel ID 1">
-                            <input type="text" name="chan2" value="${channels[1] || ''}" placeholder="Channel ID 2">
-                            <input type="text" name="chan3" value="${channels[2] || ''}" placeholder="Channel ID 3">
-                        </div>
+                        ${homePageCards}
 
-                        <div class="card">
-                            <label>⚔️ MAIN COMMANDS</label>
-
-                            <div class="toggle-row">
-                                <span><span style="margin-right: 8px;">🏹</span> Hunt</span>
-                                <input type="checkbox" name="hunt" ${config.settings.hunt ? 'checked' : ''}>
-                            </div>
-                            <div class="row">
-                                <div class="col"><input type="number" name="huntMin" value="${config.delays.hunt.min}" placeholder="Min"></div>
-                                <div class="col"><input type="number" name="huntMax" value="${config.delays.hunt.max}" placeholder="Max"></div>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div class="toggle-row">
-                                <span><span style="margin-right: 8px;">⚔️</span> Battle</span>
-                                <input type="checkbox" name="battle" ${config.settings.battle ? 'checked' : ''}>
-                            </div>
-                            <div class="row">
-                                <div class="col"><input type="number" name="battleMin" value="${config.delays.battle.min}" placeholder="Min"></div>
-                                <div class="col"><input type="number" name="battleMax" value="${config.delays.battle.max}" placeholder="Max"></div>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div class="toggle-row">
-                                <span><span style="margin-right: 8px;">🙏</span> Pray</span>
-                                <input type="checkbox" name="pray" ${config.settings.pray ? 'checked' : ''}>
-                            </div>
-                            <div class="row">
-                                <div class="col"><input type="number" name="prayMin" value="${config.delays.pray.min}" placeholder="Min"></div>
-                                <div class="col"><input type="number" name="prayMax" value="${config.delays.pray.max}" placeholder="Max"></div>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <label>💬 CUSTOM COMMANDS</label>
-                            <div style="margin-bottom: 12px;">
-                                <input type="text" name="text1" value="${config.settings.text1 || ''}" placeholder="Command 1">
-                                <div class="row" style="margin-top: 8px;">
-                                    <div class="col"><input type="number" name="c1Min" value="${custom1.min}" placeholder="Min"></div>
-                                    <div class="col"><input type="number" name="c1Max" value="${custom1.max}" placeholder="Max"></div>
-                                </div>
-                            </div>
-                            <div style="margin-bottom: 12px;">
-                                <input type="text" name="text2" value="${config.settings.text2 || ''}" placeholder="Command 2">
-                                <div class="row" style="margin-top: 8px;">
-                                    <div class="col"><input type="number" name="c2Min" value="${custom2.min}" placeholder="Min"></div>
-                                    <div class="col"><input type="number" name="c2Max" value="${custom2.max}" placeholder="Max"></div>
-                                </div>
-                            </div>
-                            <div class="toggle-row">
-                                <span>🔘 Enable Custom Commands</span>
-                                <input type="checkbox" name="custom" ${config.settings.custom ? 'checked' : ''}>
-                            </div>
-                        </div>
                     </div>
 
         `;
     }
 
-    function renderAdvancedSettings({ config, huntbot, control, rotation, boss, msgFilter, messageDebug, voice, captchaConfig, nopechaKey, twoCaptchaKey, fallbackSolvers }) {
+    function renderAdvancedSettings({ config, msgFilter, messageDebug, voice }) {
         return `
                     <div id="tab-notifications" class="tab-content">
                         <div class="category-heading">
@@ -136,57 +79,6 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                             <label>📱 TELEGRAM NOTIFICATIONS</label>
                             <input type="text" name="tgToken" value="${config.settings.telegram.token || ''}" placeholder="Bot Token">
                             <input type="text" name="tgChat" value="${config.settings.telegram.chatId || ''}" placeholder="Chat ID">
-
-                        </div>
-                    </div>
-
-                    <div id="tab-captcha" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>🛡️ Captcha</h3>
-                            </div>
-
-                        </div>
-
-                        <!-- === CAPTCHA SETTINGS (Full Fallback UI) === -->
-                        <div class="card" style="border-color: #f59e0b;">
-                            <label style="color: #f59e0b;">🛡️ CAPTCHA SETTINGS (CaptchaAsu)</label>
-                            
-                            <div class="toggle-row">
-                                <span>Enable Auto Solver (CaptchaAsu)</span>
-                                <input type="checkbox" name="autosolver" ${config.autosolver ? 'checked' : ''}>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <label>Primary Solver</label>
-                            <select name="captchaPrimary" class="input-select">
-                                <option value="NopechaSolver" ${captchaConfig.primarySolver === 'NopechaSolver' ? 'selected' : ''}>NopechaSolver</option>
-                                <option value="TwoCaptchaSolver" ${captchaConfig.primarySolver === 'TwoCaptchaSolver' ? 'selected' : ''}>TwoCaptchaSolver</option>
-                            </select>
-
-                            <div class="divider"></div>
-
-                            <label>Fallback Solvers</label>
-                            <div style="margin: 8px 0;">
-                                <label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 20px;">
-                                    <input type="checkbox" name="fallbackNopecha" value="NopechaSolver" ${fallbackSolvers.includes('NopechaSolver') ? 'checked' : ''}>
-                                    <span>NopechaSolver</span>
-                                </label>
-                                <label style="display: inline-flex; align-items: center; gap: 8px;">
-                                    <input type="checkbox" name="fallbackTwoCaptcha" value="TwoCaptchaSolver" ${fallbackSolvers.includes('TwoCaptchaSolver') ? 'checked' : ''}>
-                                    <span>TwoCaptchaSolver</span>
-                                </label>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <label>Nopecha API Key</label>
-                            <input type="password" name="nopechaApiKey" value="${escapeHtml(nopechaKey)}" placeholder="API Key">
-
-                            <label style="margin-top: 12px;">TwoCaptcha API Key</label>
-                            <input type="password" name="twoCaptchaApiKey" value="${escapeHtml(twoCaptchaKey)}" placeholder="API Key">
 
                         </div>
                     </div>
@@ -206,8 +98,6 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                             <input type="number" name="port" value="${config.port}">
                             <label>MacroDroid ID</label>
                             <input type="text" name="macrodroidId" value="${config.macrodroidId || ''}">
-                            <label>2Captcha API Key</label>
-                            <input type="password" name="twoCaptchaKey" value="${config.settings.twoCaptchaKey || ''}">
                         </div>
                     </div>
 
@@ -243,10 +133,6 @@ ${renderRestSettings(config.settings?.rest)}
                             <div class="toggle-row">
                                 <span>Debug Mode</span>
                                 <input type="checkbox" name="mfDebug" ${msgFilter.debug ? 'checked' : ''}>
-                            </div>
-                            <div class="toggle-row">
-                                <span>Debug Only OwO</span>
-                                <input type="checkbox" name="mfDebugOnlyOwO" ${msgFilter.debugOnlyOwO ? 'checked' : ''}>
                             </div>
                         </div>
                     </div>
@@ -287,80 +173,6 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </div>
 
-                    <div id="tab-automation" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>🤖 Automasi OwO</h3>
-                            </div>
-
-                        </div>
-                                                                        
-                        <div class="card">
-                            <label>🤖 HUNTBOT AUTOMATION</label>
-                            <div class="toggle-row">
-                                <span>Enable HuntBot</span>
-                                <input type="checkbox" name="hbEnabled" ${huntbot.enabled ? 'checked' : ''}>
-                            </div>
-                            <div class="toggle-row">
-                                <span>Auto Mode</span>
-                                <input type="checkbox" name="hbAutoMode" ${huntbot.autoMode ? 'checked' : ''}>
-                            </div>
-                            <div class="toggle-row">
-                                <span>Notify Progress</span>
-                                <input type="checkbox" name="hbNotify" ${huntbot.notifyProgress ? 'checked' : ''}>
-                            </div>
-                            <div class="toggle-row">
-                                <span>Sell All Setelah Jemput (skip wupg)</span>
-                                <input type="checkbox" name="hbSellAllAfterReturn" ${huntbot.sellAllAfterReturn ? 'checked' : ''}>
-                            </div>
-                            <div class="input-hint">Jika aktif: setelah HuntBot pulang, bot mengirim <code>wsell all</code>, tidak menjalankan <code>wupg ...</code>, lalu lanjut <code>whb 1D</code>.</div>
-                            <div class="divider"></div>
-                            <label>Default Upgrade Type</label>
-                            <input type="text" name="hbUpgrade" value="${huntbot.defaultUpgrade || 'duration'}" placeholder="Upgrade">
-                            <label>Default Hunt Duration</label>
-                            <input type="text" name="hbDuration" value="${huntbot.defaultDuration || '1D'}" placeholder="1D">
-                            
-                            <div class="divider"></div>
-                            <label>Tiket & Huntbot Channel ID</label>
-                            <input type="text" name="tiketandhbChannel" value="${config.tiketandhb?.channelId || ''}" placeholder="Channel ID">
-                        </div>
-
-
-                        <div class="card">
-                            <label>🔊 VOICE CHANNEL</label>
-                            <div class="toggle-row">
-                                <span>Auto Join Voice Channel</span>
-                                <input type="checkbox" name="voiceEnabled" ${voice.enabled ? 'checked' : ''}>
-                            </div>
-                            <label>Voice Channel ID</label>
-                            <input type="text" name="voiceChannelId" value="${voice.channelId || ''}" placeholder="Channel ID">
-                        </div>
-
-                        <div class="card">
-                            <label>🐉 BOSS AUTOMATION (OwO)</label>
-                            <div class="toggle-row">
-                                <span>Enable Auto-Boss</span>
-                                <input type="checkbox" name="bossEnabled" ${boss.enabled ? 'checked' : ''}>
-                            </div>
-                            <label>Allowed Guilds</label>
-                            <input type="text" name="bossGuilds" value="${(boss.allowedGuilds || []).join(',')}" placeholder="Guild ID">
-                        </div>
-
-                        <div class="card">
-                            <label>🔄 CHANNEL ROTATION</label>
-                            <div class="toggle-row">
-                                <span>Enable Rotation</span>
-                                <input type="checkbox" name="crEnabled" ${rotation.enabled ? 'checked' : ''}>
-                            </div>
-                            <div class="row">
-                                <div class="col"><input type="number" name="crMin" value="${rotation.minMs}" placeholder="Min"></div>
-                                <div class="col"><input type="number" name="crMax" value="${rotation.maxMs}" placeholder="Max"></div>
-                            </div>
-                        </div>
-
-                    </div>
-
                     <div id="tab-control" class="tab-content">
                         <div class="category-heading">
                             <div>
@@ -376,20 +188,6 @@ ${renderRestSettings(config.settings?.rest)}
                                 <span>Auto Resume</span>
                                 <input type="checkbox" name="autoResume" ${config.settings.autoResume ? 'checked' : ''}>
                             </div>
-                            <div class="divider"></div>
-                            <div class="row">
-                                <div class="col">
-                                    <label>Start Word</label>
-                                    <input type="text" name="ctrlStart" value="${control.start || 'wcash'}" placeholder="wcash">
-                                </div>
-                                <div class="col">
-                                    <label>Pause Word</label>
-                                    <input type="text" name="ctrlPause" value="${control.pause || 'wbuy 1'}" placeholder="wbuy 1">
-                                </div>
-                            </div>
-                            <label>Allowed User IDs</label>
-                            <input type="text" name="ctrlAllowIds" value="${(control.allowIds || []).join(',')}" placeholder="User ID">
-                            
                             <div class="divider"></div>
                             <label>Max Log Lines in Dashboard</label>
                             <input type="number" name="maxLogLines" value="${config.maxLogLines || 15}">
@@ -411,7 +209,7 @@ ${renderRestSettings(config.settings?.rest)}
                                 <h3>😴 Istirahat</h3>
                             </div>
                         </div>
-                        <div class="input-hint">Menjeda sementara semua loop (OwO, HuntBot, Boss OwO, Channel Rotation, Custom Commands Lucy, Auto Use Gems, Auto Adventure) lalu melanjutkannya otomatis. Auto Boss2 tetap berjalan. Kedua mode bisa diaktifkan terpisah atau bersamaan.</div>
+                        <div class="input-hint">Menjeda sementara semua loop (Custom Commands Lucy, Auto Use Gems, Auto Adventure, Auto Boss2, Huntbot2, Monster Catcher) lalu melanjutkannya otomatis. Kedua mode bisa diaktifkan terpisah atau bersamaan.</div>
 
                         <div class="card">
                             <label>📊 STATUS ISTIRAHAT</label>
@@ -479,35 +277,35 @@ ${renderRestSettings(config.settings?.rest)}
         `;
     }
 
-    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {} }) {
+    // Kartu Custom Command + Command Tetap. Dipakai di halaman utama.
+    function renderLucyCommandCards({ config }) {
+        const fixedCommands = config?.fixedCommands || {};
         return `
-                    <div id="tab-lucy-commands" class="tab-content">
+                    <div id="lucy-command-cards">
                         <div class="category-heading">
                             <div>
                                 <span class="section-label">Lucy</span>
                                 <h3>🧩 Custom Commands Lucy</h3>
                             </div>
                         </div>
-                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut.</div>
+                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Delay memakai rentang min-max (boleh sama). Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut.</div>
                         ${(config.otherCommands || []).map((command, index) => {
                             const slot = index + 1;
                             const isInfinite = !(Number(command.count) > 0);
+                            const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                            const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
                             return `
                                 <div class="card">
                                     <label>Custom Command Lucy ${slot}</label>
                                     <label>Command Text</label>
                                     <input type="text" name="other${slot}Text" value="${escapeHtml(command.text)}" placeholder="Contoh: !test">
                                     <div class="row">
-                                        <div class="col"><label>Delay / Jeda (detik)</label><input type="number" min="0" step="1" name="other${slot}Delay" value="${Math.floor((command.delayMs || 0) / 1000)}"></div>
+                                        <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMin" value="${minSec}"></div>
+                                        <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other${slot}DelayMax" value="${maxSec}"></div>
                                         <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other${slot}Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
                                     </div>
                                     <label>Target Channel</label>
                                     <input type="text" name="other${slot}Channel" value="${escapeHtml(command.channelId)}" placeholder="Discord Channel ID">
-                                    <div class="toggle-row">
-                                        <span>Deteksi CAPTCHA untuk slot ini</span>
-                                        <input type="checkbox" name="other${slot}CaptchaEnabled" value="true" ${command.captchaEnabled === true ? 'checked' : ''}>
-                                    </div>
-                                    <div class="input-hint">OFF: slot Lucy tidak menjalankan deteksi/jeda CAPTCHA. Boss2 selalu tidak menggunakan pemeriksaan CAPTCHA.</div>
                                     <div class="action-group" style="margin-top: 12px;">
                                         <button type="submit" name="action" value="otherCommandStart${slot}" class="btn btn-start">▶ START</button>
                                         <button type="submit" name="action" value="otherCommandStop${slot}" class="btn btn-pause">⏸ STOP</button>
@@ -515,7 +313,48 @@ ${renderRestSettings(config.settings?.rest)}
                                     </div>
                                 </div>`;
                         }).join('')}
+
+                        <details class="command-dropdown">
+                            <summary>📌 Command Tetap (lh &amp; lb) <span class="dropdown-hint">Pengaturan pasangan command</span></summary>
+                            <div class="category-heading" style="margin-top: 22px;">
+                                <div>
+                                    <span class="section-label">Lucy</span>
+                                    <h3>📌 Command Tetap (lh &amp; lb)</h3>
+                                </div>
+                            </div>
+                            <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
+                            ${(() => {
+                                const command = fixedCommands?.lb || fixedCommands?.lh || {};
+                                const isInfinite = !(Number(command.count) > 0);
+                                const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                                const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+                                const channel = command.channelId || '';
+                                const enabled = fixedCommands?.lb?.enabled === true || fixedCommands?.lh?.enabled === true;
+                                return `
+                                    <div class="card">
+                                        <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
+                                        <div class="row">
+                                            <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
+                                            <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
+                                            <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
+                                        </div>
+                                        <label>Target Channel</label>
+                                        <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
+                                        <div class="action-group" style="margin-top: 12px;">
+                                            <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
+                                            <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
+                                            <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
+                                        </div>
+                                    </div>`;
+                            })()}
+    
+                        </details>
                     </div>
+                `;
+    }
+
+    function renderLucySettings({ config, boss2 = {}, gems = {}, adventure = {}, monsterCatcher = {}, lucyControl = {}, voice = {} }) {
+        return `
 
                     <div id="tab-lucy-boss2" class="tab-content">
                         <div class="category-heading">
@@ -544,7 +383,7 @@ ${renderRestSettings(config.settings?.rest)}
                             <input type="text" name="boss2ButtonId" value="${escapeHtml(boss2.buttonId || '')}" placeholder="raid:fight">
                             <label>Jumlah Fight per Boss (1-3)</label>
                             <input type="number" min="1" max="3" name="boss2FightsPerBoss" value="${boss2.fightsPerBoss ?? 3}" placeholder="3">
-                            <label>Channel Privat Pemeriksaan Tiket Guild & Global</label>
+                            <label>Channel Privat Pemeriksaan Tiket Guild</label>
                             <input type="text" name="boss2TicketStatusChannelId" value="${escapeHtml(boss2.ticketStatusChannelId || '')}" placeholder="Discord Channel ID khusus/private">
                             <div class="input-hint">Boss2 akan mengirim <strong>lboss t</strong> hanya ke channel ini setiap kali Lucy meminta konfirmasi tiket. Pastikan channel hanya dapat dilihat oleh akunmu.</div>
                             <label>Jeda sebelum tiap Fight (ms)</label>
@@ -641,7 +480,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                         <div class="card">
                             <label>🤖 HUNTBOT2 — LUCY</label>
-                            <div class="input-hint">Automasi Huntbot Lucy terpisah dari Huntbot OwO. Tidak memakai solver CAPTCHA/pause Huntbot lama.</div>
+                            <div class="input-hint">Automasi Huntbot Lucy berjalan mandiri.</div>
                             <div class="toggle-row"><span>Aktifkan Huntbot2</span><input type="checkbox" name="hb2Enabled" ${config.settings?.huntbot2?.enabled ? 'checked' : ''}></div>
                             <div class="toggle-row"><span>Jual hewan (lewati sacrifice)</span><input type="checkbox" name="hb2SellAnimals" ${config.settings?.huntbot2?.sellAnimals ? 'checked' : ''}></div>
                             <label>Channel ID Lucy (command & notifikasi DM)</label>
@@ -689,6 +528,25 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                     </div>
 
+                    <div id="tab-lucy-voice" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Lucy</span>
+                                <h3>🔊 Voice Channel</h3>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <label>🔊 JOIN VOICE</label>
+                            <div class="toggle-row">
+                                <span>Auto Join Voice</span>
+                                <input type="checkbox" name="voiceEnabled" ${voice.enabled ? 'checked' : ''}>
+                            </div>
+                            <label>Channel ID</label>
+                            <input type="text" name="voiceChannelId" value="${escapeHtml(voice.channelId || '')}" placeholder="Discord Voice Channel ID">
+                            <div class="input-hint">Tombol JOIN VOICE di atas otomatis bergabung ke channel ini. Akun akan kembali bergabung saat restart jika Auto Join aktif.</div>
+                        </div>
+                    </div>
+
                     <div id="tab-lucy-control" class="tab-content">
                         <div class="category-heading">
                             <div>
@@ -699,7 +557,7 @@ ${renderRestSettings(config.settings?.rest)}
 
                         <div class="card">
                             <label>🎮 LUCY DISCORD CONTROL</label>
-                            <div class="input-hint">Kirim kata ini di Discord (dari akun sendiri atau User ID yang diizinkan) untuk menjalankan/menjeda semua fitur Lucy: Custom Commands Lucy, Auto Boss2, Auto Use Gems, dan Auto Adventure. Tidak memengaruhi loop OwO.</div>
+                            <div class="input-hint">Kirim kata ini di Discord (dari akun sendiri atau User ID yang diizinkan) untuk menjalankan/menjeda semua fitur Lucy: Custom Commands Lucy, Auto Boss2, Auto Use Gems, Auto Adventure, Huntbot2, dan Monster Catcher.</div>
                             <div class="row">
                                 <div class="col">
                                     <label>Start Word</label>
@@ -720,45 +578,61 @@ ${renderRestSettings(config.settings?.rest)}
     function renderSettingsTabs(context) {
         return `
                     <div class="settings-nav">
-                        <button type="button" class="hamburger-btn" onclick="toggleSettingsMenu(event)" aria-expanded="false" aria-controls="settingsMenu">
-                            <span aria-hidden="true">☰</span>
-                            <span>Pengaturan</span>
+                        <button type="button" class="hamburger-btn" aria-expanded="false" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">
+                            <span class="hamburger-icon">☰</span><span>MENU</span>
                         </button>
-                        <div class="settings-current" id="settingsCurrentLabel">Main Settings</div>
-                        <div class="settings-menu" id="settingsMenu">
-                            <div class="settings-menu-group">
-                                <span>Dasar</span>
-                                <button type="button" class="settings-menu-item active" data-menu-label="Main Settings" onclick="switchTab(event, 'tab-main')">🏠 Main Settings</button>
-                            </div>
-                            <div class="settings-menu-group">
-                                <span>Advanced / Add-ons</span>
-                                <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Captcha" onclick="switchTab(event, 'tab-captcha')">🛡️ Captcha</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety & Filter</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Automasi OwO" onclick="switchTab(event, 'tab-automation')">🤖 Automasi OwO</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol & Sistem</button>
-                            </div>
-                            <div class="settings-menu-group">
-                                <span>Lucy</span>
-                                <button type="button" class="settings-menu-item" data-menu-label="Custom Commands Lucy" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands Lucy</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
-                                <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
-                            </div>
-                        </div>
+                        <strong id="settingsCurrentLabel" class="settings-current">Main Settings</strong>
                     </div>
-
-${renderMainSettings(context)}
-${renderAdvancedSettings(context)}
-${renderLucySettings(context)}
+                    <button type="button" class="settings-overlay" aria-label="Tutup navigasi" onclick="closeSettingsMenu()"></button>
+                    <aside id="settingsMenu" class="settings-menu settings-sidebar" aria-label="Navigasi dashboard">
+                        <div class="sidebar-brand">
+                            <span class="sidebar-brand-mark">L</span>
+                            <div><strong>LucySoFun</strong><small>Dashboard Navigation</small></div>
+                        </div>
+                        <label class="settings-select-label" for="settingsCategory">Kategori Fitur</label>
+                        <select id="settingsCategory" class="input-select settings-category-select" aria-label="Pilih kategori fitur" onchange="switchTab(event, this.value)">
+                            <optgroup label="Dasar"><option value="tab-main" selected>🏠 Main Settings</option></optgroup>
+                            <optgroup label="Advanced / Add-ons">
+                                <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
+                                <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
+                                <option value="tab-message-debug">🔎 Debug Pesan</option><option value="tab-control">🎮 Kontrol &amp; Sistem</option>
+                            </optgroup>
+                            <optgroup label="Lucy">
+                                <option value="tab-lucy-boss2">🐲 Auto Boss2</option><option value="tab-lucy-gems">💎 Auto Use Gems</option>
+                                <option value="tab-lucy-adventure">🗺️ Auto Adventure</option><option value="tab-lucy-huntbot2">🤖 Huntbot2</option>
+                                <option value="tab-lucy-monster-catcher">🐾 Monster Catcher</option><option value="tab-lucy-voice">🔊 Voice Channel</option>
+                                <option value="tab-lucy-control">🎮 Kontrol Lucy</option>
+                            </optgroup>
+                        </select>
+                        <div class="sidebar-divider"></div>
+                        <div class="settings-menu-group"><span>Dasar</span>
+                            <button type="button" class="settings-menu-item active" data-menu-label="Main Settings" onclick="switchTab(event, 'tab-main')">🏠 Main Settings</button>
+                        </div>
+                        <div class="settings-menu-group"><span>Advanced / Add-ons</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety &amp; Filter</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol &amp; Sistem</button>
+                        </div>
+                        <div class="settings-menu-group"><span>Lucy Features</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
+                        </div>
+                    </aside>
+                    <div class="settings-tabs">
+                        ${renderMainSettings(context)}
+                        ${renderAdvancedSettings(context)}
+                        ${renderLucySettings(context)}
+                    </div>
         `;
     }
 
-    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderSettingsTabs };
+    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderMultiAccountCard, renderSettingsTabs };
 };

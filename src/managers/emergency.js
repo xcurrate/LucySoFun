@@ -5,7 +5,7 @@ const statsService = require('../services/stats');
 
 const RECOVERY_PROBE_INTERVAL_MS = 10 * 60 * 1000;
 
-module.exports = (state, configManager, loopManager, channelManager, telegramService) => {
+module.exports = (state, configManager, loopManager, telegramService) => {
     const clearRecoveryProbe = () => {
         if (state.emergencyRecoveryTimer) {
             clearInterval(state.emergencyRecoveryTimer);
@@ -46,7 +46,6 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
         configManager.save();
         log.success(`${accountPrefix(state)}✅ Respons linv Lucy cocok dengan username akun; melanjutkan sesi yang terkena emergency pause.`);
         if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
-        if (channelManager && typeof channelManager.updateActive === 'function') channelManager.updateActive();
         telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: respons <code>linv</code> Lucy berisi username akun ini.`);
     };
 
@@ -57,7 +56,7 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             return;
         }
 
-        const channelId = String(state.lastLucyCommandChannelId || state.activeChannelId || '').trim();
+        const channelId = String(state.lastLucyCommandChannelId || '').trim();
         const channel = channelId ? state.client.channels.cache.get(channelId) : null;
         if (!channel || typeof channel.send !== 'function') {
             log.warn(`${accountPrefix(state)}⚠️ Recovery check linv dilewati: channel aktif tidak tersedia.`);
@@ -112,8 +111,6 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
                 log.warn(`${accountPrefix(state)}loopManager not available, skipping stopAll`);
             }
 
-            if (channelManager) channelManager.stopRotation();
-
             // Recovery probing only verifies Lucy availability; it does not run normal bot commands.
             state.emergencyRecoveryActive = true;
             ensureRecoveryListener();
@@ -132,6 +129,30 @@ module.exports = (state, configManager, loopManager, channelManager, telegramSer
             }
 
             telegramService.send(`⛔ <b>Bot Paused</b>\nAlasan: ${reason}`);
+        },
+
+        // Dipakai Control Lucy: melanjutkan akun yang terjeda emergency/timeout
+        // secara manual, tanpa menunggu recovery linv.
+        resume() {
+            state.emergencyRecoveryActive = false;
+            clearRecoveryProbe();
+            state.config.botStatus.paused = false;
+            state.config.botStatus.running = true;
+            statsService.syncBotUptime(state);
+            configManager.save();
+            log.success(`${accountPrefix(state)}✅ Bot dilanjutkan manual melalui Control Lucy.`);
+            if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
+            telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: Control Lucy (start).`);
+        },
+
+        // Dipakai tombol START dashboard: hentikan pemantauan linv tanpa
+        // menjalankan ulang loop (startAll ditangani runtime).
+        cancelRecovery() {
+            if (!state.emergencyRecoveryActive && !state.emergencyRecoveryTimer) return false;
+            state.emergencyRecoveryActive = false;
+            clearRecoveryProbe();
+            log.info(`${accountPrefix(state)}🧹 Pemantauan emergency (linv) dihentikan: akun dilanjutkan manual.`);
+            return true;
         }
     };
 };

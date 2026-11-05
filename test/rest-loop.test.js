@@ -10,8 +10,7 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 function setupOther(command) {
     const sent = [];
     const state = {
-        hasActiveCaptcha: false,
-        config: { otherCommands: [{ text: '!test', channelId: '123', delayMs: 5, captchaEnabled: false, enabled: true, ...command }] },
+        config: { otherCommands: [{ text: '!test', channelId: '123', delayMs: 5, enabled: true, ...command }] },
         loops: {},
         nextAt: {},
         otherCommandDelays: {}
@@ -72,25 +71,13 @@ test('starting a Lucy command during rest waits until rest ends', async () => {
     loopManager.stopOtherCommand(0);
 });
 
-test('OwO loops are not scheduled during rest but keep their next run time', () => {
-    const state = { rest: { active: true }, config: { settings: { battle: true }, botStatus: {}, delays: {} }, loops: {}, nextAt: {} };
-    const loopManager = createLoopManager(state, { async send() { return true; } });
-    assert.equal(loopManager.startAll(), false);
-    assert.ok(!state.loops.battle);
-
-    loopManager._scheduleLoop('hunt', () => {}, 1000);
-    assert.equal(state.loops.hunt, null);
-    assert.ok(state.nextAt.hunt > Date.now());
-});
-
 test('command sender blocks commands during rest', async () => {
     const state = {
         rest: { active: true },
-        hasActiveCaptcha: false,
         config: { botStatus: { running: true, paused: false } },
         client: { isReady() { throw new Error('must not reach the client'); } }
     };
-    const sender = createCommandSender(state, {}, {});
+    const sender = createCommandSender(state);
     assert.equal(await sender.send('wh', 'Hunt'), false);
 });
 
@@ -122,52 +109,20 @@ test('Monster Catcher pauses all Lucy command delays with remaining delay saved'
     assert.equal(state.monsterCatchPaused, false);
 });
 
-test('Monster Catcher pauses OwO loops and resumes with remaining delay', async () => {
-    const sent = [];
-    const state = {
-        config: {
-            settings: { battle: true, hunt: true },
-            botStatus: { running: true, paused: false },
-            delays: { battle: { min: 1000, max: 1000 }, hunt: { min: 1000, max: 1000 } }
-        },
-        loops: {},
-        nextAt: {},
-        otherCommandDelays: {},
-        rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
-    loopManager._scheduleLoop('battle', () => loopManager.battle(), 1000);
-    assert.ok(state.nextAt.battle > Date.now());
-
-    loopManager.pauseMonsterCatch();
-    assert.equal(state.loops.battle, null, 'timer cleared while paused');
-    assert.ok(state.nextAt.battle > Date.now(), 'scheduled time preserved');
-
-    const preserved = state.nextAt.battle;
-    await wait(5);
-    loopManager.resumeMonsterCatch();
-    assert.ok(state.loops.battle, 'loop re-scheduled on resume');
-    loopManager.stopAll();
-});
-
 test('command sender blocks commands during Monster Catcher but allows monster DM sends', async () => {
     const reachedClient = [];
     const state = {
         monsterCatchPaused: true,
-        hasActiveCaptcha: false,
         config: { botStatus: { running: true, paused: false } },
         client: {
             isReady: () => true,
             channels: { cache: new Map() }
-        },
-        activeChannelId: ''
+        }
     };
-    const channelManager = { updateActive: async () => false };
-    const sender = createCommandSender(state, channelManager, {});
+    const sender = createCommandSender(state);
     assert.equal(await sender.send('wh', 'Hunt'), false, 'blocked by monster catch gate before reaching channels');
 
-    // With allowDuringMonsterCatch the gate is bypassed: a target channel ID is supplied so
-    // channelManager.updateActive() is NOT needed (requestedChannelId set), and the DM channel exists.
+    // With allowDuringMonsterCatch the gate is bypassed and the target DM channel exists.
     state.client.channels.cache.set('dm-1', { id: 'dm-1', sendTyping: async () => {}, send: async () => { reachedClient.push('ABC123'); } });
     const ok = await sender.send('ABC123', 'Monster Catcher', 'dm-1', { allowDuringMonsterCatch: true });
     assert.equal(ok, true, 'monster DM send is allowed while catch paused');

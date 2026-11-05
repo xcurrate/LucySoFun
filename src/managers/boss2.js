@@ -38,9 +38,7 @@ const normalizeBoss2Settings = (raw = {}) => {
         limitText:   toText(raw.limitText,   defaults.limitText   || 'limit fight'),
         minTicketLeft: Math.max(0, toNonNegativeInt(raw.minTicketLeft, defaults.minTicketLeft ?? 1)),
         ticketStatusChannelId: String(raw.ticketStatusChannelId || defaults.ticketStatusChannelId || '').trim(),
-        ticketStatusCommand: toText(raw.ticketStatusCommand, defaults.ticketStatusCommand || 'lboss t'),
-        globalAppearText: toText(raw.globalAppearText, defaults.globalAppearText || 'Global Raid Boss Telah Muncul'),
-        globalDefeatedText: toText(raw.globalDefeatedText, defaults.globalDefeatedText || 'Global Raid Boss Telah Dikalahkan')
+        ticketStatusCommand: toText(raw.ticketStatusCommand, defaults.ticketStatusCommand || 'lboss t')
     };
 };
 
@@ -80,21 +78,15 @@ const parseRaidMessage = (msg, settings) => {
     const lowerText = text.toLowerCase();
     const button = findButton(components, settings.buttonId);
 
-    const isGlobalAppear = lowerText.includes(settings.globalAppearText.toLowerCase());
-    const isGlobalDefeated = lowerText.includes(settings.globalDefeatedText.toLowerCase());
-    const isGuildAppear = !isGlobalAppear && lowerText.includes(settings.appearText.toLowerCase());
-    const isGuildDefeated = !isGlobalDefeated && lowerText.includes(settings.defeatedText.toLowerCase());
-    const isGlobalEscaped = lowerText.includes('global raid boss kabur');
-    const isGuildEscaped = !isGlobalEscaped && lowerText.includes('guild boss kabur');
-    const kind = isGlobalAppear || isGlobalDefeated || isGlobalEscaped ? 'global'
-        : isGuildAppear || isGuildDefeated || isGuildEscaped ? 'guild' : null;
+    const isAppear = lowerText.includes(settings.appearText.toLowerCase());
+    const isDefeated = lowerText.includes(settings.defeatedText.toLowerCase());
+    const isEscaped = lowerText.includes('guild boss kabur');
+    const kind = isAppear || isDefeated || isEscaped ? 'guild' : null;
     return {
         kind,
-        isGuildAppear, isGuildDefeated, isGuildEscaped,
-        isGlobalAppear, isGlobalDefeated, isGlobalEscaped,
-        isAppear: kind === 'global' ? isGlobalAppear : isGuildAppear,
-        isDefeated: kind === 'global' ? isGlobalDefeated : isGuildDefeated,
-        isEscaped: kind === 'global' ? isGlobalEscaped : isGuildEscaped,
+        isAppear,
+        isDefeated,
+        isEscaped,
         button,
         buttonActive: !!button && button.disabled !== true,
         endsAt: parseDiscordTimestamp(text, 'berakhir'),
@@ -128,16 +120,12 @@ const parseTicketConfirmation = (msg, settings) => {
 const parseTicketStatusMessage = msg => {
     const components = toPlainData(msg.components) || [];
     const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\n'));
-    const get = label => {
-        const heading = new RegExp('Ticket\\s+Boss\\s+' + label, 'i');
-        const start = text.search(heading);
-        if (start < 0) return null;
-        const next = text.slice(start + 1).search(/Ticket\s+Boss\s+(?:Guild|Global)/i);
-        const section = text.slice(start, next >= 0 ? start + 1 + next : undefined);
-        const match = section.match(/punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*boss\s*ticket/i);
-        return match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null;
-    };
-    return { guild: get('Guild'), global: get('Global') };
+    const heading = text.search(/Ticket\s+Boss\s+Guild/i);
+    if (heading < 0) return { guild: null };
+    const next = text.slice(heading + 1).search(/Ticket\s+Boss\s+(?:Guild|Global)/i);
+    const section = text.slice(heading, next >= 0 ? heading + 1 + next : undefined);
+    const match = section.match(/punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*boss\s*ticket/i);
+    return { guild: match ? { left: Number(match[1]), max: Number(match[2]), checkedAt: Date.now() } : null };
 };
 
 const parseLimitMessage = (msg, settings) => {
@@ -166,7 +154,7 @@ const createBoss2Manager = (state, configManager) => {
     state.boss2Raids = state.boss2Raids || new Map();
     state.boss2Timers = state.boss2Timers || new Set();
 
-    const prefix = (kind = 'guild') => `${accountPrefix(state)}🐲 Auto Boss2${kind === 'global' ? ' [Global]' : ' [Guild]'}: `;
+    const prefix = (kind = 'guild') => `${accountPrefix(state)}🐲 Auto Boss2: `;
     const raidKey = (key, kind = 'guild') => `${key}:${kind}`;
     const pendingTicketContexts = [];
     let ticketStatusRequest = null;
@@ -266,8 +254,8 @@ const createBoss2Manager = (state, configManager) => {
                 String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID &&
                 (!msg.createdTimestamp || msg.createdTimestamp >= ticketStatusRequest.startedAt)) {
                 const status = parseTicketStatusMessage(msg);
-                if (status.guild && status.global) {
-                    log.info(prefix() + 'Status tiket privat diterima: Guild ' + status.guild.left + '/' + status.guild.max + ', Global ' + status.global.left + '/' + status.global.max + '.');
+                if (status.guild) {
+                    log.info(prefix() + 'Status tiket privat diterima: Guild ' + status.guild.left + '/' + status.guild.max + '.');
                     ticketStatusRequest.resolve(status);
                     return 'ticket-status';
                 }
@@ -471,7 +459,7 @@ const createBoss2Manager = (state, configManager) => {
 
             // KASUS C — ambil inventaris terbaru dari channel privat.
             // Prompt konfirmasi tidak menyebut jenis boss, jadi angka di prompt tidak
-            // boleh dipakai untuk membedakan tiket Guild dan Global.
+            // boleh dipakai. Saldo tiket Guild diambil dari channel privat.
             raid.awaitingTicketStatus = true;
             let inventory = null;
             try {
@@ -487,10 +475,10 @@ const createBoss2Manager = (state, configManager) => {
                 raid.ticketLastDecision = 'no';
                 return 'ticket-stale';
             }
-            const currentTicketLeft = inventory?.[kind]?.left ?? null;
-            const currentTicketMax = inventory?.[kind]?.max ?? null;
+            const currentTicketLeft = inventory?.guild?.left ?? null;
+            const currentTicketMax = inventory?.guild?.max ?? null;
             if (currentTicketLeft === null) {
-                log.warn(`${prefix(kind)}Status tiket ${kind} tidak tersedia/timeout; memilih Nggak agar tidak memakai tiket yang salah.`);
+                log.warn(`${prefix(kind)}Status tiket Guild tidak tersedia/timeout; memilih Nggak agar tidak memakai tiket yang salah.`);
                 if (ticket.noActive) {
                     try { await msg.clickButton(settings.ticketNoId); } catch (err) {
                         log.error(`${prefix(kind)}Gagal menolak konfirmasi tanpa status tiket: ${err.message || err}`);
@@ -540,8 +528,7 @@ const createBoss2Manager = (state, configManager) => {
             const channelId = String(msg.channel?.id || msg.channelId || '');
             const pendingIndex = pendingTicketContexts.findIndex(item => !channelId || !item.channelId || item.channelId === channelId);
             const pendingContext = pendingIndex >= 0 ? pendingTicketContexts.splice(pendingIndex, 1)[0] : null;
-            const activeKinds = ['guild', 'global'].filter(kind => getRaid(key, kind).status === 'active');
-            const kind = pendingContext?.kind || (activeKinds.length === 1 ? activeKinds[0] : 'guild');
+            const kind = 'guild';
             const raid = pendingContext?.raid || getRaid(key, kind);
 
             if (raid.status === 'limit' && raid.limitResetAt === limit.resetAt && raid.limitTimer) {

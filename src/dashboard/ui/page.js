@@ -5,16 +5,9 @@ function renderPage(config) {
         console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
 
         const { statusText, statusClass } = configManager.computeStatus(config);
-        const channels = config.channels || [];
-        const custom1 = config.delays.custom1 || CONSTANTS.DEFAULT_DELAYS.custom1;
-        const custom2 = config.delays.custom2 || CONSTANTS.DEFAULT_DELAYS.custom2;
         const hasTelegram = config.settings?.telegram?.token && config.settings?.telegram?.chatId;
 
-        const huntbot = config.huntbot || {};
-        const control = config.settings.control || {};
         const lucyControl = config.settings.lucyControl || {};
-        const rotation = config.settings.channelRotation || {};
-        const boss = config.settings.boss || {};
         const boss2 = config.settings.boss2 || {};
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
@@ -26,6 +19,14 @@ function renderPage(config) {
         const viewingProfileId = config.viewingProfileId || '';
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
+
+        const renderLucyCommandCards = renderSettingsTabs.renderLucyCommandCards || (() => '');
+        const renderMultiAccountCard = renderSettingsTabs.renderMultiAccountCard || (() => '');
+
+        // renderSettingsTabs sekarang objek berisi { renderSettingsTabs, renderLucyCommandCards }.
+        const pageSettingsTabs = renderSettingsTabs.renderSettingsTabs
+            ? renderSettingsTabs.renderSettingsTabs
+            : renderSettingsTabs;
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
@@ -50,24 +51,18 @@ function renderPage(config) {
             };
         });
 
-        // Captcha config
-        const captchaConfig = config.captcha || {};
-        const nopechaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.NopechaSolver) || '';
-        const twoCaptchaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.TwoCaptchaSolver) || '';
-        const fallbackSolvers = captchaConfig.fallbackSolvers || [];
-
         return `
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>OWO FARMING</title>
+            <title>LucySoFun Dashboard</title>
             ${getStyles()}
         </head>
         <body>
             <div class="container">
-                <h2>OWO Farming Dashboard</h2>
+                <h2>LucySoFun Dashboard</h2>
                 <div class="subtitle">${isControlPanel ? 'Control Panel utama untuk mengontrol semua akun dan slot paralel; halaman ini bukan akun default.' : `Sedang melihat akun: ${viewingProfileId}`}</div>
 
                 <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="${isControlPanel ? 'true' : 'false'}">
@@ -86,17 +81,10 @@ function renderPage(config) {
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
-                    ${renderSettingsTabs({
-                        config,
+                    ${pageSettingsTabs({
                         profileOptions,
-                        channels,
-                        custom1,
-                        custom2,
-                        huntbot,
-                        control,
+                        config,
                         lucyControl,
-                        rotation,
-                        boss,
                         boss2,
                         gems,
                         adventure,
@@ -104,16 +92,13 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
-                        captchaConfig,
-                        nopechaKey,
-                        twoCaptchaKey,
-                        fallbackSolvers
+                        homePageCards: `${!viewingProfileId ? renderMultiAccountCard({ profileOptions }) : ''}${renderLucyCommandCards({ config })}`,
                     })}
                     <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>
 
                 ${viewingProfileId ? `
-                <section class="card" style="margin-top:16px">
+                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px">
                     <label>🔒 PIN PROFILE</label>
                     <p style="font-size:13px;color:#aeb7c8">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional. Tanpa PIN, profile dapat dibuka langsung.'}</p>
                     ${viewingProfileHasPin ? `
@@ -152,6 +137,10 @@ function renderPage(config) {
                 ${getLogCard()}
             </div>
             <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
+            <div id="unsavedBanner" class="unsaved-banner warning" style="display:none" role="status" aria-live="polite">
+                <span class="unsaved-dot"></span>
+                <span>⚠️ Ada perubahan yang belum disimpan</span>
+            </div>
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
 
@@ -228,6 +217,44 @@ function renderPage(config) {
                 if (!form) return;
                 let toastTimeout;
 
+                const unsavedBanner = document.getElementById('unsavedBanner');
+                let isSaving = false;
+
+                function trackUnsaved() {
+                    let dirty = false;
+                    const showBanner = () => {
+                        if (!unsavedBanner) return;
+                        if (dirty && !isSaving) {
+                            unsavedBanner.style.display = 'flex';
+                        } else {
+                            unsavedBanner.style.display = 'none';
+                        }
+                    };
+                    const markDirty = () => {
+                        dirty = true;
+                        showBanner();
+                    };
+                    const markClean = () => {
+                        dirty = false;
+                        showBanner();
+                    };
+
+                    form.addEventListener('input', markDirty);
+                    form.addEventListener('change', markDirty);
+
+                    window.addEventListener('beforeunload', (event) => {
+                        if (dirty && !isSaving) {
+                            event.preventDefault();
+                            event.returnValue = '';
+                            return '';
+                        }
+                    });
+
+                    return { markClean, isDirty: () => dirty, refresh: showBanner };
+                }
+
+                const unsaved = form ? trackUnsaved() : null;
+
                 function showToast(type, message) {
                     if (!toast) return;
                     clearTimeout(toastTimeout);
@@ -255,6 +282,7 @@ function renderPage(config) {
                     const originalText = submitter.textContent;
                     submitter.disabled = true;
                     submitter.textContent = '⏳ PROCESSING...';
+                    isSaving = true;
 
                     try {
                         const formData = new FormData(form);
@@ -303,6 +331,7 @@ function renderPage(config) {
 
                         submitter.textContent = '✓ BERHASIL';
                         showToast('success', 'Tersimpan');
+                        unsaved?.markClean();
 
                         setTimeout(() => {
                             submitter.disabled = false;
@@ -317,6 +346,14 @@ function renderPage(config) {
                         setTimeout(() => {
                             submitter.textContent = originalText;
                         }, 1500);
+                    } finally {
+                        isSaving = false;
+                        // Jika aksi gagal, tetap tampilkan indikator kalau masih ada perubahan.
+                        if (unsaved?.isDirty()) {
+                            unsaved.refresh();
+                        } else {
+                            unsaved?.markClean();
+                        }
                     }
                 });
             })();

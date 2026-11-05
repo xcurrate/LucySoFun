@@ -124,8 +124,6 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
         const selected = firstReady || Array.from(runtimes.values())[0];
         if (!selected) return;
 
-        rootState.activeChannelId = selected.state.activeChannelId;
-        rootState.hasActiveCaptcha = Array.from(runtimes.values()).some(runtime => runtime.state.hasActiveCaptcha);
         rootState.client = selected.state.client;
     }
 
@@ -149,11 +147,6 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
             reconcile();
             setInterval(reconcile, 2000);
             setInterval(syncDashboardState, 1000);
-            setInterval(() => {
-                for (const runtime of runtimes.values()) {
-                    if (typeof runtime.checkDailyReset === 'function') runtime.checkDailyReset();
-                }
-            }, CONSTANTS.RESET_CHECK_INTERVAL_MS);
         },
         getRuntimes() {
             return runtimes;

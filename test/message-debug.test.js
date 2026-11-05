@@ -11,8 +11,8 @@ function createHandler(messageDebug) {
     };
     const handler = createMessageHandler(
         state,
-        { getControlCommands: () => ({ startCmd: 'start', pauseCmd: 'pause', allowIds: [] }) },
-        {}, {}, {}, {}, {}, null, null, {}, {}
+        { getLucyControlCommands: () => ({ startCmd: 'lucy start', pauseCmd: 'lucy pause', allowIds: [] }) },
+        {}, {}, {}, {}, null, null, {}, {}, {}, {}
     );
     return { state, handler };
 }
@@ -23,7 +23,7 @@ test('Message Debug captures component messages and retains their raw button JSO
     const captured = handler.captureMessageDebug({
         id: 'message-1',
         content: '',
-        author: { id: 'user-1', username: 'OwO', toJSON() { return { id: this.id, username: this.username }; } },
+        author: { id: 'user-1', username: 'test-user', toJSON() { return { id: this.id, username: this.username }; } },
         channel: { id: 'channel-1' },
         guild: { id: 'guild-1' },
         embeds: [],

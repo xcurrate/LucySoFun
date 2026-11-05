@@ -25,6 +25,33 @@ async function withDashboard(callback) {
     }
 }
 
+// Builds a fake Discord token whose first segment decodes to the given user id.
+function makeToken(id) {
+    const base64Id = Buffer.from(id, 'utf8').toString('base64').replace(/=+$/, '');
+    return `${base64Id}.abcdef.ghijkl`;
+}
+
+async function withSeededDashboard({ mainConfig, profiles = {} }, callback) {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-save-'));
+    fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(mainConfig));
+    const profilesDir = path.join(baseDir, 'profiles');
+    fs.mkdirSync(profilesDir, { recursive: true });
+    for (const [id, config] of Object.entries(profiles)) {
+        fs.writeFileSync(path.join(profilesDir, `config_${id}.json`), JSON.stringify(config));
+    }
+
+    const { app } = createDashboardApp({ baseDir });
+    const server = app.listen(0);
+    await new Promise(resolve => server.once('listening', resolve));
+
+    try {
+        await callback(`http://127.0.0.1:${server.address().port}`, baseDir);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(baseDir, { recursive: true, force: true });
+    }
+}
+
 test('POST /save parses URL-encoded dashboard data and reports persistence as JSON', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
@@ -42,7 +69,7 @@ test('POST /save parses URL-encoded dashboard data and reports persistence as JS
         assert.deepEqual(await response.json(), { success: true, message: 'Configuration saved' });
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(savedConfig.token, 'saved-token');
-        assert.deepEqual(savedConfig.channels, ['12345']);
+        assert.equal(savedConfig.channels, undefined, 'channel card removed: no channels persisted');
     });
 });
 
@@ -119,7 +146,41 @@ test('Lucy Custom Commands never enable CAPTCHA, even if a legacy field is submi
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(savedConfig.otherCommands[0].text, '!test');
-        assert.deepEqual(savedConfig.otherCommands.map(command => command.captchaEnabled), [false, false, false]);
+        assert.deepEqual(savedConfig.otherCommands.map(command => command.captchaEnabled), [undefined, undefined, undefined]);
+    });
+});
+
+test('POST /save persists fixed lb/lh pair (single config synced to both slots) separately from custom commands', async () => {
+    await withDashboard(async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                action: 'save',
+                other1Text: '!custom',
+                other1Channel: '111',
+                other1Delay: '3',
+                other1Count: '1',
+                other4DelayMin: '4',
+                other4DelayMax: '6',
+                other4Channel: '222',
+                other4Count: '0'
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.equal(savedConfig.fixedCommands.lb.channelId, '222');
+        assert.equal(savedConfig.fixedCommands.lb.delayMinMs, 4000);
+        assert.equal(savedConfig.fixedCommands.lb.delayMaxMs, 6000);
+        assert.equal(savedConfig.fixedCommands.lb.count, 0);
+        assert.deepEqual(savedConfig.fixedCommands.lh, savedConfig.fixedCommands.lb, 'lh disinkronkan dari lb (unit tunggal)');
+        assert.equal(savedConfig.otherCommands[0].text, '!custom');
+        assert.equal(savedConfig.otherCommands[0].channelId, '111');
     });
 });
 
@@ -144,27 +205,34 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.deepEqual(savedConfig.settings.lucyControl, { start: 'lgo', pause: 'lstop', allowIds: ['111', '222'] });
-        assert.equal(savedConfig.settings.control.start, 'wcash');
+        assert.equal(savedConfig.settings.control, undefined);
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /<span>Lucy<\/span>/);
-        for (const tabId of ['tab-lucy-commands', 'tab-lucy-boss2', 'tab-lucy-gems', 'tab-lucy-adventure', 'tab-lucy-control']) {
+        for (const tabId of ['tab-lucy-boss2', 'tab-lucy-gems', 'tab-lucy-adventure', 'tab-lucy-control']) {
             assert.match(page, new RegExp(`id="${tabId}"`));
             assert.match(page, new RegExp(`switchTab\\(event, '${tabId}'\\)`));
         }
+        // Custom Commands kini kartu di halaman utama, bukan tab Settings.
+        assert.match(page, /id="lucy-command-cards"/);
+        assert.doesNotMatch(page, /id="tab-lucy-commands"/);
         assert.doesNotMatch(page, /tab-other/);
         assert.doesNotMatch(page, /name="other1Captcha"/);
-        assert.match(page, /data-menu-label="Automasi OwO"/);
         assert.match(page, /Custom Command Lucy 1/);
         assert.match(page, /LUCY DISCORD CONTROL/);
         assert.match(page, /name="lucyCtrlStart" value="lgo"/);
         assert.match(page, /name="lucyCtrlAllowIds" value="111,222"/);
-        assert.match(page, /name="text1"/);
+        assert.doesNotMatch(page, /name="text1"/);
 
-        const automation = page.slice(page.indexOf('id="tab-automation"'), page.indexOf('id="tab-control"'));
-        assert.match(automation, /HUNTBOT AUTOMATION/);
-        assert.match(automation, /BOSS AUTOMATION \(OwO\)/);
-        assert.doesNotMatch(automation, /AUTO BOSS2|AUTO USE GEMS|AUTO ADVENTURE/);
+        assert.doesNotMatch(page, /tab-automation/);
+        assert.doesNotMatch(page, /data-menu-label="Automasi OwO"/);
+        assert.doesNotMatch(page, /HUNTBOT AUTOMATION/);
+        assert.match(page, /name="hb2Enabled"/);
+        assert.match(page, /name="voiceEnabled"/);
+        assert.doesNotMatch(page, /name="rotationEnabled"/);
+        assert.doesNotMatch(page, /name="bossEnabled"/);
+        assert.doesNotMatch(page, /name="captchaPrimary"/);
+        assert.doesNotMatch(page, /name="twoCaptchaKey"/);
     });
 });
 
@@ -349,5 +417,101 @@ test('GET /api/rest-status responds with an account list', async () => {
         const response = await fetch(`${url}/api/rest-status`, { headers: { Authorization: authHeader() } });
         assert.equal(response.status, 200);
         assert.ok(Array.isArray((await response.json()).accounts));
+    });
+});
+
+test('MULTI ACCOUNT chip actions keep the target profile configuration intact', async () => {
+    const mainId = '100000000000000001';
+    const profileId = '100000000000000002';
+    const profileConfig = {
+        token: makeToken(profileId),
+        botStatus: { running: true, paused: false },
+        settings: { messageFilter: { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false } },
+        otherCommands: [{ text: '!profile', delayMs: 7000, count: 3, channelId: '555', enabled: true }]
+    };
+
+    for (const action of ['connect', 'start', 'pause']) {
+        await withSeededDashboard({
+            mainConfig: {
+                token: makeToken(mainId),
+                botStatus: { running: false, paused: true },
+                multiAccount: { enabled: true, maxAccounts: 2 },
+                settings: {},
+                otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
+            },
+            profiles: { [profileId]: profileConfig }
+        }, async (url, baseDir) => {
+            // The chip buttons submit the whole control-panel form together with profileAction.
+            const response = await fetch(`${url}/save`, {
+                method: 'POST',
+                headers: {
+                    Authorization: authHeader(),
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    Accept: 'application/json'
+                },
+                body: new URLSearchParams({
+                    profileAction: `${action}:${profileId}`,
+                    token: makeToken(mainId),
+                    other1Text: '!main',
+                    other1Channel: '111',
+                    other1Delay: '5',
+                    other1Count: '1',
+                    mfEnabled: 'on',
+                    mfChannelIds: '',
+                    mfGuildIds: ''
+                })
+            });
+
+            assert.equal(response.status, 200);
+            assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
+
+            const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
+            assert.deepEqual(savedProfile.settings.messageFilter, { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false }, `chip ${action} must not reset profile settings`);
+            assert.equal(savedProfile.otherCommands[0].text, '!profile');
+            assert.equal(savedProfile.otherCommands[0].channelId, '555');
+            assert.equal(savedProfile.token, makeToken(profileId), `chip ${action} must preserve the profile token`);
+
+            const expectedRunning = action === 'start';
+            assert.deepEqual(savedProfile.botStatus, { running: expectedRunning, paused: !expectedRunning }, `chip ${action} must only change the account status`);
+        });
+    }
+});
+
+test('MULTI ACCOUNT chip start for the main account keeps the main configuration intact', async () => {
+    const mainId = '100000000000000001';
+    const mainConfig = {
+        token: makeToken(mainId),
+        botStatus: { running: false, paused: true },
+        multiAccount: { enabled: true, maxAccounts: 2 },
+        settings: { messageFilter: { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false } },
+        otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
+    };
+
+    await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                profileAction: `start:${mainId}`,
+                token: makeToken(mainId),
+                other1Text: '',
+                other1Channel: '',
+                other1Delay: '',
+                other1Count: '',
+                mfEnabled: 'on',
+                mfChannelIds: '',
+                mfGuildIds: ''
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const savedMain = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.deepEqual(savedMain.settings.messageFilter, { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false }, 'main config settings must not be reset by its own chip');
+        assert.equal(savedMain.otherCommands[0].text, '!main');
+        assert.deepEqual(savedMain.botStatus, { running: true, paused: false });
     });
 });

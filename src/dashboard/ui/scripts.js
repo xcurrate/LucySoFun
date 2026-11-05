@@ -119,17 +119,11 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         const lastCommand = data.commands.last ? data.commands.last.cmd + ' • ' + data.commands.last.type : 'Belum ada command terkirim';
                         updateText('[data-stat="commandTotal"]', data.commands.total);
                         updateText('[data-stat="lastCommand"]', lastCommand);
-                        updateText('[data-stat="captchaSolved"]', data.captcha.solved + '/' + data.captcha.detected);
-                        updateText('[data-stat="captchaStatus"]', data.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif');
                         updateText('[data-stat="uptimeText"]', data.uptime.text);
                         updateText('[data-stat="startedAt"]', 'Start: ' + data.uptime.startedAt);
                         updateText('[data-stat="statusText"]', data.status.text);
-                        updateText('[data-stat="statusNote"]', 'Channel aktif: ' + data.status.activeChannelId);
-                        updateText('[data-stat="captchaSolvedOnly"]', data.captcha.solved);
-                        updateText('[data-stat="captchaDetectedOnly"]', data.captcha.detected);
-                        updateText('[data-stat="captchaLastSolved"]', 'Terakhir: ' + (data.captcha.lastSolvedAtFormatted || '-'));
-                        updateText('[data-stat="captchaLastDetected"]', 'Terakhir: ' + (data.captcha.lastDetectedAtFormatted || '-'));
-                        updateText('[data-stat="serviceFlags"]', 'Autosolver: ' + (data.status.autosolver ? 'ON' : 'OFF') + ' • Telegram: ' + (data.status.telegram ? 'ON' : 'OFF') + ' • Channel: ' + data.status.channelsTotal);
+                        updateText('[data-stat="statusNote"]', 'Akun: ' + (data.status.running ? 'AKTIF' : 'NONAKTIF'));
+                        updateText('[data-stat="serviceFlags"]', 'Telegram: ' + (data.status.telegram ? 'ON' : 'OFF'));
                         renderCommandTypes(data.commands.byType);
                         renderRecentCommands(data.commands.recent);
                     } catch (err) {
@@ -265,11 +259,25 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 document.querySelectorAll('.settings-menu-item').forEach(el => el.classList.remove('active'));
                 target.classList.add('active');
 
+                // Profile-only controls must never leak into feature pages.
+                const profilePinSection = document.getElementById('profilePinSection');
+                if (profilePinSection) {
+                    profilePinSection.style.display = tabId === 'tab-main' ? '' : 'none';
+                }
+
+                const categorySelect = document.getElementById('settingsCategory');
+                const currentLabel = document.getElementById('settingsCurrentLabel');
+                if (categorySelect) categorySelect.value = tabId;
                 if (event && event.currentTarget) {
-                    event.currentTarget.classList.add('active');
-                    const label = event.currentTarget.getAttribute('data-menu-label') || event.currentTarget.textContent.trim();
-                    const currentLabel = document.getElementById('settingsCurrentLabel');
-                    if (currentLabel) currentLabel.textContent = label;
+                    const control = event.currentTarget;
+                    if (control.tagName === 'SELECT') {
+                        const option = control.options[control.selectedIndex];
+                        if (currentLabel) currentLabel.textContent = option ? option.textContent.trim() : 'Pengaturan';
+                    } else {
+                        control.classList.add('active');
+                        const label = control.getAttribute('data-menu-label') || control.textContent.trim();
+                        if (currentLabel) currentLabel.textContent = label;
+                    }
                 }
 
                 closeSettingsMenu();

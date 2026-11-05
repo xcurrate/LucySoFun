@@ -23,10 +23,8 @@ const IMPORTANT_KEYWORDS = [
     'token invalid',
     'tidak ada token',
     'bot started',
-    'captcha',
     'tiket habis',
     'tiket terupdate',
-    'daily reset',
     'config',
     'profil',
     'akun paralel',
@@ -144,7 +142,5 @@ module.exports = {
     warn: (msg) => write('[WARN]', chalk.yellow('[WARN]'), msg),
     error: (msg) => write('[ERR]', chalk.red('[ERR]'), msg),
     success: (msg) => write('[OK]', chalk.green('[OK]'), msg),
-    battle: (msg) => write('[BATTLE]', chalk.magenta('[BATTLE]'), msg),
-    captcha: (msg) => write('[CAPTCHA]', chalk.bgRed.white('[CAPTCHA]'), msg),
     getRecent: (options = {}) => filterEntries(options).map(entry => entry.plainLine)
 };

@@ -22,11 +22,6 @@ function getDashboardStatsCard(snapshot) {
         return `
         <div class="dashboard-grid" id="statsGrid">
             <div class="stat-card">
-                <div class="stat-label">Captcha</div>
-                <div class="stat-value" data-stat="captchaSolved">${snapshot.captcha.solved}/${snapshot.captcha.detected}</div>
-                <div class="stat-note" data-stat="captchaStatus">${snapshot.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif'}</div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-label">Uptime</div>
                 <div class="stat-value" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
                 <div class="stat-note" data-stat="startedAt">Start: ${escapeHtml(snapshot.uptime.startedAt)}</div>
@@ -34,7 +29,7 @@ function getDashboardStatsCard(snapshot) {
             <div class="stat-card">
                 <div class="stat-label">Status Info</div>
                 <div class="stat-value" data-stat="statusText" style="font-size: 18px;">${escapeHtml(snapshot.status.text)}</div>
-                <div class="stat-note" data-stat="statusNote">Channel aktif: ${escapeHtml(snapshot.status.activeChannelId)}</div>
+                <div class="stat-note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Command</div>
@@ -52,18 +47,8 @@ function getDashboardStatsCard(snapshot) {
             <div class="divider"></div>
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="stat-label">Captcha terselesaikan</div>
-                    <div class="stat-value" data-stat="captchaSolvedOnly" style="font-size: 20px;">${snapshot.captcha.solved}</div>
-                    <div class="stat-note" data-stat="captchaLastSolved">Terakhir: ${escapeHtml(statsService.formatTime(snapshot.captcha.lastSolvedAt))}</div>
-                </div>
-                <div class="info-item">
-                    <div class="stat-label">Captcha terdeteksi</div>
-                    <div class="stat-value" data-stat="captchaDetectedOnly" style="font-size: 20px;">${snapshot.captcha.detected}</div>
-                    <div class="stat-note" data-stat="captchaLastDetected">Terakhir: ${escapeHtml(statsService.formatTime(snapshot.captcha.lastDetectedAt))}</div>
-                </div>
-                <div class="info-item">
                     <div class="stat-label">Status layanan</div>
-                    <div class="stat-note" data-stat="serviceFlags">Autosolver: ${snapshot.status.autosolver ? 'ON' : 'OFF'} • Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'} • Channel: ${snapshot.status.channelsTotal}</div>
+                    <div class="stat-note" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
                 </div>
             </div>
             <div class="divider"></div>
