@@ -5,8 +5,8 @@ module.exports = {
         enabled: false,
         allowedGuilds: [],
         channelIds: [],
-        appearText: 'Boss Telah Muncul',
-        defeatedText: 'Boss Telah Dikalahkan',
+        appearText: 'Guild Boss Telah Muncul',
+        defeatedText: 'Guild Boss Telah Dikalahkan',
         buttonId: 'raid:fight',
         fightsPerBoss: 3,
         maxFightsPerBoss: 3,
@@ -17,9 +17,7 @@ ticketNoId:  'raid:ticket:no',
 limitText:   'limit fight',
 minTicketLeft: 1,
         ticketStatusChannelId: '',
-        ticketStatusCommand: 'lboss t',
-        globalAppearText: 'Global Raid Boss Telah Muncul',
-        globalDefeatedText: 'Global Raid Boss Telah Dikalahkan'
+        ticketStatusCommand: 'lboss t'
     },
     GEMS_TIERS: {
         F: { main: ['57', '71', '78'], special: '85' },

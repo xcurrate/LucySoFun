@@ -116,7 +116,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         // Adventure adalah automasi mandiri.
         if (adventureManager) await adventureManager.handle(msg);
 
-        // Boss2 menjadi satu-satunya jalur deteksi, Fight, dan konfirmasi tiket Guild/Global.
+        // Boss2 menjadi satu-satunya jalur deteksi, Fight, dan konfirmasi tiket Guild.
         if (boss2Manager) await boss2Manager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);

@@ -69,3 +69,12 @@
 - `listExpired(now)` mengembalikan grant `used` yang lewat `expiresAt`; `expire(accountId)` menandainya `revoked` + `revokedReason: 'expired'` sehingga ID bisa diberi izin ulang.
 - `createSlotExpirySweeper(...)` di `slotPermissionRoutes.js` melakukan teardown yang sama dengan revoke grant `used` (via helper `teardownUsedGrant`): `logoutAccount` → `deleteProfile` → hitung ulang `maxAccounts` → `reconcile`. Dijalankan tiap 60 detik dari `src/dashboard/app.js` (timer `.unref()` agar tidak menahan proses saat test).
 - Test: `test/slot-permissions.test.js` (grant/consume/durasi/expiry/sweeper).
+
+## Auto Boss2 (Guild-only)
+
+- `src/managers/boss2.js` sekarang **hanya menangani Guild Boss**. Deteksi/penanganan Global Boss (teks "Global Raid Boss ...", state `kind: 'global'`, saldo tiket Global) sudah dihapus.
+- `parseRaidMessage` mengembalikan `kind: 'guild'` atau `null`; pesan Global (yang tidak memuat `settings.appearText`/`defeatedText`) diabaikan. `settings.appearText`/`defeatedText` default kini ber-prefix "Guild ..." (`src/constants.js`), dan `globalAppearText`/`globalDefeatedText` sudah dihapus.
+- `parseTicketStatusMessage` hanya membaca bagian **Ticket Boss Guild** → `{ guild: {left,max} }`. Dispatcher menerima balasan status jika `status.guild` ada (tidak lagi mensyaratkan `status.global`).
+- Keputusan tiket (`handleTicketConfirmation` KASUS C) tetap mengambil saldo dari **channel privat** (`ticketStatusChannelId`, perintah `lboss t`) — angka di prompt konfirmasi TIDAK dipakai. Yang dibaca hanya `inventory.guild.left`; `inventory.global` diabaikan.
+- Syarat "Fights per Boss" (`canFightMore`) **tetap dipertahankan** sesuai permintaan user.
+- Tes: `test/boss2.test.js` (13 tes). Fixture `setup()`/`createMessage()` memakai `author.id = CONSTANTS.LUCY_BOT_ID` dan `state.client.user.id` berbeda supaya lolos gate Lucy-only. Dua tes baru memverifikasi keputusan tiket memakai saldo Guild dan mengabaikan Global.

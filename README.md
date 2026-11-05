@@ -6,7 +6,7 @@ LucySoFun adalah selfbot Discord yang dikhususkan sepenuhnya untuk **Lucy** — 
 
 ## Fitur
 
-- 🐲 **Auto Boss2** — deteksi kemunculan boss, auto-fight, konfirmasi tiket Guild/Global, dan status tiket.
+- 🐲 **Auto Boss2** — deteksi kemunculan boss, auto-fight, konfirmasi tiket Guild, dan status tiket.
 - 💎 **Auto Use Gems** — pemakaian otomatis lootbox/gems berdasarkan prioritas dan tier.
 - 🗺️ **Auto Adventure** — loop adventure (`ladv`) mandiri dengan dukungan pause saat memilih map.
 - 🤖 **Huntbot2** — automasi huntbot Lucy.
