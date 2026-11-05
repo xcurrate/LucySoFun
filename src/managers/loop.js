@@ -100,6 +100,15 @@ module.exports = (state, commandSender) => ({
         const leaderCommand = leader?.command;
         const PairKey = 'fixedlb';
         state.otherCommandRunning = state.otherCommandRunning || {};
+
+        // lb & lh harus selalu terkirim berurutan sebagai SATU pasangan atomik,
+        // persis seperti battle() mengirim wb lalu wh. Tanpa kunci ini, dua START
+        // yang berdekatan (tombol/startAll/reconcile) saling menyisip dan
+        // menghasilkan lh tanpa lb pendampingnya.
+        while (state.fixedPairBusy) {
+            await wait(0);
+        }
+        state.fixedPairBusy = true;
         state.otherCommandRunning[PairKey] = true;
         try {
             if (!leaderCommand?.enabled || !leaderCommand.text?.trim() || !leaderCommand.channelId?.trim()) return;
@@ -125,7 +134,13 @@ module.exports = (state, commandSender) => ({
 
             const followerCommand = follower?.command;
             let lhOk = false;
-            if (lbOk && followerCommand?.enabled && followerCommand.text?.trim() && followerCommand.channelId?.trim()) {
+            // lh dikirim HANYA setelah lb benar-benar terkirim dan kondisi masih aman.
+            if (lbOk
+                && !state.monsterCatchPaused
+                && !state.rest?.active
+                && followerCommand?.enabled
+                && followerCommand.text?.trim()
+                && followerCommand.channelId?.trim()) {
                 await wait(randomInt(250, 600)); // jeda "sedang mengetik" alami
                 try {
                     lhOk = await commandSender.send(
@@ -152,6 +167,7 @@ module.exports = (state, commandSender) => ({
             }
         } finally {
             state.otherCommandRunning[PairKey] = false;
+            state.fixedPairBusy = false;
         }
     },
 

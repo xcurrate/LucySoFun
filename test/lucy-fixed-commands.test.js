@@ -166,6 +166,70 @@ test('START pada tombol lh dengan lb aktif tetap memulai pair dari lb (bukan lh 
     assert.deepEqual(sent.map(s => s.cmd), ['lb', 'lh'], 'mulai dari tombol lh tetap lb lalu lh');
 });
 
+test('START ganda yang berdekatan tidak menyisipkan lh tanpa lb (pasangan atomik)', async () => {
+    const sent = [];
+    const state = {
+        config: {
+            otherCommands: normalizeOtherCommands([]),
+            fixedCommands: normalizeFixedCommands({
+                lb: { channelId: 'c1', delayMinMs: 40, delayMaxMs: 40, count: 3, enabled: true },
+                lh: { channelId: 'c1', delayMinMs: 40, delayMaxMs: 40, count: 0, enabled: true }
+            }),
+            botStatus: { running: true, paused: false }
+        },
+        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
+    };
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+
+    // Dua START berdekatan (mis. tombol + startAll/reconcile) tidak boleh
+    // saling menyisip sehingga lh terkirim tanpa lb pendampingnya.
+    loopManager.startOtherCommand(3);
+    loopManager.startOtherCommand(3);
+    await wait(1500);
+
+    assert.ok(sent.includes('lh'), 'pair benar-benar berjalan');
+    for (let i = 0; i < sent.length; i += 1) {
+        if (sent[i] === 'lh') {
+            assert.equal(sent[i - 1], 'lb', `lh pada indeks ${i} harus tepat didahului lb (urutan: ${sent.join(',')})`);
+        }
+        if (sent[i] === 'lb' && sent[i + 1] === 'lb') {
+            assert.fail(`dua lb berurutan: pasangan saling menyisip (urutan: ${sent.join(',')})`);
+        }
+    }
+});
+
+test('startAll saat pair sedang berjalan tidak menggandakan kiriman (skipIfRunning)', async () => {
+    const sent = [];
+    const state = {
+        config: {
+            otherCommands: normalizeOtherCommands([]),
+            fixedCommands: normalizeFixedCommands({
+                lb: { channelId: 'c1', delayMinMs: 200, delayMaxMs: 200, count: 3, enabled: true },
+                lh: { channelId: 'c1', delayMinMs: 200, delayMaxMs: 200, count: 0, enabled: true }
+            }),
+            botStatus: { running: true, paused: false }
+        },
+        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
+    };
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+
+    loopManager.startOtherCommand(3);
+    await wait(100); // lb sedang dalam perjalanan
+    loopManager.startAll(); // tidak boleh memulai pair kedua
+    await wait(1500);
+
+    for (let i = 0; i < sent.length; i += 1) {
+        if (sent[i] === 'lh') {
+            assert.equal(sent[i - 1], 'lb', `lh harus didahului lb (urutan: ${sent.join(',')})`);
+        }
+        if (sent[i] === 'lb' && sent[i + 1] === 'lb') {
+            assert.fail(`dua lb berurutan: pair ganda berjalan (urutan: ${sent.join(',')})`);
+        }
+    }
+    // count 3 => maksimal 3 pasangan (6 kiriman); tidak ada loop kedua.
+    assert.ok(sent.length <= 6, `tidak ada kiriman berlebih (urutan: ${sent.join(',')})`);
+});
+
 test('startAll mencakup command tetap dan slot yang berjalan tidak di-restart', async () => {
     const sent = [];
     const state = {
