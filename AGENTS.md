@@ -60,3 +60,12 @@
 - UI (halaman utama): SATU kartu "Command Tetap: lb + lh" dengan input `other4*` saja (delay/count/channel); server menyinkronkan ke `lh` via `applySave`. `other5*` tidak lagi dirender.
 - `setSlotEnabled` untuk fixed slot menyalakan/mematikan keduanya.
 - `_otherCommandPair` memakai kunci `state.fixedPairBusy` (busy-lock `while (state.fixedPairBusy) await wait(0)`), sama seperti `battle()` di `main` yang mengunci `wb`→`wh`. Ini mencegah dua START berdekatan (tombol + `startAll`/`reconcile`) saling menyisip dan menghasilkan `lb,lb,lh,lh` (lh tanpa lb pendamping). `lh` hanya dikirim bila `lb` benar-benar terkirim dan tidak sedang monster-catch/istirahat.
+
+## Izin Slot Akun (slot permissions)
+
+- Owner page `/owner/slots` (link "🔐 IZIN SLOT AKUN" di halaman utama) dikelola `src/dashboard/services/slotPermissionManager.js` + `src/dashboard/slotPermissionRoutes.js`; guard `createSlotPermissionGuard` menjaga `POST /save`.
+- Store `slot-permissions.json`: `{ grants: { <discordId>: { status, note, durationHours, createdAt, usedAt, expiresAt } } }`. Status: `available` → `used` → `revoked`.
+- `grant(accountId, note, durationHours)` menerima durasi jam (kosong/0 = tanpa batas). `consume()` menghitung `expiresAt = usedAt + durationHours` (hitung mulai saat akun benar-benar ditambahkan, bukan saat grant dibuat).
+- `listExpired(now)` mengembalikan grant `used` yang lewat `expiresAt`; `expire(accountId)` menandainya `revoked` + `revokedReason: 'expired'` sehingga ID bisa diberi izin ulang.
+- `createSlotExpirySweeper(...)` di `slotPermissionRoutes.js` melakukan teardown yang sama dengan revoke grant `used` (via helper `teardownUsedGrant`): `logoutAccount` → `deleteProfile` → hitung ulang `maxAccounts` → `reconcile`. Dijalankan tiap 60 detik dari `src/dashboard/app.js` (timer `.unref()` agar tidak menahan proses saat test).
+- Test: `test/slot-permissions.test.js` (grant/consume/durasi/expiry/sweeper).

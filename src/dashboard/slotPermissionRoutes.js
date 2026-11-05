@@ -7,6 +7,25 @@ function escapeHtml(value) {
     })[char]);
 }
 
+function formatExpiry(expiresAt) {
+    const ms = Date.parse(expiresAt || '');
+    if (!Number.isFinite(ms)) return '—';
+    return new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+}
+
+// Menghapus profil akun + runtime untuk izin yang sudah dipakai (revoke/kedaluwarsa).
+function teardownUsedGrant({ accountId, configManager, profileManager, state }) {
+    state?.multiAccountManager?.logoutAccount?.(accountId);
+    profileManager.deleteProfile(accountId);
+    const remainingProfiles = profileManager.getSavedProfiles();
+    const mainConfig = configManager.ensureShape(configManager.get());
+    mainConfig.multiAccount = mainConfig.multiAccount || {};
+    mainConfig.multiAccount.enabled = true;
+    mainConfig.multiAccount.maxAccounts = Math.min(4, remainingProfiles.length);
+    configManager.save(mainConfig);
+    state?.multiAccountManager?.reconcile?.();
+}
+
 function createSlotPermissionRoutes({ slotPermissionManager, configManager, profileManager, state }) {
     const router = express.Router();
 
@@ -15,14 +34,15 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
         const grants = slotPermissionManager.list();
         const rows = grants.length ? grants.map((grant) =>
             '<tr><td><code>' + escapeHtml(grant.accountId) + '</code></td><td>' + escapeHtml(grant.note || '—') +
-            '</td><td>' + escapeHtml(grant.status) + '</td><td>' + escapeHtml(grant.createdAt || '—') + '</td><td>' +
+            '</td><td>' + escapeHtml(grant.status) + '</td><td>' + escapeHtml(grant.durationHours ? grant.durationHours + ' jam' : 'Tanpa batas') +
+            '</td><td>' + escapeHtml(formatExpiry(grant.expiresAt)) + '</td><td>' + escapeHtml(grant.createdAt || '—') + '</td><td>' +
             (grant.status !== 'revoked'
                 ? '<form method="POST" action="/owner/slots"><input type="hidden" name="action" value="revoke">' +
                   '<input type="hidden" name="accountId" value="' + escapeHtml(grant.accountId) + '">' +
                   '<input type="password" name="confirmPassword" minlength="12" required autocomplete="current-password" placeholder="Password pemilik">' +
                   '<button type="submit">Cabut izin</button></form>'
                 : '—') + '</td></tr>'
-        ).join('') : '<tr><td colspan="5">Belum ada izin.</td></tr>';
+        ).join('') : '<tr><td colspan="7">Belum ada izin.</td></tr>';
         const notice = slotPermissionManager.isConfigured()
             ? '<p class="good">Password pemilik aktif. Satu izin berlaku untuk satu Discord User ID dan hanya dapat dipakai sekali.</p>'
             : '<p class="warning">Fitur belum aktif. Atur SLOT_OWNER_PASSWORD di panel hosting, atau buat file <code>slot-owner-password.txt</code> di folder utama bot berisi password acak minimal 12 karakter, lalu restart bot.</p>';
@@ -40,10 +60,12 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
             '<form method="POST" action="/owner/slots"><input type="hidden" name="action" value="grant">' +
             '<label>Discord User ID <input name="accountId" inputmode="numeric" pattern="\\d{17,20}" minlength="17" maxlength="20" required placeholder="123456789012345678"></label>' +
             '<label>Catatan (opsional) <input name="note" maxlength="120" placeholder="Nama penerima / referensi donasi"></label>' +
+            '<label>Durasi izin (jam) <input type="number" name="durationHours" min="0" step="1" placeholder="Contoh: 24 — kosongkan untuk tanpa batas"></label>' +
+            '<div class="input-hint">Isi 24 untuk izin 24 jam. Setelah akun ditambahkan, hitungan dimulai dan akun akan dihapus otomatis saat durasi habis. Kosong/0 = tanpa batas waktu.</div>' +
             '<label>Password khusus pemilik <input type="password" name="confirmPassword" minlength="12" required autocomplete="current-password"></label>' +
             '<button type="submit">Berikan izin satu slot</button></form></section><section><h2>Daftar izin</h2>' +
-            '<p><code>available</code> = belum dipakai; <code>used</code> = sudah digunakan; <code>revoked</code> = dicabut.</p>' +
-            '<table><thead><tr><th>Discord User ID</th><th>Catatan</th><th>Status</th><th>Diberikan</th><th>Aksi</th></tr></thead><tbody>' +
+            '<p><code>available</code> = belum dipakai; <code>used</code> = sudah digunakan; <code>revoked</code> = dicabut/kedaluwarsa.</p>' +
+            '<table><thead><tr><th>Discord User ID</th><th>Catatan</th><th>Status</th><th>Durasi</th><th>Berakhir</th><th>Diberikan</th><th>Aksi</th></tr></thead><tbody>' +
             rows + '</tbody></table></section></main></body></html>');
     });
 
@@ -63,9 +85,11 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
             if (accountId === mainId || profileManager.getSavedProfiles().includes(accountId)) {
                 return res.redirect('/owner/slots?message=' + encodeURIComponent('Akun ini sudah ada. Izin hanya diberikan untuk akun baru.'));
             }
-            const result = slotPermissionManager.grant(accountId, req.body?.note || '');
+            const result = slotPermissionManager.grant(accountId, req.body?.note || '', req.body?.durationHours);
             return res.redirect('/owner/slots?message=' + encodeURIComponent(
-                result.ok ? 'Izin satu slot berhasil diberikan.' : result.message
+                result.ok
+                    ? (result.durationHours ? `Izin satu slot berhasil diberikan (${result.durationHours} jam).` : 'Izin satu slot berhasil diberikan (tanpa batas waktu).')
+                    : result.message
             ));
         }
 
@@ -74,15 +98,7 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
             const result = slotPermissionManager.revoke(accountId);
             if (!result.ok) return res.redirect('/owner/slots?message=' + encodeURIComponent(result.message));
             if (result.wasUsed) {
-                state?.multiAccountManager?.logoutAccount?.(accountId);
-                profileManager.deleteProfile(accountId);
-                const remainingProfiles = profileManager.getSavedProfiles();
-                const mainConfig = configManager.ensureShape(configManager.get());
-                mainConfig.multiAccount = mainConfig.multiAccount || {};
-                mainConfig.multiAccount.enabled = true;
-                mainConfig.multiAccount.maxAccounts = Math.min(4, remainingProfiles.length);
-                configManager.save(mainConfig);
-                state?.multiAccountManager?.reconcile?.();
+                teardownUsedGrant({ accountId, configManager, profileManager, state });
             }
             return res.redirect('/owner/slots?message=' + encodeURIComponent(
                 result.wasUsed ? 'Izin dicabut dan profil akun terkait dihapus.' : 'Izin berhasil dicabut.'
@@ -92,6 +108,28 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
     });
 
     return router;
+}
+
+// Memeriksa izin `used` yang sudah lewat expiresAt lalu menghapus slot akunnya.
+// Dipanggil berkala oleh dashboard; aman dipanggil berulang.
+function createSlotExpirySweeper({ slotPermissionManager, configManager, profileManager, state, onExpire }) {
+    return function sweepExpiredSlots(now = Date.now()) {
+        const mainId = profileManager.getUserId(configManager.ensureShape(configManager.get()).token);
+        const expired = slotPermissionManager.listExpired(now);
+        const removed = [];
+        for (const grant of expired) {
+            // Akun utama tidak pernah dihapus otomatis (konsisten dengan route revoke).
+            if (grant.accountId === mainId) continue;
+            const result = slotPermissionManager.expire(grant.accountId);
+            if (!result.ok || result.alreadyRevoked) continue;
+            if (result.wasUsed) {
+                teardownUsedGrant({ accountId: grant.accountId, configManager, profileManager, state });
+            }
+            removed.push(grant.accountId);
+            if (typeof onExpire === 'function') onExpire(grant);
+        }
+        return removed;
+    };
 }
 
 function createSlotPermissionGuard({ slotPermissionManager, configManager, profileManager }) {
@@ -169,4 +207,4 @@ function createSlotPermissionGuard({ slotPermissionManager, configManager, profi
     };
 }
 
-module.exports = { createSlotPermissionRoutes, createSlotPermissionGuard };
+module.exports = { createSlotPermissionRoutes, createSlotPermissionGuard, createSlotExpirySweeper };

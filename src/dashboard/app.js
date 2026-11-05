@@ -11,7 +11,7 @@ const createProfileManager = require('./services/profileManager');
 const createProfilePin = require('./services/profilePin');
 const createConfigManager = require('./services/configManager');
 const createSlotPermissionManager = require('./services/slotPermissionManager');
-const { createSlotPermissionRoutes, createSlotPermissionGuard } = require('./slotPermissionRoutes');
+const { createSlotPermissionRoutes, createSlotPermissionGuard, createSlotExpirySweeper } = require('./slotPermissionRoutes');
 const createLogService = require('./services/logService');
 const createStatsService = require('./services/statsService');
 const discordProfileService = require('./services/discordProfileService');
@@ -44,6 +44,19 @@ function createDashboardApp({ baseDir = path.join(__dirname, '../..') } = {}) {
     app.use(createDashboardAuth());
     app.use(createSlotPermissionRoutes({ slotPermissionManager, configManager, profileManager, state }));
     app.use(createSlotPermissionGuard({ slotPermissionManager, configManager, profileManager }));
+
+    // Hapus otomatis slot akun yang izinnya sudah lewat durasi (mis. 24 jam).
+    const sweepExpiredSlots = createSlotExpirySweeper({ slotPermissionManager, configManager, profileManager, state });
+    const expirySweepTimer = setInterval(() => {
+        try {
+            const removed = sweepExpiredSlots();
+            removed.forEach(accountId => console.log(`[SLOT] ⏳ Izin ${accountId} kedaluwarsa; slot akun dihapus otomatis.`));
+        } catch (error) {
+            console.error('[SLOT] Sweep izin gagal:', error.message);
+        }
+    }, 60 * 1000);
+    // Jangan menahan proses hanya karena timer ini (penting untuk test/CLI).
+    if (typeof expirySweepTimer.unref === 'function') expirySweepTimer.unref();
 
     const initialConfig = configManager.ensureShape(configManager.get());
     const port = process.env.SERVER_PORT || process.env.PORT || initialConfig.port || CONSTANTS.DEFAULT_PORT;
