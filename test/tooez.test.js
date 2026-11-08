@@ -41,13 +41,22 @@ test('TooEz runtime loads its templates from the on-disk cache', () => {
     // Cache disk harus ada dan berisi satu mask per huruf per font.
     assert.ok(fs.existsSync(TooEz.TEMPLATE_FILE), `cache tidak ada: ${TooEz.TEMPLATE_FILE}`);
     const payload = JSON.parse(fs.readFileSync(TooEz.TEMPLATE_FILE, 'utf8'));
-    assert.equal(payload.size, 80);
+    assert.ok(payload.size >= 80);
     assert.ok(payload.templates.length >= 26);
 
     // Template yang dipakai runtime harus berasal dari cache ini (mask identik).
     const templates = TooEz.getTemplates();
     const dariCache = new Uint8Array(Buffer.from(payload.templates[0].mask, 'base64'));
     assert.deepEqual(templates[0].mask, dariCache);
+});
+
+test('TooEz runtime canvas size matches the cached masks', () => {
+    // Regresi: mengubah ukuran kanvas hanya di satu sisi (runtime vs cache)
+    // membuat semua perbandingan gagal. Keduanya harus selalu sinkron.
+    const payload = JSON.parse(fs.readFileSync(TooEz.TEMPLATE_FILE, 'utf8'));
+    const templates = TooEz.getTemplates();
+    const sisi = Math.sqrt(templates[0].mask.length);
+    assert.equal(sisi, payload.size, 'ukuran mask cache harus sama dengan payload.size');
 });
 
 test('TooEz runtime does not pull in the heavy font engine', () => {

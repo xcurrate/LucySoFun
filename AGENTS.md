@@ -22,10 +22,9 @@
 
 Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src/managers/fonts/` (measurably more accurate than the old base64-template approach). The work is split in two so the runtime stays light:
 
-- **Build step** — `src/managers/TooEz.build.js` (`npm run build:templates`) uses `opentype.js` + `@napi-rs/canvas` to render every charset letter and writes the masks to `src/managers/fonts/templates.json` (base64, ~670 KB, committed). Re-run it after changing/adding a font.
-- **Runtime** — `src/managers/TooEz.js` reads `templates.json` and needs only `pngjs`. It deliberately does NOT require the font engine, which keeps RAM low (font engine + render cost ~57 MB). It caches the parsed masks in memory after the first read and warns if the cache is older than a font file.
+- **Build step** — `src/managers/TooEz.build.js` (`npm run build:templates`, canvas size via `TOOEZ_SIZE`, default 96) uses `opentype.js` + `@napi-rs/canvas` to render every charset letter and writes the masks to `src/managers/fonts/templates.json` (base64, committed). Re-run it after changing/adding a font or the canvas size.
+- **Runtime** — `src/managers/TooEz.js` reads `templates.json` and needs only `pngjs`. It deliberately does NOT require the font engine, which keeps RAM low (font engine + render cost ~57 MB). It caches the parsed masks in memory after the first read, takes the canvas size from the cache (`payload.size`) so input and stored masks always match, and warns if the cache is older than a font file.
 - Public contract used by `Huntbot2.js`: `TooEz.decodeBuffer(buffer)` -> 6-letter password string, or `null` if any character is unrecognized. Also exported: `decodeLetters(buffer)`, `getTemplates()`, `TEMPLATE_FILE`.
-- Set `TOOEZ_DEBUG=1` to dump detected blobs to `./dump/`.
 - Dependencies: runtime `pngjs`; build-only `opentype.js`, `@napi-rs/canvas` (both in `package.json`).
 - Tests: `test/tooez.test.js` covers the export contract, disk-cache loading, that the runtime avoids the font engine, per-letter templates, round-trip decode, scoring, and the null path.
 

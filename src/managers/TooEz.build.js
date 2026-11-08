@@ -22,7 +22,8 @@ const FONT_PATHS = [
 ];
 const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-const UKURAN = 80;
+// Ukuran kanvas normalisasi. Bisa dioverride: TOOEZ_SIZE=96 npm run build:templates
+const UKURAN = Number(process.env.TOOEZ_SIZE) || 96;
 const RENDER_SIZE = 256;
 
 function normalisasi(mask, width, height) {

@@ -9,12 +9,14 @@ const TEMPLATE_FILE = path.join(__dirname, 'fonts', 'templates.json');
 
 const AMBANG_WARNA = 150;
 const LUAS_MINIMUM = 10;
-const UKURAN = 96;
+// Ukuran kanvas normalisasi. Nilai sebenarnya diambil dari cache template
+// (payload.size) saat dimuat, supaya bentuk input selalu punya dimensi yang
+// sama dengan mask yang tersimpan.
+let UKURAN = 80;
 const ROTASI_MIN = -45;
 const ROTASI_MAX = 45;
 const ROTASI_STEP = 3;
 const AMBANG_COCOK = 0.45;
-const DEBUG_DUMP = process.env.TOOEZ_DEBUG === '1';
 
 // Template di-cache di memori setelah dibaca dari disk (sekali per proses).
 let templateCache = null;
@@ -195,12 +197,14 @@ function getTemplates() {
     }
 
     const payload = JSON.parse(fs.readFileSync(TEMPLATE_FILE, 'utf8'));
+    // Ambil ukuran kanvas dari cache supaya cocok dengan mask yang tersimpan.
+    if (payload.size) UKURAN = payload.size;
     templateCache = (payload.templates || []).map(t => ({
         huruf: t.huruf,
         font: t.font,
         mask: new Uint8Array(Buffer.from(t.mask, 'base64'))
     }));
-    console.log(`[TooEz] ${templateCache.length} template dimuat dari cache disk.`);
+    console.log(`[TooEz] ${templateCache.length} template dimuat dari cache disk (${UKURAN}x${UKURAN}).`);
 
     // Ingatkan bila file font lebih baru dari cache (cache perlu di-build ulang).
     try {
@@ -271,10 +275,6 @@ function decodeLetters(buffer) {
     const mask = segmentasi(sumber, latar);
     const objek = cariObjek(mask, sumber.width, sumber.height);
 
-    if (DEBUG_DUMP) {
-        try { fs.mkdirSync('./dump', { recursive: true }); } catch (_) {}
-    }
-
     return objek.map((obj, index) => {
         const w = obj.maxX - obj.minX + 1;
         const h = obj.maxY - obj.minY + 1;
@@ -283,19 +283,6 @@ function decodeLetters(buffer) {
             const x = pos % sumber.width;
             const y = Math.floor(pos / sumber.width);
             crop[(y - obj.minY) * w + (x - obj.minX)] = 1;
-        }
-
-        if (DEBUG_DUMP) {
-            const blobPng = new PNG({ width: w, height: h });
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const v = crop[y * w + x] ? 255 : 0;
-                    const i = (y * w + x) * 4;
-                    blobPng.data[i] = blobPng.data[i + 1] = blobPng.data[i + 2] = v;
-                    blobPng.data[i + 3] = 255;
-                }
-            }
-            try { fs.writeFileSync(`./dump/blob-${index + 1}.png`, PNG.sync.write(blobPng)); } catch (_) {}
         }
 
         const { terbaik, diterima } = cocokkanObjek(crop, w, h, templates);
