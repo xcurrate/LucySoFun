@@ -16,7 +16,15 @@
 - `startAll()` MUST NOT disable slots: it clears running timers then starts every `enabled` slot, so `activateReadyRuntime` (account connect/reconcile/rest-end/config-change) resumes enabled commands. `stopAll`/`stopOtherCommand` DO disable + persist (correct for pause/stop).
 - Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. Every successful `Other Command X` send (custom 1–3 AND the fixed lb/lh pair 4–5) arms a single Lucy-response emergency timeout via `setLucyResponseTimeout(type)`; the guard `if (state.lucyResponseTimeout) return` ensures at most ONE 40s timeout is armed per pair (lb arms it, lh is skipped). The timeout is cancelled only by a Lucy message in the command's own channel (`state.lastLucyCommandChannelId`) that includes our per-server username (content or embeds), and otherwise fires `emergencyHandler.pause(...)` for that account only; the `linv` recovery probe runs every 10 minutes and `startAll` resumes the same slots.
 - `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
-- Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images). Both contain only base64 PNG template data; the "owo" snippet inside them is incidental base64, not an OwO reference.
+- Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images).
+
+### TooEz (Huntbot2 password OCR) — font-based
+
+- `src/managers/TooEz.js` builds its letter templates by **rendering glyphs from `.otf` fonts** (in `src/managers/fonts/`) with `opentype.js` + `@napi-rs/canvas`, instead of shipping base64 template PNGs. This method is measurably more accurate than the old base64 approach.
+- Public contract used by `Huntbot2.js`: `TooEz.decodeBuffer(buffer)` -> 6-letter password string, or `null` if any character is unrecognized. Also exported: `decodeLetters(buffer)` (per-letter `{huruf, skor, ...}`) and `getTemplates()`.
+- Templates are rendered lazily and **cached once per process** (`getTemplates()`), so font rendering cost is paid only on the first decode. Set `TOOEZ_DEBUG=1` to dump detected blobs to `./dump/`.
+- Dependencies: `pngjs`, `opentype.js`, `@napi-rs/canvas` (all in `package.json`).
+- Tests: `test/tooez.test.js` covers the export contract, per-letter template loading, round-trip decode, scoring, and the null path.
 
 ## Lucy bot integrations
 
