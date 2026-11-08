@@ -37,6 +37,25 @@ test('TooEz exposes the decodeBuffer contract Huntbot2 relies on', () => {
     assert.equal(typeof TooEz.decodeLetters, 'function');
 });
 
+test('TooEz runtime loads its templates from the on-disk cache', () => {
+    // Cache disk harus ada dan berisi satu mask per huruf per font.
+    assert.ok(fs.existsSync(TooEz.TEMPLATE_FILE), `cache tidak ada: ${TooEz.TEMPLATE_FILE}`);
+    const payload = JSON.parse(fs.readFileSync(TooEz.TEMPLATE_FILE, 'utf8'));
+    assert.equal(payload.size, 80);
+    assert.ok(payload.templates.length >= 26);
+
+    // Template yang dipakai runtime harus berasal dari cache ini (mask identik).
+    const templates = TooEz.getTemplates();
+    const dariCache = new Uint8Array(Buffer.from(payload.templates[0].mask, 'base64'));
+    assert.deepEqual(templates[0].mask, dariCache);
+});
+
+test('TooEz runtime does not pull in the heavy font engine', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'managers', 'TooEz.js'), 'utf8');
+    assert.ok(!/require\(['"]opentype\.js['"]\)/.test(src), 'runtime tidak boleh require opentype.js');
+    assert.ok(!/require\(['"]@napi-rs\/canvas['"]\)/.test(src), 'runtime tidak boleh require @napi-rs/canvas');
+});
+
 test('TooEz loads one template per charset letter from the fonts', () => {
     const templates = TooEz.getTemplates();
     assert.ok(templates.length >= 26, `template terlalu sedikit: ${templates.length}`);

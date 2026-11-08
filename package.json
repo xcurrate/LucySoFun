@@ -3,7 +3,8 @@
   "version": "2.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:templates": "node src/managers/TooEz.build.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",

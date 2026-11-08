@@ -1,19 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { PNG } = require('pngjs');
-const opentype = require('opentype.js');
-const { createCanvas } = require('@napi-rs/canvas');
 
-// ==== MULTI-FONT ====
-// Template huruf dibuat dengan me-render glyph dari file font ini (bukan lagi
-// base64). Tambah font lain di sini bila perlu.
-const FONT_DIR = path.join(__dirname, 'fonts');
-const FONT_PATHS = [
-    path.join(FONT_DIR, 'NaumanNeueTrial-Bold-BF63bf7ff057634.otf'),
-    path.join(FONT_DIR, 'primaserif.otf'),
-    path.join(FONT_DIR, 'Fontspring-DEMO-cervoneue-semiboldneue.otf')
-];
-const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// Template huruf dimuat dari cache disk (fonts/templates.json) yang dibuat oleh
+// `npm run build:templates`. Runtime ini sengaja TIDAK memakai opentype.js /
+// @napi-rs/canvas supaya hemat RAM; font engine hanya dipakai oleh build script.
+const TEMPLATE_FILE = path.join(__dirname, 'fonts', 'templates.json');
 
 const AMBANG_WARNA = 150;
 const LUAS_MINIMUM = 10;
@@ -22,10 +14,9 @@ const ROTASI_MIN = -45;
 const ROTASI_MAX = 45;
 const ROTASI_STEP = 3;
 const AMBANG_COCOK = 0.45;
-const RENDER_SIZE = 256;
 const DEBUG_DUMP = process.env.TOOEZ_DEBUG === '1';
 
-// Template di-cache: render font itu mahal, jadi cukup sekali per proses.
+// Template di-cache di memori setelah dibaca dari disk (sekali per proses).
 let templateCache = null;
 
 // Baca gambar PNG
@@ -183,15 +174,6 @@ function rotasiDanNormalisasi(mask, width, height, angle) {
     return normalisasi(crop, rw, rh);
 }
 
-// Buat mask dari channel alpha
-function maskTemplate(img) {
-    const mask = new Uint8Array(img.width * img.height);
-    for (let i = 0; i < mask.length; i++) {
-        mask[i] = img.data[i * 4 + 3] > 20 ? 1 : 0;
-    }
-    return normalisasi(mask, img.width, img.height);
-}
-
 // Bandingkan dua mask dengan Intersection over Union
 function skorCocok(a, b) {
     let irisan = 0, gabungan = 0;
@@ -202,74 +184,36 @@ function skorCocok(a, b) {
     return gabungan ? irisan / gabungan : 0;
 }
 
-// ==== render glyph dari font ====
-
-// Render satu karakter dari font ke PNG buffer (via canvas)
-function renderGlyphPNG(font, ch, renderSize = RENDER_SIZE) {
-    const glyph = font.charToGlyph(ch);
-    if (!glyph || glyph.index === 0) return null;
-
-    const glyphPath = glyph.getPath(0, 0, renderSize);
-    const bbox = glyphPath.getBoundingBox();
-    if (bbox.x2 <= bbox.x1 || bbox.y2 <= bbox.y1) return null;
-
-    const pad = 8;
-    const w = Math.ceil(bbox.x2 - bbox.x1) + pad * 2;
-    const h = Math.ceil(bbox.y2 - bbox.y1) + pad * 2;
-
-    const canvas = createCanvas(w, h);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.translate(-bbox.x1 + pad, -bbox.y1 + pad);
-    glyphPath.draw(ctx);
-
-    return canvas.toBuffer('image/png');
-}
-
-function loadTemplatesFromFonts(fontPaths, charset = CHARSET) {
-    const all = [];
-    for (const fontPath of fontPaths) {
-        if (!fs.existsSync(fontPath)) {
-            console.warn(`[font] dilewati, tidak ada: ${fontPath}`);
-            continue;
-        }
-        try {
-            const buf = fs.readFileSync(fontPath);
-            const arrayBuffer = buf.buffer.slice(
-                buf.byteOffset,
-                buf.byteOffset + buf.byteLength
-            );
-            const font = opentype.parse(arrayBuffer);
-            if (!font || typeof font.charToGlyph !== 'function') {
-                console.warn(`[font] gagal parse: ${fontPath}`);
-                continue;
-            }
-
-            const nama = path.basename(fontPath);
-            let n = 0;
-            for (const ch of charset) {
-                const pngBuf = renderGlyphPNG(font, ch);
-                if (!pngBuf) continue;
-                all.push({
-                    huruf: ch,
-                    mask: maskTemplate(bacaPNG(pngBuf)),
-                    font: nama
-                });
-                n++;
-            }
-            console.log(`[font] ${nama}: ${n} glyph`);
-        } catch (e) {
-            console.warn(`[font] error ${fontPath}: ${e.message}`);
-        }
-    }
-    return all;
-}
-
+// Baca template dari cache disk. Hasilnya di-cache di memori (sekali per proses).
 function getTemplates() {
     if (templateCache) return templateCache;
-    const t0 = Date.now();
-    templateCache = loadTemplatesFromFonts(FONT_PATHS);
-    console.log(`[font] total template: ${templateCache.length} (${Date.now() - t0}ms)`);
+
+    if (!fs.existsSync(TEMPLATE_FILE)) {
+        console.warn(`[TooEz] Cache template tidak ada: ${TEMPLATE_FILE}. Jalankan: npm run build:templates`);
+        templateCache = [];
+        return templateCache;
+    }
+
+    const payload = JSON.parse(fs.readFileSync(TEMPLATE_FILE, 'utf8'));
+    templateCache = (payload.templates || []).map(t => ({
+        huruf: t.huruf,
+        font: t.font,
+        mask: new Uint8Array(Buffer.from(t.mask, 'base64'))
+    }));
+    console.log(`[TooEz] ${templateCache.length} template dimuat dari cache disk.`);
+
+    // Ingatkan bila file font lebih baru dari cache (cache perlu di-build ulang).
+    try {
+        const cacheTime = fs.statSync(TEMPLATE_FILE).mtimeMs;
+        for (const f of payload.fonts || []) {
+            const fontPath = path.join(__dirname, 'fonts', f);
+            if (fs.existsSync(fontPath) && fs.statSync(fontPath).mtimeMs > cacheTime) {
+                console.warn(`[TooEz] Cache template lebih lama dari font ${f}. Jalankan: npm run build:templates`);
+                break;
+            }
+        }
+    } catch (_) {}
+
     return templateCache;
 }
 
@@ -318,7 +262,7 @@ function cocokkanObjek(crop, w, h, templates) {
 function decodeLetters(buffer) {
     const templates = getTemplates();
     if (!templates.length) {
-        console.warn('[TooEz] Tidak ada template font yang bisa dipakai.');
+        console.warn('[TooEz] Tidak ada template yang bisa dipakai.');
         return [];
     }
 
@@ -376,4 +320,4 @@ function decodeBuffer(buffer) {
     return password && !password.includes('?') ? password : null;
 }
 
-module.exports = { decodeBuffer, decodeLetters, getTemplates };
+module.exports = { decodeBuffer, decodeLetters, getTemplates, TEMPLATE_FILE };

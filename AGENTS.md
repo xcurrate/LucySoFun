@@ -18,13 +18,16 @@
 - `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
 - Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images).
 
-### TooEz (Huntbot2 password OCR) — font-based
+### TooEz (Huntbot2 password OCR) — font-based, disk-cached
 
-- `src/managers/TooEz.js` builds its letter templates by **rendering glyphs from `.otf` fonts** (in `src/managers/fonts/`) with `opentype.js` + `@napi-rs/canvas`, instead of shipping base64 template PNGs. This method is measurably more accurate than the old base64 approach.
-- Public contract used by `Huntbot2.js`: `TooEz.decodeBuffer(buffer)` -> 6-letter password string, or `null` if any character is unrecognized. Also exported: `decodeLetters(buffer)` (per-letter `{huruf, skor, ...}`) and `getTemplates()`.
-- Templates are rendered lazily and **cached once per process** (`getTemplates()`), so font rendering cost is paid only on the first decode. Set `TOOEZ_DEBUG=1` to dump detected blobs to `./dump/`.
-- Dependencies: `pngjs`, `opentype.js`, `@napi-rs/canvas` (all in `package.json`).
-- Tests: `test/tooez.test.js` covers the export contract, per-letter template loading, round-trip decode, scoring, and the null path.
+Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src/managers/fonts/` (measurably more accurate than the old base64-template approach). The work is split in two so the runtime stays light:
+
+- **Build step** — `src/managers/TooEz.build.js` (`npm run build:templates`) uses `opentype.js` + `@napi-rs/canvas` to render every charset letter and writes the masks to `src/managers/fonts/templates.json` (base64, ~670 KB, committed). Re-run it after changing/adding a font.
+- **Runtime** — `src/managers/TooEz.js` reads `templates.json` and needs only `pngjs`. It deliberately does NOT require the font engine, which keeps RAM low (font engine + render cost ~57 MB). It caches the parsed masks in memory after the first read and warns if the cache is older than a font file.
+- Public contract used by `Huntbot2.js`: `TooEz.decodeBuffer(buffer)` -> 6-letter password string, or `null` if any character is unrecognized. Also exported: `decodeLetters(buffer)`, `getTemplates()`, `TEMPLATE_FILE`.
+- Set `TOOEZ_DEBUG=1` to dump detected blobs to `./dump/`.
+- Dependencies: runtime `pngjs`; build-only `opentype.js`, `@napi-rs/canvas` (both in `package.json`).
+- Tests: `test/tooez.test.js` covers the export contract, disk-cache loading, that the runtime avoids the font engine, per-letter templates, round-trip decode, scoring, and the null path.
 
 ## Lucy bot integrations
 
