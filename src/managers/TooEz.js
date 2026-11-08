@@ -9,7 +9,7 @@ const TEMPLATE_FILE = path.join(__dirname, 'fonts', 'templates.json');
 
 const AMBANG_WARNA = 150;
 const LUAS_MINIMUM = 10;
-const UKURAN = 80;
+const UKURAN = 96;
 const ROTASI_MIN = -45;
 const ROTASI_MAX = 45;
 const ROTASI_STEP = 3;
