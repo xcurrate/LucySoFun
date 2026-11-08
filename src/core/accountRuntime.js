@@ -76,7 +76,8 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
     config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
     config.settings.rest = normalizeRestSettings(config.settings.rest);
-    config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
+    config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
+    delete config.settings.adventure.guildId;
     delete config.settings.adventure.targetId;
     config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false };
     delete config.settings.messageFilter.debugOnlyOwO;
@@ -158,8 +159,7 @@ const createRuntimeConfigManager = (state, filePath) => ({
         const adventure = state.config.settings?.adventure || {};
         return {
             enabled: adventure.enabled === true,
-            channelId: String(adventure.channelId || '').trim(),
-            guildId: String(adventure.guildId || '').trim()
+            channelId: String(adventure.channelId || '').trim()
         };
     },
 
@@ -225,17 +225,6 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     let runtimeRunning = false;
     let loopsActive = false;
     let loopConfigSignature = '';
-
-    const hasEnabledLucyFeatures = () => {
-        const settings = state.config.settings || {};
-        return settings.boss2?.enabled === true
-            || settings.gems?.enabled === true
-            || settings.adventure?.enabled === true
-            || settings.huntbot2?.enabled === true
-            || settings.monsterCatcher?.enabled === true
-            || (Array.isArray(state.config.otherCommands) && state.config.otherCommands.some(command => command?.enabled === true))
-            || Object.values(state.config.fixedCommands || {}).some(command => command?.enabled === true);
-    };
 
     const getLoopConfigSignature = (nextConfig = state.config) => safeJsonStringify({
         otherCommands: nextConfig.otherCommands || [],
@@ -308,6 +297,18 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         otherCommandReadyWatchers.set(index, watcher);
     };
 
+    // Hentikan semua timer fitur tanpa menyentuh flag `enabled` di konfigurasi.
+    // Dipakai oleh pause() supaya perubahan config dari dashboard tetap utuh
+    // dan START berikutnya bisa melanjutkan fitur yang sama.
+    const stopFeatureTimers = () => {
+        loopManager.stopAll();
+        adventureManager.stop();
+        boss2Manager.stop();
+        gemsManager.stop();
+        huntbot2Manager?.stop?.();
+        monsterCatcherManager?.stop?.();
+    };
+
     restManager.start();
 
     return {
@@ -360,8 +361,9 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             state.config.botStatus = { running: true, paused: false };
             if (statusChanged) configManager.save();
 
-            // Tombol START profile menghidupkan fitur Lucy.
-            if (!wasRuntimeRunning) messageHandler.setLucyFeatures(true);
+            // START profil = tombol global: jalankan semua fitur yang ENABLED di
+            // config. Jangan memaksa flag enabled, supaya pilihan user di dashboard
+            // (mis. hanya Monster Catcher) tidak tertimpa saat resume.
 
             // START manual juga harus menghentikan pemantauan linv sisa emergency,
             // supaya probe 10 menit tidak jalan terus dan tidak me-restart loop.
@@ -424,10 +426,12 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             state.config.botStatus = { running: false, paused: true };
             if (statusChanged) configManager.save();
 
-            if (wasRuntimeRunning || hasEnabledLucyFeatures()) messageHandler.setLucyFeatures(false);
             if (!wasRuntimeRunning && !loopsActive) return;
             if (wasRuntimeRunning) log.info(`${accountPrefix(state)}⏸ Menjeda akun paralel.`);
-            loopManager.stopAll();
+            // Pause hanya menghentikan timer. Flag `enabled` di config TIDAK diubah,
+            // supaya perubahan dari dashboard saat pause tetap tersimpan dan START
+            // berikutnya melanjutkan fitur yang sama.
+            stopFeatureTimers();
             loopsActive = false;
         },
         destroy() {

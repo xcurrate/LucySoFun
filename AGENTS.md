@@ -5,7 +5,7 @@
 - **Stack**: Node.js Discord selfbot (`discord.js-selfbot-v13`), Express dashboard in `src/dashboard/`, managers in `src/managers/`, runtime in `src/core/accountRuntime.js`.
 - This project is dedicated exclusively to the **Lucy** bot. All OwO-specific code (huntbot, boss, captcha, channel rotation, daily reset, battle/hunt/pray/custom loops, control words) has been removed.
 - **Tests**: `node --test test/*.test.js` (or `npm test`). Some pre-existing failures are unrelated to new work:
-  - `gems`, `boss2`, `adventure`, `lucy-cooldown`, and two `dashboard-save` tests were already failing (as of branch `main` at `c61ef1f`).
+  - `gems` (8), `lucy-cooldown` (2), and three `dashboard-save` tests were already failing before this work. The `adventure` suite has since been repaired (harness used a stale Lucy author id / missing `runLucyAction`).
   - When adding features, run the full suite and compare `fail` count against the baseline before/after.
 - Usage/installation docs live in `README.md` (created during the Lucy-only refactor; the repo previously had no README).
 
@@ -13,7 +13,8 @@
 
 - Slot state lives in `config.otherCommands[]` (`text`, `delayMs`, `count`, `channelId`, `enabled`). `startOtherCommand`/`stopOtherCommand`/`startAll`/`stopAll` live in `src/managers/loop.js`.
 - Loop gating: `pauseMonsterCatch`/`resumeMonsterCatch` and rest use per-slot delay objects `state.otherCommandDelays[key]` with `remainingMs` so a paused loop resumes with its remaining delay. `clearOtherCommandTimers(index)` clears timers WITHOUT disabling or persisting the slot (used by `startAll`).
-- `startAll()` MUST NOT disable slots: it clears running timers then starts every `enabled` slot, so `activateReadyRuntime` (account connect/reconcile/rest-end/config-change) resumes enabled commands. `stopAll`/`stopOtherCommand` DO disable + persist (correct for pause/stop).
+- `startAll()` MUST NOT disable slots: it clears running timers then starts every `enabled` slot, so `activateReadyRuntime` (account connect/reconcile/rest-end/config-change) resumes enabled commands. `stopOtherCommand` DO disable + persist (correct for an explicit STOP). `stopAll` only clears timers.
+- **`pause()` must not touch `enabled`.** `accountRuntime.pause()` calls `stopFeatureTimers()` (stop loop/adventure/boss2/gems/huntbot2/monster-catcher timers) WITHOUT clearing any `enabled` flag. The reconcile loop calls `pause()` every 2s, so clearing flags there would silently wipe dashboard saves made while an account is paused. `start()` likewise only starts what the config already marks `enabled` (it no longer force-enables every feature).
 - Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. Every successful `Other Command X` send (custom 1–3 AND the fixed lb/lh pair 4–5) arms a single Lucy-response emergency timeout via `setLucyResponseTimeout(type)`; the guard `if (state.lucyResponseTimeout) return` ensures at most ONE 40s timeout is armed per pair (lb arms it, lh is skipped). The timeout is cancelled only by a Lucy message in the command's own channel (`state.lastLucyCommandChannelId`) that includes our per-server username (content or embeds), and otherwise fires `emergencyHandler.pause(...)` for that account only; the `linv` recovery probe runs every 10 minutes and `startAll` resumes the same slots.
 - `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
 - Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images).
@@ -54,6 +55,7 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Every Lucy command must pass an explicit target channel id (`sendRaw(cmd, type, targetChannelId)`); a send with no target is rejected. Each feature uses its own configured channel (`otherCommands[].channelId`, `fixedCommands`, `adventure.channelId`, `gems.channelId`, `huntbot2.channelId`, etc.).
 - `state.lastLucyCommandChannelId` still records the channel of the last Custom/Fixed command so the 40s Lucy-response timeout and the `linv` recovery probe check that same server.
 - CCTV (`safety.cctv`) now scopes monitoring to `settings.messageFilter.channelIds` / `guildIds` (empty list = all channels) instead of the removed active-channel list.
+- **Auto Adventure is channel-only**: `settings.adventure = { enabled, channelId }`. `guildId` was removed everywhere (manager `matchesTarget`/`start`, config normalization, dashboard UI); the runtime drops any legacy `guildId` on load.
 
 ## Dashboard profile actions
 

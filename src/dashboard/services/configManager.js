@@ -65,7 +65,8 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
         config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
-        config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
+        config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
+        delete config.settings.adventure.guildId;
         delete config.settings.adventure.targetId;
         config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false };
         delete config.settings.messageFilter.debugOnlyOwO;
@@ -192,7 +193,6 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         });
 
         config.settings.adventure.channelId = String(body.adventureChannelId || '').trim();
-        config.settings.adventure.guildId = String(body.adventureGuildId || '').trim();
 
         config.settings.messageFilter.enabled = this.toBool(body.mfEnabled);
         config.settings.messageFilter.channelIds = this.toArray(body.mfChannelIds);

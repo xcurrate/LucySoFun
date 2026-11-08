@@ -461,11 +461,9 @@ ${renderRestSettings(config.settings?.rest)}
 
                         <div class="card">
                             <label>🗺️ AUTO ADVENTURE</label>
-                            <div class="input-hint">Memproses response target hanya pada guild dan channel yang ditentukan.</div>
+                            <div class="input-hint">Memproses response target hanya pada channel yang ditentukan.</div>
                             <label>Adventure Channel ID</label>
                             <input type="text" name="adventureChannelId" value="${escapeHtml(adventure.channelId || '')}" placeholder="Channel ID">
-                            <label>Adventure Guild ID</label>
-                            <input type="text" name="adventureGuildId" value="${escapeHtml(adventure.guildId || '')}" placeholder="Guild ID">
                             <div class="action-group" style="margin-top: 12px;">
                                 <button type="submit" name="action" value="adventureStart" class="btn btn-start">▶ AUTO ADVENTURE ON</button>
                                 <button type="submit" name="action" value="adventureStop" class="btn btn-pause">⏸ AUTO ADVENTURE OFF</button>

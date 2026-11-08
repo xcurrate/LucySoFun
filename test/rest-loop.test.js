@@ -85,7 +85,7 @@ test('Auto Adventure started during rest is deferred until rest ends', async () 
     const sent = [];
     const state = { rest: { active: true } };
     const adventure = createAdventureManager(state, {
-        getAdventureSettings: () => ({ enabled: true, targetId: 't', channelId: 'c', guildId: 'g' })
+        getAdventureSettings: () => ({ enabled: true, targetId: 't', channelId: 'c' })
     }, { async send(cmd) { sent.push(cmd); return true; } });
     assert.equal(await adventure.start({ restart: true }), false);
     assert.equal(state.adventureResumeAfterRest, true);

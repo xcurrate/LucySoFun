@@ -515,3 +515,46 @@ test('MULTI ACCOUNT chip start for the main account keeps the main configuration
         assert.deepEqual(savedMain.botStatus, { running: true, paused: false });
     });
 });
+
+test('saving while a profile is paused keeps the enabled flags (no reconcile clobber)', async () => {
+    const profileId = '100000000000000009';
+    const profileConfig = {
+        token: makeToken(profileId),
+        botStatus: { running: false, paused: true },
+        settings: { monsterCatcher: { enabled: false } },
+        otherCommands: [],
+        fixedCommands: {
+            lb: { text: 'lb', channelId: 'c', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true },
+            lh: { text: 'lh', channelId: 'c', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true }
+        }
+    };
+
+    await withSeededDashboard({
+        mainConfig: { token: '', settings: {}, multiAccount: { enabled: true, maxAccounts: 2 } },
+        profiles: { [profileId]: profileConfig }
+    }, async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                action: 'save',
+                viewingProfileId: profileId,
+                mcEnabled: 'on',
+                other4Channel: 'c',
+                other4DelayMin: '3',
+                other4DelayMax: '3',
+                other4Count: ''
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const saved = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
+        assert.equal(saved.settings.monsterCatcher.enabled, true, 'enabling a feature while paused must persist');
+        assert.equal(saved.botStatus.paused, true, 'saving must not start the account');
+    });
+});

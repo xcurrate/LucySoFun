@@ -255,3 +255,41 @@ test('startAll mencakup command tetap dan slot yang berjalan tidak di-restart', 
     await wait(400);
     assert.equal(countAfterSecond, sent.length);
 });
+// Regresi: pause akun tidak boleh menghapus flag `enabled` fitur, supaya
+// perubahan config dari dashboard saat akun pause tetap tersimpan dan START
+// berikutnya bisa melanjutkan fitur yang sama (mis. Command Tetap lb+lh).
+test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', async () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const createAccountRuntime = require('../src/core/accountRuntime');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pause-keeps-enabled-'));
+    const file = path.join(dir, 'config_x.json');
+    const token = `${Buffer.from('123456789012345678', 'utf8').toString('base64').replace(/=+$/, '')}.abcdef.ghijkl`;
+    const config = {
+        token,
+        botStatus: { running: true, paused: false },
+        settings: { monsterCatcher: { enabled: true }, boss2: { enabled: true } },
+        otherCommands: [{ text: '!c', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 1, enabled: true }],
+        fixedCommands: {
+            lb: { text: 'lb', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 0, enabled: true },
+            lh: { text: 'lh', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 0, enabled: true }
+        }
+    };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2));
+
+    try {
+        const runtime = createAccountRuntime({ config, filePath: file, sharedStats: {} });
+        runtime.pause();
+
+        const disk = JSON.parse(fs.readFileSync(file, 'utf8'));
+        assert.equal(disk.fixedCommands.lb.enabled, true, 'pause tidak boleh mematikan lb');
+        assert.equal(disk.fixedCommands.lh.enabled, true, 'pause tidak boleh mematikan lh');
+        assert.equal(disk.otherCommands[0].enabled, true, 'pause tidak boleh mematikan custom command');
+        assert.equal(disk.settings.monsterCatcher.enabled, true, 'pause tidak boleh mematikan Monster Catcher');
+        assert.deepEqual(disk.botStatus, { running: false, paused: true });
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});

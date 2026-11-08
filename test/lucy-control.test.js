@@ -12,7 +12,7 @@ function createHarness({ allowIds = [] } = {}) {
             settings: {
                 boss2: { enabled: false },
                 gems: { enabled: false },
-                adventure: { enabled: false, targetId: 't', channelId: 'c', guildId: 'g' }
+                adventure: { enabled: false, targetId: 't', channelId: 'c' }
             },
             otherCommands: [{ enabled: false }, { enabled: false }, { enabled: false }]
         }

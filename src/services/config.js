@@ -8,7 +8,8 @@ const { safeJsonStringify } = require('../utils');
 const ensureRuntimeShape = (config = {}) => {
     config.settings = config.settings || {};
     config.settings.voice = config.settings.voice || { enabled: false, channelId: '' };
-    config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
+    config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
+    delete config.settings.adventure.guildId;
     delete config.settings.adventure.targetId;
     config.settings.lucyControl = config.settings.lucyControl || { start: 'lucy start', pause: 'lucy pause', allowIds: [] };
     config.settings.rest = normalizeRestSettings(config.settings.rest);
@@ -55,8 +56,7 @@ module.exports = (state) => ({
         const adventure = state.config.settings?.adventure || {};
         return {
             enabled: adventure.enabled === true,
-            channelId: String(adventure.channelId || '').trim(),
-            guildId: String(adventure.guildId || '').trim()
+            channelId: String(adventure.channelId || '').trim()
         };
     },
 

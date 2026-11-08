@@ -52,14 +52,13 @@ module.exports = (state, configManager, commandSender) => ({
     matchesTarget(msg, settings = this.getSettings()) {
         return settings.enabled === true
             && String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID
-            && String(msg.channel?.id || msg.channelId || '') === settings.channelId
-            && String(msg.guild?.id || msg.guildId || '') === settings.guildId;
+            && String(msg.channel?.id || msg.channelId || '') === settings.channelId;
     },
 
     async start({ restart = false } = {}) {
         const settings = this.getSettings();
-        if (!settings.enabled || !settings.channelId || !settings.guildId) {
-            log.warn(`${accountPrefix(state)}⚠️ Auto Adventure tidak dimulai: channelId atau guildId belum lengkap.`);
+        if (!settings.enabled || !settings.channelId) {
+            log.warn(`${accountPrefix(state)}⚠️ Auto Adventure tidak dimulai: channelId belum diisi.`);
             return false;
         }
 
