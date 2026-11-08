@@ -1,7 +1,7 @@
 const axios = require('axios');
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
-const { accountPrefix, randomInt } = require('../utils');
+const { accountPrefix, randomInt, sleep } = require('../utils');
 const TooEz = require('./TooEz');
 
 const DEFAULTS = { enabled: false, channelId: '', duration: '1D', sellAnimals: false, upgradeEnabled: false, upgradeGain: '' };
@@ -169,6 +169,7 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
                         return false;
                     }
                     log.success(prefix() + 'Password gambar berhasil dibaca.');
+                    await sleep(1000);
                     await sendCommand('lhb ' + settings().duration + ' ' + password);
                     return true;
                 } catch (error) {
