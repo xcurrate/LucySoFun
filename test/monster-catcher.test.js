@@ -1,11 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const createMonsterCatcherManager = require('../src/managers/monsterCatcher');
+const TooEz2 = require('../src/managers/TooEz2');
 const { normalizeMonsterCatcherSettings, messageText, extractImageUrl, parseWaitTimeMs, CONSTANTS } = createMonsterCatcherManager;
 const LUCY_ID = CONSTANTS?.SENSOR_TRIGGER_TEXT ? '1438615298012872817' : require('../src/constants').LUCY_BOT_ID;
 
-function setup({ config = {}, decoder = () => 'ABC123' } = {}) {
+function setup({ config = {}, decoder = () => 'ABC123', downloader = async () => Buffer.from('fake-png') } = {}) {
     const state = {
         client: { isReady: () => true, user: { id: 'me' } },
         config: {
@@ -37,7 +40,7 @@ function setup({ config = {}, decoder = () => 'ABC123' } = {}) {
         { getMonsterCatcherSettings: () => normalizeMonsterCatcherSettings(state.config.settings.monsterCatcher) },
         loopManager,
         commandSender,
-        { decoder, downloader: async () => Buffer.from('fake-png') }
+        { decoder, downloader }
     );
     return { state, manager, sent, loopEpoch };
 }
@@ -248,4 +251,20 @@ test('full retry cycle: mismatch -> ulang -> refresh -> new sensor -> done', asy
     assert.equal(loopEpoch.resumed, true);
     assert.equal(manager.getStatus().status, 'IDLE');
     assert.equal(manager.getStatus().active, false);
+});
+
+// Fixture dari captcha nyata Lucy (PNG, seperti yang diunduh monsterCatcher).
+// Captcha #2 berisi dua huruf G yang dulu salah dibaca jadi 6.
+test('sensor decodes real captcha images end to end', async () => {
+    const cases = [
+        { file: 'monster-captcha-1.png', code: 'MZCQ6L' },
+        { file: 'monster-captcha-2.png', code: '4VGWGR' }
+    ];
+    for (const { file, code } of cases) {
+        const buffer = fs.readFileSync(path.join(__dirname, 'fixtures', file));
+        const { manager, sent } = setup({ decoder: b => TooEz2.decodeBuffer(b), downloader: async () => buffer });
+        const handled = await manager.handle(withImage());
+        assert.equal(handled, true);
+        assert.ok(sent.some(s => s.cmd === code && s.channelId === DM_CHANNEL_ID), `${file} harus terbaca ${code}`);
+    }
 });

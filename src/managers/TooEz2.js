@@ -37,9 +37,9 @@ function rasioAspek(mask) {
     return (maxX - minX + 1) / (maxY - minY + 1);
 }
 
-// Pasangan karakter yang bentuknya mudah tertukar (mis. 0/O). Dipakai untuk
-// memutuskan ulang lewat rasio aspek input vs template, bukan lewat IoU global
-// yang sering seri untuk bentuk yang nyaris identik.
+// Pasangan karakter yang bentuknya mudah tertukar (mis. 0/O, 6/G). Disimpan
+// sebagai referensi tuning; TIDAK dipakai lagi di jalur decode (lihat catatan
+// di cocokkanObjek).
 const GRUP_MIRIP = [
     ['0', 'O'],
     ['1', 'I'],
@@ -259,10 +259,6 @@ function rekanGrup(huruf) {
     return [];
 }
 
-// Selisih skor maksimum antara juara 1 dan 2 supaya disambiguasi rasio aspek
-// dipakai. Kalau juara 1 sudah unggul jelas, keputusan IoU dianggap cukup.
-const MARGIN_DISAMBIGUASI = 0.05;
-
 // Cari huruf terbaik untuk satu objek (semua sudut x semua template).
 function cocokkanObjek(crop, w, h, templates) {
     const skorTerbaik = {};
@@ -282,34 +278,9 @@ function cocokkanObjek(crop, w, h, templates) {
         .map(([huruf, data]) => ({ huruf, skor: data.skor, sudut: data.sudut, template: data.template }))
         .sort((a, b) => b.skor - a.skor);
 
-    // Salinan dangkal: `terbaik` tidak boleh berbagi referensi dengan semuaSkor[0],
-    // supaya disambiguasi di bawah tidak ikut mengubah daftar skor.
+    // Salinan dangkal: `terbaik` tidak boleh berbagi referensi dengan semuaSkor[0].
     const terbaik = { ...(semuaSkor[0] || { huruf: '?', skor: 0, sudut: 0 }) };
     const diterima = terbaik.skor >= AMBANG_COCOK;
-
-    // Bentuk yang mudah tertukar (mis. 2/Z, 6/G) diputuskan lewat rasio aspek.
-    // Hanya saat kedua kandidat nyaris seri: kalau juara 1 sudah unggul jelas,
-    // keputusan IoU sudah benar dan tidak boleh diutak-atik (dulu disambiguasi
-    // tanpa syarat ini justru membalik Z yang sudah menang menjadi 2).
-    const juara1 = semuaSkor[0];
-    const juara2 = semuaSkor[1];
-    if (juara1 && juara2
-        && rekanGrup(juara1.huruf).includes(juara2.huruf)
-        && juara1.skor - juara2.skor < MARGIN_DISAMBIGUASI) {
-        const rasioInput = rasioAspek(normalisasi(crop, w, h));
-        let pilihan = juara1.huruf;
-        let selisihTerbaik = Infinity;
-        for (const huruf of [juara1.huruf, juara2.huruf]) {
-            const tpl = templates.find(t => t.huruf === huruf);
-            if (!tpl) continue;
-            const selisih = Math.abs(rasioInput - rasioAspek(tpl.mask));
-            if (selisih < selisihTerbaik) {
-                selisihTerbaik = selisih;
-                pilihan = huruf;
-            }
-        }
-        terbaik.huruf = pilihan;
-    }
 
     return { terbaik, diterima, semuaSkor };
 }

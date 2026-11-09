@@ -92,8 +92,8 @@ test('TooEz2 decodeBuffer returns null when nothing is recognizable', () => {
     assert.equal(TooEz2.decodeBuffer(PNG.sync.write(blank)), null);
 });
 
-// Regresi: dulu Z dari font cervoneue dibaca "2" (dan G kadang dibaca "6")
-// karena disambiguasi rasio aspek menimpa juara yang sudah unggul jelas.
+// Regresi: dulu Z dari font cervoneue dibaca "2" (dan G dibaca "6") karena
+// disambiguasi rasio aspek menimpa juara IoU. Override itu sudah dihapus.
 test('TooEz2 keeps Z and G from the cervoneue font (no 2/6 mix-up)', () => {
     const font = loadFont(path.join(FONT_DIR, 'Fontspring-DEMO-cervoneue-semiboldneue.otf'));
     for (const ch of ['Z', 'G', '2', '6']) {
