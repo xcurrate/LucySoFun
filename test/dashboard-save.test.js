@@ -174,11 +174,10 @@ test('POST /save persists fixed lb/lh pair (single config synced to both slots) 
 
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
-        assert.equal(savedConfig.fixedCommands.lb.channelId, '222');
-        assert.equal(savedConfig.fixedCommands.lb.delayMinMs, 4000);
-        assert.equal(savedConfig.fixedCommands.lb.delayMaxMs, 6000);
-        assert.equal(savedConfig.fixedCommands.lb.count, 0);
-        assert.deepEqual(savedConfig.fixedCommands.lh, savedConfig.fixedCommands.lb, 'lh disinkronkan dari lb (unit tunggal)');
+        assert.equal(savedConfig.fixedCommands.channelId, '222');
+        assert.equal(savedConfig.fixedCommands.delayMinMs, 4000);
+        assert.equal(savedConfig.fixedCommands.delayMaxMs, 6000);
+        assert.equal(savedConfig.fixedCommands.count, 0);
         assert.equal(savedConfig.otherCommands[0].text, '!custom');
         assert.equal(savedConfig.otherCommands[0].channelId, '111');
     });
@@ -557,10 +556,7 @@ test('saving while a profile is paused keeps the enabled flags (no reconcile clo
         botStatus: { running: false, paused: true },
         settings: { monsterCatcher: { enabled: false } },
         otherCommands: [],
-        fixedCommands: {
-            lb: { text: 'lb', channelId: 'c', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true },
-            lh: { text: 'lh', channelId: 'c', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true }
-        }
+        fixedCommands: { channelId: 'c', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true }
     };
 
     await withSeededDashboard({
@@ -608,10 +604,7 @@ test('control panel START ALL does not wipe configured Custom Commands and lb/lh
             { text: '!c2', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 3, channelId: '222', enabled: true },
             { text: '', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '', enabled: false }
         ],
-        fixedCommands: {
-            lb: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true },
-            lh: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
-        }
+        fixedCommands: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
     };
 
     await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
@@ -633,8 +626,8 @@ test('control panel START ALL does not wipe configured Custom Commands and lb/lh
         assert.equal(saved.otherCommands[0].channelId, '111', 'custom 1 channel preserved');
         assert.equal(saved.otherCommands[1].text, '!c2', 'custom 2 text preserved');
         assert.equal(saved.otherCommands[1].channelId, '222', 'custom 2 channel preserved');
-        assert.equal(saved.fixedCommands.lb.channelId, '333', 'lb/lh channel preserved');
-        assert.equal(saved.fixedCommands.lb.count, 0, 'lb/lh infinite count preserved');
+        assert.equal(saved.fixedCommands.channelId, '333', 'lb/lh channel preserved');
+        assert.equal(saved.fixedCommands.count, 0, 'lb/lh infinite count preserved');
         assert.deepEqual(saved.botStatus, { running: true, paused: false }, 'START ALL still starts the account');
     });
 });
@@ -649,10 +642,7 @@ test('profile-page save still clears a command when its field is explicitly empt
         otherCommands: [
             { text: '!c1', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 5, channelId: '111', enabled: true }
         ],
-        fixedCommands: {
-            lb: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true },
-            lh: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
-        }
+        fixedCommands: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
     };
 
     await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
@@ -670,7 +660,7 @@ test('profile-page save still clears a command when its field is explicitly empt
         const saved = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(saved.otherCommands[0].text, '', 'explicitly emptied custom text stays empty');
         assert.equal(saved.otherCommands[0].channelId, '', 'explicitly emptied custom channel stays empty');
-        assert.equal(saved.fixedCommands.lb.channelId, '', 'explicitly emptied lb/lh channel stays empty');
+        assert.equal(saved.fixedCommands.channelId, '', 'explicitly emptied lb/lh channel stays empty');
     });
 });
 

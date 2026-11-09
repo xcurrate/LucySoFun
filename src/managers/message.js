@@ -226,8 +226,8 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         settings.monsterCatcher = { ...(settings.monsterCatcher || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
-        // Command tetap (lh/lb) ikut hidup/mati bersama fitur Lucy lainnya.
-        Object.values(state.config.fixedCommands || {}).forEach(command => { if (command) command.enabled = enabled; });
+        // Command tetap (lb/lh) ikut hidup/mati bersama fitur Lucy lainnya (satu unit).
+        if (state.config.fixedCommands) state.config.fixedCommands.enabled = enabled;
         configManager.save();
 
         if (enabled) {
@@ -248,7 +248,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         } else {
             adventureManager?.stop?.();
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
-            ['lb', 'lh'].forEach(key => loopManager?.stopOtherCommand?.(`fixed${key}`));
+            loopManager?.stopOtherCommand?.(3); // unit lb+lh (satu unit)
             boss2Manager?.stop?.();
             gemsManager?.stop?.();
             huntbot2Manager?.stop?.();

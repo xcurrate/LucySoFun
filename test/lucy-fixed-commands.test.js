@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const {
     normalizeDelayRange,
@@ -11,8 +14,19 @@ const {
     resolveDelayMs
 } = require('../src/managers/commandSlots');
 const createLoopManager = require('../src/managers/loop');
+const createAccountRuntime = require('../src/core/accountRuntime');
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Config Command Tetap SATU UNIT: satu channel/delay/count/enabled.
+const makeState = (fixedOverrides = {}, otherCommands = []) => ({
+    config: {
+        otherCommands: normalizeOtherCommands(otherCommands),
+        fixedCommands: normalizeFixedCommands(fixedOverrides),
+        botStatus: { running: true, paused: false }
+    },
+    loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
+});
 
 test('min-max delay: bound boleh sama dengan max, dan tertukar ikut dinormalisasi', () => {
     assert.deepEqual(normalizeDelayRange({ delayMinMs: 3000, delayMaxMs: 3000 }), { delayMinMs: 3000, delayMaxMs: 3000 });
@@ -24,8 +38,7 @@ test('min-max delay: bound boleh sama dengan max, dan tertukar ikut dinormalisas
 
 test('resolveDelayMs selalu dalam rentang min-max (inklusive)', () => {
     for (let i = 0; i < 200; i += 1) {
-        const value = resolveDelayMs({ delayMinMs: 1500, delayMaxMs: 1500 });
-        assert.equal(value, 1500);
+        assert.equal(resolveDelayMs({ delayMinMs: 1500, delayMaxMs: 1500 }), 1500);
     }
     const seen = new Set();
     for (let i = 0; i < 300; i += 1) seen.add(resolveDelayMs({ delayMinMs: 100, delayMaxMs: 900 }));
@@ -33,237 +46,139 @@ test('resolveDelayMs selalu dalam rentang min-max (inklusive)', () => {
     seen.forEach(value => assert.ok(value >= 100 && value <= 900));
 });
 
-test('konfigurasi lama tanpa min-max tetap bersih dan delay lama dipertahankan', () => {
+test('konfigurasi lama (delayMs saja) tetap bersih dan delay dipertahankan', () => {
     const commands = normalizeOtherCommands([{ text: '!c', delayMs: 4000, channelId: '111', enabled: true }]);
     assert.equal(commands[0].delayMinMs, 4000);
     assert.equal(commands[0].delayMaxMs, 4000);
-    const fixed = normalizeFixedCommands({ lb: { channelId: '222', delayMs: 6000, count: 0 } });
-    assert.equal(fixed.lb.delayMinMs, 6000);
-    assert.equal(fixed.lb.delayMaxMs, 6000);
+    const fixed = normalizeFixedCommands({ channelId: '222', delayMs: 6000, count: 0 });
+    assert.equal(fixed.delayMinMs, 6000);
+    assert.equal(fixed.delayMaxMs, 6000);
+    assert.equal(fixed.channelId, '222');
 });
 
-test('slot tetap lh & lb tersedia sebagai slot 4 dan 5', () => {
-    const config = { otherCommands: normalizeOtherCommands([]), fixedCommands: normalizeFixedCommands({}) };
+test('normalisasi fixed: bentuk lama { lb, lh } digabung jadi satu unit', () => {
+    // lb punya channel, lh punya count; keduanya harus menyatu tanpa field hilang.
+    const fixed = normalizeFixedCommands({
+        lb: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 3, enabled: true },
+        lh: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 0, enabled: false }
+    });
+    assert.equal(fixed.channelId, 'c1');
+    assert.equal(fixed.delayMinMs, 20);
+    assert.equal(fixed.delayMaxMs, 60);
+    assert.equal(fixed.enabled, true, 'aktif jika salah satu slot lama aktif');
+    assert.equal(fixed.lb, undefined, 'tidak lagi menyimpan config per-slot');
+});
+
+test('normalisasi fixed: unit tetap satu walau channel hanya di lh (self-heal)', () => {
+    const fixed = normalizeFixedCommands({
+        lb: { channelId: '', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true },
+        lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }
+    });
+    assert.equal(fixed.channelId, 'c1');
+    assert.equal(fixed.enabled, true);
+});
+
+test('slot tetap lh & lb tersedia sebagai slot 4 dan 5 dari SATU sumber', () => {
+    const config = { otherCommands: normalizeOtherCommands([]), fixedCommands: normalizeFixedCommands({ channelId: 'c9', count: 0, enabled: true }) };
     const slots = getCommandSlots(config);
     assert.equal(slots.length, 5);
     assert.equal(slots[3].fixed, 'lb');
     assert.equal(slots[3].command.text, 'lb');
     assert.equal(slots[4].fixed, 'lh');
     assert.equal(slots[4].command.text, 'lh');
+    // channel dibaca dari sumber yang sama, jadi mustahil berbeda.
+    assert.equal(slots[3].command.channelId, 'c9');
+    assert.equal(slots[4].command.channelId, 'c9');
     assert.equal(getCommandSlot(config, 3).fixed, 'lb');
     assert.equal(getCommandSlot(config, 4).fixed, 'lh');
 });
 
-test('enabled slot tetap diatur lewat setSlotEnabled (fixed = satu unit)', () => {
+test('setSlotEnabled: slot 3 atau 4 menyalakan/mematikan SATU unit', () => {
     const config = { otherCommands: normalizeOtherCommands([]), fixedCommands: normalizeFixedCommands({}) };
     setSlotEnabled(config, 3, true);
-    assert.equal(config.fixedCommands.lb.enabled, true);
-    assert.equal(config.fixedCommands.lh.enabled, true, 'menyalakan lb ikut menyalakan lh');
-
+    assert.equal(config.fixedCommands.enabled, true);
     setSlotEnabled(config, 4, false);
-    assert.equal(config.fixedCommands.lb.enabled, false, 'mematikan lh ikut mematikan lb');
-    assert.equal(config.fixedCommands.lh.enabled, false);
+    assert.equal(config.fixedCommands.enabled, false, 'dari slot mana pun, unit tetap satu');
+    setSlotEnabled(config, 'fixedlh', true);
+    assert.equal(config.fixedCommands.enabled, true);
 });
 
-test('normalisasi fixed: enabled selalu sinkron walau config lama hanya nyalakan lb', () => {
-    const fixed = normalizeFixedCommands({
-        lb: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 3, enabled: true },
-        lh: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 0, enabled: false }
-    });
-    assert.equal(fixed.lb.enabled, true);
-    assert.equal(fixed.lh.enabled, true, 'lh ikut aktif karena pasangan adalah satu unit');
-    assert.equal(fixed.lb.channelId, 'c1');
-    assert.equal(fixed.lh.channelId, 'c1');
-});
-
-test('pasangan lb+lh berjalan dengan delay acak in-range dan berhenti sesuai count leader', async () => {
+test('pair lb+lh berjalan berpasangan dan berhenti sesuai count unit', async () => {
     const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 3, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 20, delayMaxMs: 60, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push({ cmd, t: Date.now() }); return true; } });
+    const state = makeState({ channelId: 'c1', delayMinMs: 20, delayMaxMs: 20, count: 3, enabled: true });
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
 
     assert.equal(loopManager.startOtherCommand(3), true);
     await wait(2200);
-    // count leader 3 => lb,lh,lb,lh,lb,lh
-    assert.deepEqual(sent.map(s => s.cmd), ['lb', 'lh', 'lb', 'lh', 'lb', 'lh'], 'urutan selalu lb lalu lh');
-    assert.equal(state.config.fixedCommands.lb.enabled, false, 'slot selesai dinonaktifkan');
-    assert.equal(state.config.fixedCommands.lh.enabled, false, 'pasangan ikut dinonaktifkan');
+    assert.deepEqual(sent, ['lb', 'lh', 'lb', 'lh', 'lb', 'lh'], 'urutan selalu lb lalu lh');
+    assert.equal(state.config.fixedCommands.enabled, false, 'unit selesai dinonaktifkan');
 });
 
-test('lh+lb selalu berpasangan: lb lalu lh (jeda mengetik di antara)', async () => {
+test('START pada slot lh tetap memulai unit dari lb', async () => {
     const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 2, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push({ cmd, t: Date.now() }); return true; } });
-
-    assert.equal(loopManager.startOtherCommand(3), true);
-    await wait(1500);
-    // pair count 2 => lb,lh,lb,lh
-    assert.deepEqual(sent.map(s => s.cmd), ['lb', 'lh', 'lb', 'lh'], 'urutan selalu lb lalu lh');
-    assert.equal(state.config.fixedCommands.lb.enabled, false, 'leader selesai dinonaktifkan');
-    assert.equal(state.config.fixedCommands.lh.enabled, false, 'follower ikut dinonaktifkan');
-});
-
-test('startAll dengan lb+lh aktif: pair dikirim berpasangan, dari leader lb', async () => {
-    const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push({ cmd, t: Date.now() }); return true; } });
-
-    loopManager.startAll();
-    await wait(1600);
-    assert.deepEqual(sent.map(s => s.cmd), ['lb', 'lh'], 'startAll pair hanya sekali lb lalu lh, tidak ada lh di awal');
-    assert.equal(state.config.fixedCommands.lb.enabled, false);
-    assert.equal(state.config.fixedCommands.lh.enabled, false);
-    // jeda mengetik nyata antara lb dan lh
-    assert.ok(sent[1].t - sent[0].t >= 200, `jeda mengetik antara lb dan lh (${sent[1].t - sent[0].t}ms) >= 200ms`);
-});
-
-test('START pada tombol lh dengan lb aktif tetap memulai pair dari lb (bukan lh sendirian)', async () => {
-    const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push({ cmd, t: Date.now() }); return true; } });
+    const state = makeState({ channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true });
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
 
     assert.equal(loopManager.startOtherCommand(4), true);
     await wait(1000);
-    assert.deepEqual(sent.map(s => s.cmd), ['lb', 'lh'], 'mulai dari tombol lh tetap lb lalu lh');
+    assert.deepEqual(sent, ['lb', 'lh']);
 });
 
-test('START ganda yang berdekatan tidak menyisipkan lh tanpa lb (pasangan atomik)', async () => {
+test('startAll memulai unit lb/lh sekali (tidak dobel) beserta custom command', async () => {
     const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 40, delayMaxMs: 40, count: 3, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 40, delayMaxMs: 40, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
+    const state = makeState(
+        { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true },
+        [{ text: '!c', channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }]
+    );
     const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
 
-    // Dua START berdekatan (mis. tombol + startAll/reconcile) tidak boleh
-    // saling menyisip sehingga lh terkirim tanpa lb pendampingnya.
+    loopManager.startAll();
+    await wait(1600);
+    assert.deepEqual(sent.slice().sort(), ['!c', 'lb', 'lh'], 'START ALL menjalankan custom + unit lb/lh');
+
+    const before = sent.length;
+    loopManager.startAll();
+    await wait(400);
+    assert.equal(sent.length, before, 'startAll ulang tidak menambah kiriman');
+});
+
+test('START ganda berdekatan tidak menyisipkan lh tanpa lb (pasangan atomik)', async () => {
+    const sent = [];
+    const state = makeState({ channelId: 'c1', delayMinMs: 40, delayMaxMs: 40, count: 3, enabled: true });
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+
     loopManager.startOtherCommand(3);
     loopManager.startOtherCommand(3);
     await wait(1500);
 
     assert.ok(sent.includes('lh'), 'pair benar-benar berjalan');
     for (let i = 0; i < sent.length; i += 1) {
-        if (sent[i] === 'lh') {
-            assert.equal(sent[i - 1], 'lb', `lh pada indeks ${i} harus tepat didahului lb (urutan: ${sent.join(',')})`);
-        }
-        if (sent[i] === 'lb' && sent[i + 1] === 'lb') {
-            assert.fail(`dua lb berurutan: pasangan saling menyisip (urutan: ${sent.join(',')})`);
-        }
+        if (sent[i] === 'lh') assert.equal(sent[i - 1], 'lb', `lh pada indeks ${i} harus didahului lb (${sent.join(',')})`);
+        if (sent[i] === 'lb' && sent[i + 1] === 'lb') assert.fail(`dua lb berurutan (${sent.join(',')})`);
     }
 });
 
-test('startAll saat pair sedang berjalan tidak menggandakan kiriman (skipIfRunning)', async () => {
-    const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([]),
-            fixedCommands: normalizeFixedCommands({
-                lb: { channelId: 'c1', delayMinMs: 200, delayMaxMs: 200, count: 3, enabled: true },
-                lh: { channelId: 'c1', delayMinMs: 200, delayMaxMs: 200, count: 0, enabled: true }
-            }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+// Regresi inti: START ALL / kontrol Lucy memakai startAll(). Dulu unit lb/lh
+// diperiksa per-slot, jadi config yang channel-nya hanya di lh (atau key lb tidak
+// ada) tidak pernah jalan lewat START ALL — padahal tombol kartu jalan.
+test('startAll menjalankan unit lb/lh walau channel hanya ada di lh (atau lb tidak ada)', async () => {
+    const shapes = [
+        { name: 'channel hanya di lh', fixed: { lb: { channelId: '', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }, lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } },
+        { name: 'key lb tidak ada', fixed: { lh: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } }
+    ];
 
-    loopManager.startOtherCommand(3);
-    await wait(100); // lb sedang dalam perjalanan
-    loopManager.startAll(); // tidak boleh memulai pair kedua
-    await wait(1500);
-
-    for (let i = 0; i < sent.length; i += 1) {
-        if (sent[i] === 'lh') {
-            assert.equal(sent[i - 1], 'lb', `lh harus didahului lb (urutan: ${sent.join(',')})`);
-        }
-        if (sent[i] === 'lb' && sent[i + 1] === 'lb') {
-            assert.fail(`dua lb berurutan: pair ganda berjalan (urutan: ${sent.join(',')})`);
-        }
+    for (const shape of shapes) {
+        const sent = [];
+        const state = makeState(shape.fixed);
+        const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+        loopManager.startAll();
+        await wait(1200);
+        assert.deepEqual(sent, ['lb', 'lh'], `startAll harus menjalankan lb+lh (${shape.name})`);
     }
-    // count 3 => maksimal 3 pasangan (6 kiriman); tidak ada loop kedua.
-    assert.ok(sent.length <= 6, `tidak ada kiriman berlebih (urutan: ${sent.join(',')})`);
 });
 
-test('startAll mencakup command tetap dan slot yang berjalan tidak di-restart', async () => {
-    const sent = [];
-    const state = {
-        config: {
-            otherCommands: normalizeOtherCommands([{ text: '!c', channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }]),
-            fixedCommands: normalizeFixedCommands({ lb: { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } }),
-            botStatus: { running: true, paused: false }
-        },
-        loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-    };
-    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
-
-    loopManager.startAll();
-    // Slot pertama (custom) langsung jalan tanpa stagger; slot tetap lb menyusul
-    // setelah jeda anti-burst (500ms), lalu lh mengikuti sebagai pasangan.
-    assert.deepEqual(sent.slice(), ['!c'], 'slot pertama start langsung');
-    await wait(1600);
-    assert.deepEqual(sent.slice().sort(), ['!c', 'lb', 'lh'], 'command tetap ikut start sebagai pasangan lb+lh');
-
-    loopManager.startAll();
-    const countAfterSecond = sent.length;
-    assert.equal(countAfterSecond, 3, 'startAll ulang tidak menambah kiriman baru');
-    await wait(400);
-    assert.equal(countAfterSecond, sent.length);
-});
-// Regresi: pause akun tidak boleh menghapus flag `enabled` fitur, supaya
-// perubahan config dari dashboard saat akun pause tetap tersimpan dan START
-// berikutnya bisa melanjutkan fitur yang sama (mis. Command Tetap lb+lh).
+// Regresi: pause() tidak boleh menghapus flag `enabled` fitur.
 test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', async () => {
-    const fs = require('fs');
-    const os = require('os');
-    const path = require('path');
-    const createAccountRuntime = require('../src/core/accountRuntime');
-
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pause-keeps-enabled-'));
     const file = path.join(dir, 'config_x.json');
     const token = `${Buffer.from('123456789012345678', 'utf8').toString('base64').replace(/=+$/, '')}.abcdef.ghijkl`;
@@ -272,10 +187,7 @@ test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', asy
         botStatus: { running: true, paused: false },
         settings: { monsterCatcher: { enabled: true }, boss2: { enabled: true } },
         otherCommands: [{ text: '!c', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 1, enabled: true }],
-        fixedCommands: {
-            lb: { text: 'lb', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 0, enabled: true },
-            lh: { text: 'lh', channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 0, enabled: true }
-        }
+        fixedCommands: { channelId: 'c', delayMinMs: 20, delayMaxMs: 20, count: 0, enabled: true }
     };
     fs.writeFileSync(file, JSON.stringify(config, null, 2));
 
@@ -284,8 +196,7 @@ test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', asy
         runtime.pause();
 
         const disk = JSON.parse(fs.readFileSync(file, 'utf8'));
-        assert.equal(disk.fixedCommands.lb.enabled, true, 'pause tidak boleh mematikan lb');
-        assert.equal(disk.fixedCommands.lh.enabled, true, 'pause tidak boleh mematikan lh');
+        assert.equal(disk.fixedCommands.enabled, true, 'pause tidak boleh mematikan Command Tetap');
         assert.equal(disk.otherCommands[0].enabled, true, 'pause tidak boleh mematikan custom command');
         assert.equal(disk.settings.monsterCatcher.enabled, true, 'pause tidak boleh mematikan Monster Catcher');
         assert.deepEqual(disk.botStatus, { running: false, paused: true });
@@ -293,33 +204,3 @@ test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', asy
         fs.rmSync(dir, { recursive: true, force: true });
     }
 });
-
-// Regresi: START ALL / kontrol Lucy memakai startAll(), dan dulu hanya memulai
-// slot tetap kalau slot `lb` sendiri punya channel. Config dengan channel hanya
-// di `lh` (atau key `lb` tidak ada) membuat unit lb+lh tidak pernah jalan lewat
-// START ALL, padahal tombol kartu (startOtherCommand) menjalankannya.
-test('startAll memulai unit lb/lh walau channel hanya ada di slot lh (atau lb tidak ada)', async () => {
-    const CH = 'c1';
-    const shapes = [
-        { name: 'channel hanya di lh', fixed: { lb: { channelId: '', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }, lh: { channelId: CH, delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } },
-        { name: 'key lb tidak ada', fixed: { lh: { channelId: CH, delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } }
-    ];
-
-    for (const shape of shapes) {
-        const sent = [];
-        const state = {
-            config: {
-                otherCommands: normalizeOtherCommands([]),
-                fixedCommands: normalizeFixedCommands(shape.fixed),
-                botStatus: { running: true, paused: false }
-            },
-            loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
-        };
-        const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
-
-        loopManager.startAll();
-        await wait(1200);
-        assert.deepEqual(sent, ['lb', 'lh'], `startAll harus menjalankan lb+lh (${shape.name})`);
-    }
-});
-

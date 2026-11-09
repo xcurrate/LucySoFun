@@ -75,10 +75,7 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false },
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false }
   ],
-  "fixedCommands": {
-    "lb": { "channelId": "", "delayMs": 5000, "count": 0, "enabled": false },
-    "lh": { "channelId": "", "delayMs": 5000, "count": 0, "enabled": false }
-  }
+  "fixedCommands": { "channelId": "", "delayMs": 5000, "count": 0, "enabled": false }
 }
 ```
 

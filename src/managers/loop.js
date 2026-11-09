@@ -13,18 +13,15 @@ module.exports = (state, commandSender) => ({
         return getCommandSlot(state.config, Number(index));
     },
 
-    // Command Tetap lh+lb adalah SATU UNIT: selalu dikirim berpasangan.
-    // - Unit dimulai pada slot lb (leader); setiap iterasi: lb -> (typing) -> lh -> tunggu
-    // - Tersedia hanya jika salah satu slot masih menyalakan; enabled selalu sinkron.
+    // Command Tetap lb+lh adalah SATU UNIT (seperti wh/wb): teks terkunci,
+    // satu channel/delay/count/enabled. Unit dimulai pada slot lb (leader);
+    // setiap iterasi: lb -> (typing) -> lh -> tunggu.
     _getRotation() {
-        const lb = getCommandSlot(state.config, 3);
-        const lh = getCommandSlot(state.config, 4);
-        const lbOk = lb?.command?.enabled && lb.command.text?.trim() && lb.command.channelId?.trim();
-        const lhOk = lh?.command?.enabled && lh.command.text?.trim() && lh.command.channelId?.trim();
-        if (!lbOk && !lhOk) return null;
+        const fixed = state.config.fixedCommands;
+        if (!fixed?.enabled || !fixed.channelId?.trim()) return null;
         return [
-            { slot: lb, pairWith: lh },
-            { slot: lh }
+            { slot: getCommandSlot(state.config, 3), pairWith: getCommandSlot(state.config, 4) },
+            { slot: getCommandSlot(state.config, 4) }
         ];
     },
 
@@ -95,10 +92,8 @@ module.exports = (state, commandSender) => ({
     },
 
     async _otherCommandPair(leaderIndex, remaining) {
-        const leader = getCommandSlot(state.config, 3);
-        const follower = getCommandSlot(state.config, 4);
-        const leaderCommand = leader?.command;
         const PairKey = 'fixedlb';
+        const unit = state.config.fixedCommands;
         state.otherCommandRunning = state.otherCommandRunning || {};
 
         // lb & lh harus selalu terkirim berurutan sebagai SATU pasangan atomik,
@@ -111,59 +106,48 @@ module.exports = (state, commandSender) => ({
         state.fixedPairBusy = true;
         state.otherCommandRunning[PairKey] = true;
         try {
-            if (!leaderCommand?.enabled || !leaderCommand.text?.trim() || !leaderCommand.channelId?.trim()) return;
-            const infinite = !(Number(leaderCommand.count) > 0);
+            if (!unit?.enabled || !unit.channelId?.trim()) return;
+            const infinite = !(Number(unit.count) > 0);
             const sendsLeft = infinite
                 ? Infinity
-                : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(leaderCommand.count));
+                : Math.max(1, Number.isFinite(Number(remaining)) && Number(remaining) > 0 ? Number(remaining) : Number(unit.count));
             if (state.monsterCatchPaused || state.rest?.active) {
                 this._scheduleOtherCommandDelay(leaderIndex, sendsLeft, 0);
                 return;
             }
 
+            const channelId = unit.channelId.trim();
+
             // lb -> (jeda mengetik) -> lh
             let lbOk = false;
             try {
-                lbOk = await commandSender.send(
-                    leaderCommand.text.trim(),
-                    'Other Command 4', leaderCommand.channelId.trim()
-                );
+                lbOk = await commandSender.send('lb', 'Other Command 4', channelId);
             } catch (error) {
-                log.error(`${accountPrefix(state)}❌ Gagal ${leader.text} : ${error.message || error}`);
+                log.error(`${accountPrefix(state)}❌ Gagal lb : ${error.message || error}`);
             }
 
-            const followerCommand = follower?.command;
             let lhOk = false;
             // lh dikirim HANYA setelah lb benar-benar terkirim dan kondisi masih aman.
-            if (lbOk
-                && !state.monsterCatchPaused
-                && !state.rest?.active
-                && followerCommand?.enabled
-                && followerCommand.text?.trim()
-                && followerCommand.channelId?.trim()) {
+            if (lbOk && !state.monsterCatchPaused && !state.rest?.active) {
                 await wait(randomInt(250, 600)); // jeda "sedang mengetik" alami
                 try {
-                    lhOk = await commandSender.send(
-                        followerCommand.text.trim(),
-                        'Other Command 5', followerCommand.channelId.trim()
-                    );
+                    lhOk = await commandSender.send('lh', 'Other Command 5', channelId);
                 } catch (error) {
-                    log.error(`${accountPrefix(state)}❌ Gagal ${follower.text} : ${error.message || error}`);
+                    log.error(`${accountPrefix(state)}❌ Gagal lh : ${error.message || error}`);
                 }
             }
 
-            if (!leaderCommand.enabled) return;
+            if (!unit.enabled) return;
 
             if (!lbOk && !lhOk) {
-                this._scheduleOtherCommandDelay(leaderIndex, sendsLeft, resolveDelayMs(leaderCommand));
+                this._scheduleOtherCommandDelay(leaderIndex, sendsLeft, resolveDelayMs(unit));
             } else if (sendsLeft > 1) {
-                this._scheduleOtherCommandDelay(leaderIndex, infinite ? Infinity : sendsLeft - 1, resolveDelayMs(leaderCommand));
+                this._scheduleOtherCommandDelay(leaderIndex, infinite ? Infinity : sendsLeft - 1, resolveDelayMs(unit));
             } else {
                 state.loops[PairKey] = null;
-                setSlotEnabled(state.config, Number(leaderIndex), false);
-                setSlotEnabled(state.config, Number(leaderIndex) + 1, false);
+                setSlotEnabled(state.config, leaderIndex, false);
                 if (typeof state.persistConfig === 'function') state.persistConfig();
-                log.info(`${accountPrefix(state)}✅ Pair ${leader.text}+${follower.text} selesai (${leaderCommand.count} pengiriman).`);
+                log.info(`${accountPrefix(state)}✅ Pair lb+lh selesai (${unit.count} pengiriman).`);
             }
         } finally {
             state.otherCommandRunning[PairKey] = false;
@@ -254,29 +238,10 @@ module.exports = (state, commandSender) => ({
     },
 
     startOtherCommand(index, initialDelayMs = 0, options = {}) {
-        // START di follower lh mengarah ke leader lb; keduanya selalu satu unit.
-        const lbSlot = getCommandSlot(state.config, 3);
-        const lhSlot = getCommandSlot(state.config, 4);
-        if (Number(index) === lhSlot?.index) {
-            return this.startOtherCommand(lbSlot.index, initialDelayMs, options);
-        }
-        if (Number(index) === lbSlot?.index) {
-            const lbCmd = lbSlot?.command;
-            const lhCmd = lhSlot?.command;
-            if (!lbCmd?.enabled || !lbCmd.text?.trim() || !lbCmd.channelId?.trim()) {
-                if (!lhCmd?.enabled || !lhCmd.text?.trim() || !lhCmd.channelId?.trim()) return false;
-                // Normalisasi menjaga keduanya sinkron; jika data lama tidak sinkron,
-                // pakai data lh untuk leader agar pair tetap jalan (bukan lh saja).
-                state.config.fixedCommands.lb = {
-                    ...state.config.fixedCommands.lb,
-                    text: 'lb',
-                    channelId: lhCmd.channelId,
-                    delayMinMs: lhCmd.delayMinMs,
-                    delayMaxMs: lhCmd.delayMaxMs,
-                    count: lhCmd.count,
-                    enabled: true
-                };
-            }
+        // START di slot mana pun dari unit lb/lh mengarah ke leader (index 3);
+        // keduanya selalu satu unit dan satu konfigurasi.
+        if (Number(index) === 4) {
+            return this.startOtherCommand(3, initialDelayMs, options);
         }
 
         const slot = this.slotAt(index);
@@ -328,15 +293,14 @@ module.exports = (state, commandSender) => ({
     },
 
     stopOtherCommand(index) {
-        // STOP pada salah satu slot pasangan lh+lb menghentikan keduanya.
+        // STOP pada salah satu slot unit lb/lh menghentikan unitnya.
         if (Number(index) === 3 || Number(index) === 4) {
-            if (getCommandSlot(state.config, 3)?.command?.enabled || getCommandSlot(state.config, 4)?.command?.enabled) {
+            if (state.config.fixedCommands?.enabled) {
                 this.clearOtherCommandTimers(3);
                 this.clearOtherCommandTimers(4);
                 setSlotEnabled(state.config, 3, false);
-                setSlotEnabled(state.config, 4, false);
                 if (typeof state.persistConfig === 'function') state.persistConfig();
-                log.info(`${accountPrefix(state)}⏹️ Pasangan lh+lb dihentikan.`);
+                log.info(`${accountPrefix(state)}⏹️ Command Tetap lb+lh dihentikan.`);
                 return true;
             }
         }
@@ -364,14 +328,9 @@ module.exports = (state, commandSender) => ({
         // lalu mulai ulang semua slot yang enabled.
         const slots = getCommandSlots(state.config);
         slots.forEach(slot => this.clearOtherCommandTimers(slot.index));
-        // Command Tetap (lb/lh) adalah SATU UNIT: cukup mulai sekali lewat leader
-        // (index 3) supaya `startOtherCommand` menjalankan recovery channel-nya.
-        // Kalau tiap slot diperiksa sendiri di sini, unit yang channel lb-nya kosong
-        // tapi lh-nya terisi (atau key lb tidak ada) akan lolos tanpa pernah jalan —
-        // tombol kartu tetap jalan karena lewat `startOtherCommand`, tapi START ALL
-        // dan kontrol Lucy (yang memanggil startAll) tidak. Lihat _getRotation().
-        const rotation = this._getRotation();
-        const fixedStartIndex = rotation ? rotation[0].slot.index : null;
+        // Command Tetap (lb/lh) adalah SATU UNIT dengan SATU konfigurasi, jadi
+        // cek `config.fixedCommands` sekali saja; kalau aktif, mulai lewat leader.
+        const fixedActive = this._getRotation() !== null;
 
         // Mulai slot secara bertahap (bukan serempak) agar tidak mengirim beruntun
         // ketika resume setelah emergency pause.
@@ -380,8 +339,8 @@ module.exports = (state, commandSender) => ({
         slots.forEach(slot => {
             const command = slot.command;
             if (slot.fixed) {
-                // Unit lb/lh hanya dimulai sekali, dari leader.
-                if (slot.index !== fixedStartIndex) return;
+                // Unit lb/lh hanya dimulai sekali, dari leader (index 3).
+                if (slot.index !== 3 || !fixedActive) return;
             } else if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) {
                 return;
             }

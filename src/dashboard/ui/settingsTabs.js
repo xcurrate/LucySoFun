@@ -319,12 +319,12 @@ ${renderRestSettings(config.settings?.rest)}
                             </div>
                             <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
                             ${(() => {
-                                const command = fixedCommands?.lb || fixedCommands?.lh || {};
+                                const command = fixedCommands || {};
                                 const isInfinite = !(Number(command.count) > 0);
                                 const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
                                 const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
                                 const channel = command.channelId || '';
-                                const enabled = fixedCommands?.lb?.enabled === true || fixedCommands?.lh?.enabled === true;
+                                const enabled = command.enabled === true;
                                 return `
                                     <div class="card">
                                         <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>

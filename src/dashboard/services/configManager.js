@@ -116,25 +116,22 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             };
         });
 
-        // Command Tetap (lb & lh) adalah SATU UNIT: teks terkunci; channel & delay
-        // diatur satu set dan disinkronkan ke kedua slot.
+        // Command Tetap (lb & lh) adalah SATU UNIT: teks terkunci; channel, delay,
+        // count, dan enabled diatur satu set untuk unitnya.
         const previousFixed = config.fixedCommands || {};
-        const configCount = normalizeSendCount(body.other4Count, normalizeSendCount(previousFixed.lb?.count));
-        const min4 = readSeconds(body.other4DelayMin ?? body.other4Delay, previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
-        const max4 = readSeconds(body.other4DelayMax ?? body.other4Delay, previousFixed.lb?.delayMaxMs ?? previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
-        const pairChannel = hasField('other4Channel')
-            ? String(body.other4Channel || '').trim()
-            : String(previousFixed.lb?.channelId || previousFixed.lh?.channelId || '');
-        const pairEnabled = previousFixed.lb?.enabled === true || previousFixed.lh?.enabled === true;
-        const pair = {
+        const configCount = normalizeSendCount(body.other4Count, normalizeSendCount(previousFixed.count));
+        const min4 = readSeconds(body.other4DelayMin ?? body.other4Delay, previousFixed.delayMinMs ?? previousFixed.delayMs);
+        const max4 = readSeconds(body.other4DelayMax ?? body.other4Delay, previousFixed.delayMaxMs ?? previousFixed.delayMinMs ?? previousFixed.delayMs);
+        config.fixedCommands = {
             delayMs: Math.min(min4, max4),
             delayMinMs: Math.min(min4, max4),
             delayMaxMs: Math.max(min4, max4),
             count: configCount,
-            channelId: pairChannel,
-            enabled: pairEnabled
+            channelId: hasField('other4Channel')
+                ? String(body.other4Channel || '').trim()
+                : String(previousFixed.channelId || ''),
+            enabled: previousFixed.enabled === true
         };
-        config.fixedCommands = { lb: { ...pair }, lh: { ...pair } };
 
         config.settings.telegram.token = body.tgToken || '';
         config.settings.telegram.chatId = body.tgChat || '';
