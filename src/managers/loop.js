@@ -333,8 +333,11 @@ module.exports = (state, commandSender) => ({
         const fixedActive = this._getRotation() !== null;
 
         // Mulai slot secara bertahap (bukan serempak) agar tidak mengirim beruntun
-        // ketika resume setelah emergency pause.
-        let staggerMs = 0;
+        // ketika resume setelah emergency pause. Jeda antar-slot harus KECIL dan
+        // tetap: memakai delay penuh slot sebelumnya membuat slot terakhir
+        // (mis. unit lb/lh) tertunda selama delay slot sebelumnya — kalau delay
+        // custom besar, unit lb/lh praktis tidak pernah mulai.
+        const START_STAGGER_MS = 500;
         let position = 0;
         slots.forEach(slot => {
             const command = slot.command;
@@ -344,8 +347,7 @@ module.exports = (state, commandSender) => ({
             } else if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) {
                 return;
             }
-            this.startOtherCommand(slot.index, staggerMs + position * 500, { skipIfRunning: true });
-            staggerMs += Math.max(500, resolveDelayMs(command));
+            this.startOtherCommand(slot.index, position * START_STAGGER_MS, { skipIfRunning: true });
             position += 1;
         });
 

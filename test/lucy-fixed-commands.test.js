@@ -158,6 +158,23 @@ test('START ganda berdekatan tidak menyisipkan lh tanpa lb (pasangan atomik)', a
     }
 });
 
+// Regresi: stagger startAll harus KECIL & tetap. Dulu stagger memakai delay
+// penuh slot sebelumnya, jadi unit lb/lh baru mulai setelah delay slot custom —
+// dengan delay besar, unit lb/lh seolah tidak pernah start lewat START ALL.
+test('startAll: unit lb/lh mulai cepat walau custom command berdelay sangat besar', async () => {
+    const sent = [];
+    const state = makeState(
+        { channelId: 'c1', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true },
+        [{ text: 'lcurse', channelId: 'c1', delayMinMs: 600000, delayMaxMs: 600000, count: 1, enabled: true }]
+    );
+    const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+
+    loopManager.startAll();
+    await wait(1500);
+    assert.deepEqual(sent, ['lcurse', 'lb', 'lh'], 'lb/lh tidak tertunda oleh delay custom yang besar');
+    loopManager.stopAll();
+});
+
 // Regresi inti: START ALL / kontrol Lucy memakai startAll(). Dulu unit lb/lh
 // diperiksa per-slot, jadi config yang channel-nya hanya di lh (atau key lb tidak
 // ada) tidak pernah jalan lewat START ALL — padahal tombol kartu jalan.
