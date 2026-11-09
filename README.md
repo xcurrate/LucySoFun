@@ -10,7 +10,7 @@ LucySoFun adalah selfbot Discord yang dikhususkan sepenuhnya untuk **Lucy** — 
 - 💎 **Auto Use Gems** — pemakaian otomatis lootbox/gems berdasarkan prioritas dan tier.
 - 🗺️ **Auto Adventure** — loop adventure (`ladv`) mandiri dengan dukungan pause saat memilih map.
 - 🤖 **Huntbot2** — automasi huntbot Lucy.
-- 🐾 **Monster Catcher** — mengetik otomatis 6 karakter kode dari gambar sensor (OCR) dan menyelesaikan siklus catch.
+- 🐾 **Monster Catcher** — mengetik otomatis kode 6 karakter (huruf kapital + angka) dari gambar sensor (OCR via `TooEz2.js`) dan menyelesaikan siklus catch.
 - 🔊 **Voice Channel** — bergabung/keluar voice channel secara otomatis (dan via perintah `vjoin`/`vleave`).
 - 🧩 **Custom Commands** — 3 loop perintah kustom dengan delay, count, dan channel masing-masing.
 - 🎮 **Lucy Control** — kata kunci start/pause via Discord untuk menghidupkan/mematikan seluruh fitur Lucy.
@@ -136,13 +136,12 @@ Menjalankan seluruh suite test (`node --test test/*.test.js`).
 index.js                        # entry point
 dashboard.js                    # starter server dashboard
 logger.js                       # logger terpusat (WIB, buffer, keyword penting)
-neo3.js                         # decoder OCR untuk Monster Catcher
 config.json                     # konfigurasi utama
 profiles/                       # konfigurasi per-profile
 src/
   core/                         # wrapper runtime (accountRuntime, multiAccount, client)
-  managers/                     # logic fitur (boss2, gems, adventure, huntbot2,
-                                #   monsterCatcher, voice, rest, command, loop, message...)
+  managers/                     # logic fitur (boss2, gems, adventure, huntbot2, monsterCatcher,
+                                #   voice, rest, command, loop, message...) + OCR TooEz/TooEz2
   services/                     # layanan pendukung (config, stats, telegram, dashboard services)
   dashboard/                    # aplikasi web dashboard
 test/                           # unit tests

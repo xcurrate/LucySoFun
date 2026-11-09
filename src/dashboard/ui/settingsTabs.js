@@ -497,9 +497,9 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
 
                         <div class="card">
-                            <label>🐾 MONSTER CATCHER (neo3.js)</label>
+                            <label>🐾 MONSTER CATCHER (TooEz2.js)</label>
                             <div class="input-hint">
-                                Mendeteksi sensor monster dari DM Bot Lucy ("Ketik 6 karakter pada gambar"), mengunduh gambar, mengenali kode via <code>neo3.js</code>, lalu mengirimkan hasil ke DM Lucy. Saat sensor terdeteksi, seluruh loop command Lucy dijeda (sisa delay disimpan) dan dilanjutkan kembali setelah Lucy mengirim "Terima kasih, catch selesai". Jika monster tidak cocok, sistem mengirim "ulang", menunggu pembaruan sensor ≈1 menit, lalu mencoba lagi sampai berhasil.
+                                Mendeteksi sensor monster dari DM Bot Lucy ("Beep Boop. Apa kamu manusia sungguhan?" / "6 karakter pada gambar"), mengunduh gambar, mengenali kode 6 karakter (huruf kapital + angka) via <code>TooEz2.js</code>, lalu mengirimkan hasilnya ke DM Lucy. Saat sensor terdeteksi, seluruh loop command Lucy dijeda (sisa delay disimpan) dan dilanjutkan kembali setelah Lucy mengonfirmasi selesai ("Terima kasih"). Jika monster tidak cocok, sistem mengirim "ulang", menunggu pembaruan sensor ≈1 menit, lalu mencoba lagi sampai berhasil.
                             </div>
                             <div class="toggle-row">
                                 <span>Enable Monster Catcher</span>

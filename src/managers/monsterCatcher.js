@@ -3,10 +3,11 @@ const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { removeInvisibleChars, accountPrefix, sleep } = require('../utils');
 
-// Nama pengenalan gambar (neo3.js) yang diintegrasikan di root proyek.
-const neo3 = require('../../neo3');
+// Pengenal gambar (TooEz2.js) yang diintegrasikan di dalam src/managers.
+// Charset huruf kapital + angka; khusus untuk captcha Monster Catcher.
+const TooEz2 = require('./TooEz2');
 
-const SENSOR_TRIGGER_TEXT = 'ketik 6 karakter';
+const SENSOR_TRIGGER_TEXT = '6 karakter pada gambar';
 const DONE_TRIGGER_TEXT = 'terima kasih';
 const MISMATCH_TRIGGER_TEXT = 'belum cocok';
 const REFRESH_TRIGGER_TEXT = 'perlu diperbarui';
@@ -90,7 +91,7 @@ const parseWaitTimeMs = (text) => {
 };
 
 module.exports = function createMonsterCatcherManager(state, configManager, loopManager, commandSender, options = {}) {
-    const decoder = options.decoder || (buffer => neo3.decodeBuffer(buffer));
+    const decoder = options.decoder || (buffer => TooEz2.decodeBuffer(buffer));
     // `downloadImage` dideklarasikan dengan `const` di bawah; gunakan akses
     // lambat agar const di atas tidak mengevaluasi binding pada TDZ saat init.
     const getDownloader = () => options.downloader || downloadImage;
@@ -214,10 +215,10 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         try {
             log.info(`${prefix()}Mengunduh sensor: ${imageUrl}`);
             const buffer = await getDownloader()(imageUrl);
-            log.info(`${prefix()}Memproses gambar dengan neo3.js...`);
+            log.info(`${prefix()}Memproses gambar dengan TooEz2.js...`);
             const code = decoder(buffer);
             if (!code) {
-                log.warn(`${prefix()}neo3.js tidak mengenali gambar sensor.`);
+                log.warn(`${prefix()}TooEz2.js tidak mengenali gambar sensor.`);
                 recordHistory({ type: 'decode-failed', url: imageUrl });
                 startRetry();
                 return false;

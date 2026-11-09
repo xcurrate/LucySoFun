@@ -17,7 +17,7 @@
 - **`pause()` must not touch `enabled`.** `accountRuntime.pause()` calls `stopFeatureTimers()` (stop loop/adventure/boss2/gems/huntbot2/monster-catcher timers) WITHOUT clearing any `enabled` flag. The reconcile loop calls `pause()` every 2s, so clearing flags there would silently wipe dashboard saves made while an account is paused. `start()` likewise only starts what the config already marks `enabled` (it no longer force-enables every feature).
 - Custom command sends go through `send`/`sendRaw` in `src/managers/command.js` with `allowWhilePaused: true`. Every successful `Other Command X` send (custom 1–3 AND the fixed lb/lh pair 4–5) arms a single Lucy-response emergency timeout via `setLucyResponseTimeout(type)`; the guard `if (state.lucyResponseTimeout) return` ensures at most ONE 40s timeout is armed per pair (lb arms it, lh is skipped). The timeout is cancelled only by a Lucy message in the command's own channel (`state.lastLucyCommandChannelId`) that includes our per-server username (content or embeds), and otherwise fires `emergencyHandler.pause(...)` for that account only; the `linv` recovery probe runs every 10 minutes and `startAll` resumes the same slots.
 - `count` empty/`0` = infinite loop; a positive count stops the slot after that many successful sends and sets `enabled=false` (persisted).
-- Lucy feature OCR decoders: root `neo3.js` (Monster Catcher) and `src/managers/TooEz.js` (Huntbot2 password images).
+- Lucy feature OCR decoders: `src/managers/TooEz.js` (Huntbot2 password images, letters A–Z) and `src/managers/TooEz2.js` (Monster Catcher captcha, letters + digits).
 
 ### TooEz (Huntbot2 password OCR) — font-based, disk-cached
 
@@ -29,6 +29,14 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Dependencies: runtime `pngjs`; build-only `opentype.js`, `@napi-rs/canvas` (both in `package.json`).
 - Tests: `test/tooez.test.js` covers the export contract, disk-cache loading, that the runtime avoids the font engine, per-letter templates, round-trip decode, scoring, and the null path.
 
+### TooEz2 (Monster Catcher captcha OCR) — alphanumeric sibling of TooEz
+
+- Same pipeline as TooEz (segment → normalize → rotate → IoU) but the charset is **capital letters + digits** (`A–Z0–9`), and its cache is a separate file so Huntbot2 is unaffected.
+- **Build step** — `TOOEZ_PROFILE=alnum node src/managers/TooEz.build.js` (npm: `npm run build:templates:alnum`) writes `src/managers/fonts/templates-alnum.json` (committed). The `letters` profile keeps writing `templates.json`.
+- **Runtime** — `src/managers/TooEz2.js` reads `templates-alnum.json`, requires only `pngjs`, and exports the same contract as TooEz: `decodeBuffer(buffer)` → 6-char code or `null`, plus `decodeLetters`, `getTemplates`, `TEMPLATE_FILE`.
+- Ambiguity: pairs that look alike (`0/O`, `1/I`, `2/Z`, `5/S`, `6/G`, `8/B`) are decided by comparing the **aspect ratio** of the straight input to each candidate template (template ratio is computed from the template mask itself, so it is font-independent). `_internals` is exported for tuning.
+- Tests: `test/tooez2.test.js` mirrors `tooez.test.js` for the alphanumeric cache and contract.
+
 ## Lucy bot integrations
 
 - Lucy's Discord user id: `1438615298012872817` (`CONSTANTS.LUCY_BOT_ID` in `src/constants.js`).
@@ -36,12 +44,12 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Text matching against Lucy messages should always normalize invisible characters first:
   `messageText(msg)` in `src/managers/monsterCatcher.js` does `removeInvisibleChars(...).toLowerCase()` over content, components, and embed texts.
 
-## Monster Catcher (neo3.js)
+## Monster Catcher (TooEz2.js)
 
-- Manager: `src/managers/monsterCatcher.js`; OCR decoder: root `neo3.js` (`decodeBuffer(pngBuffer)` → 6-char code or `null`). Depends on `pngjs` (already in package.json).
+- Manager: `src/managers/monsterCatcher.js`; OCR decoder: `src/managers/TooEz2.js` (`decodeBuffer(pngBuffer)` → 6-char alphanumeric code or `null`). Depends on `pngjs` (already in package.json).
 - Settings: `config.settings.monsterCatcher` via `normalizeMonsterCatcherSettings`; fields `enabled`, `autoPauseLoops`, `retryWaitMs`, `maxRetries`.
 - State machine on `state.monsterCatcher`: status `IDLE / PAUSED / PROCESSING / WAITING_RETRY / RESUMING`, phases `idle / awaitingVerdict / awaitingRefresh / awaitingNewSensor`.
-- Trigger texts (normalized): sensor `ketik 6 karakter pada gambar`, done `terima kasih, catch selesai`, mismatch `monsternya belum cocok`, refresh `monster perlu diperbarui`.
+- Trigger texts (normalized): sensor `6 karakter pada gambar`, done `terima kasih`, mismatch `belum cocok`, refresh `perlu diperbarui`.
 - Loop gating:
   - `loopManager.pauseMonsterCatch()` sets `state.monsterCatchPaused` and pauses all Custom Command Lucy delays with `reason: 'monster'` (remaining delay preserved).
   - `loopManager.resumeMonsterCatch()` resumes the saved Custom Command delays.

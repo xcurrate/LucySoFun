@@ -1,11 +1,12 @@
-// Generator cache template untuk TooEz.
+// Generator cache template untuk TooEz (huruf saja) dan TooEz2 (huruf + angka).
 //
 // Jalankan sekali (atau setiap kali file font di src/managers/fonts/ berubah):
-//     npm run build:templates
+//     npm run build:templates            # cache huruf -> fonts/templates.json
+//     npm run build:templates:alnum      # cache alfanumerik -> fonts/templates-alnum.json
 //
 // Script ini butuh opentype.js + @napi-rs/canvas dan memakai RAM cukup besar
-// saat render. Runtime bot (TooEz.js) TIDAK memakai script ini; ia hanya
-// membaca hasil cache-nya, sehingga tidak perlu memuat font engine.
+// saat render. Runtime bot (TooEz.js / TooEz2.js) TIDAK memakai script ini; ia
+// hanya membaca hasil cache-nya, sehingga tidak perlu memuat font engine.
 
 const fs = require('fs');
 const path = require('path');
@@ -14,13 +15,19 @@ const opentype = require('opentype.js');
 const { createCanvas } = require('@napi-rs/canvas');
 
 const FONT_DIR = path.join(__dirname, 'fonts');
-const OUTPUT = path.join(FONT_DIR, 'templates.json');
 const FONT_PATHS = [
     path.join(FONT_DIR, 'NaumanNeueTrial-Bold-BF63bf7ff057634.otf'),
     path.join(FONT_DIR, 'primaserif.otf'),
     path.join(FONT_DIR, 'Fontspring-DEMO-cervoneue-semiboldneue.otf')
 ];
-const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+// Profil build: charset + file keluaran. Dipilih lewat env TOOEZ_PROFILE.
+const PROFILES = {
+    letters: { charset: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', output: path.join(FONT_DIR, 'templates.json') },
+    alnum: { charset: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', output: path.join(FONT_DIR, 'templates-alnum.json') }
+};
+const profileName = process.env.TOOEZ_PROFILE === 'alnum' ? 'alnum' : 'letters';
+const { charset: CHARSET, output: OUTPUT } = PROFILES[profileName];
 
 // Ukuran kanvas normalisasi. Bisa dioverride: TOOEZ_SIZE=96 npm run build:templates
 const UKURAN = Number(process.env.TOOEZ_SIZE) || 96;

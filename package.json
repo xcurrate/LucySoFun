@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test",
-    "build:templates": "node src/managers/TooEz.build.js"
+    "build:templates": "node src/managers/TooEz.build.js",
+    "build:templates:alnum": "TOOEZ_PROFILE=alnum node src/managers/TooEz.build.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",

@@ -45,7 +45,7 @@ function setup({ config = {}, decoder = () => 'ABC123' } = {}) {
 const DM_CHANNEL_ID = '1557002545556230195';
 const sensorMessage = (overrides = {}) => ({
     id: `msg-${Math.random()}`,
-    content: '🔎 Ketik 6 karakter pada gambar',
+    content: '⚠️ Beep Boop. Apa kamu manusia sungguhan? Balas DM ini dengan **6 karakter pada gambar**',
     attachments: { values: () => [] },
     components: [],
     embeds: [],
@@ -57,7 +57,7 @@ const sensorMessage = (overrides = {}) => ({
 
 function withImage(overrides = {}) {
     return sensorMessage({
-        content: '🔎 Ketik 6 karakter pada gambar\nhttps://cdn.discordapp.com/attachments/123/abc/monster.png?ex=1&is=1',
+        content: '⚠️ Beep Boop. Apa kamu manusia sungguhan? Balas DM ini dengan **6 karakter pada gambar**\nhttps://cdn.discordapp.com/attachments/123/abc/monster.png?ex=1&is=1',
         attachments: { values: () => [{ url: 'https://cdn.discordapp.com/attachments/123/abc/monster.png?ex=1' }] },
         ...overrides
     });
