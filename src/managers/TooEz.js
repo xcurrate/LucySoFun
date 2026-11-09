@@ -12,7 +12,7 @@ const LUAS_MINIMUM = 10;
 // Ukuran kanvas normalisasi. Nilai sebenarnya diambil dari cache template
 // (payload.size) saat dimuat, supaya bentuk input selalu punya dimensi yang
 // sama dengan mask yang tersimpan.
-let UKURAN = 80;
+let UKURAN = 96;
 const ROTASI_MIN = -45;
 const ROTASI_MAX = 45;
 const ROTASI_STEP = 3;

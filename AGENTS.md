@@ -37,8 +37,9 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Same pipeline as TooEz (segment → normalize → rotate → IoU) but the charset is **capital letters + digits** (`A–Z0–9`), and its cache is a separate file so Huntbot2 is unaffected.
 - **Build step** — `TOOEZ_PROFILE=alnum node src/managers/TooEz.build.js` (npm: `npm run build:templates:alnum`) writes `src/managers/fonts/templates-alnum.json` (committed). The `letters` profile keeps writing `templates.json`.
 - **Runtime** — `src/managers/TooEz2.js` reads `templates-alnum.json`, requires only `pngjs`, and exports the same contract as TooEz: `decodeBuffer(buffer)` → 6-char code or `null`, plus `decodeLetters`, `getTemplates`, `TEMPLATE_FILE`.
-- Ambiguity: pairs that look alike (`0/O`, `1/I`, `2/Z`, `5/S`, `6/G`, `8/B`) are decided by comparing the **aspect ratio** of the straight input to each candidate template (template ratio is computed from the template mask itself, so it is font-independent). `_internals` is exported for tuning.
-- Tests: `test/tooez2.test.js` mirrors `tooez.test.js` for the alphanumeric cache and contract.
+- Ambiguity: pairs that look alike (`0/O`, `1/I`, `2/Z`, `5/S`, `6/G`, `8/B`) are decided by comparing the **aspect ratio** of the straight input to each candidate template (template ratio is computed from the template mask itself, so it is font-independent). This disambiguation only runs when the top two scores are within `MARGIN_DISAMBIGUASI` (0.05); without that gate it overrode an already-clear winner and turned `Z` into `2`. `cocokkanObjek` returns `terbaik` as a **copy** of `semuaSkor[0]`, so the override cannot mutate the score list. `_internals` is exported for tuning.
+- Normalization canvas size is **96** (`let UKURAN = 96` in both `TooEz.js` and `TooEz2.js`); the runtime value is overridden by `payload.size` from the cache at load time, and the build script defaults to 96 (`TOOEZ_SIZE` overrides).
+- Tests: `test/tooez2.test.js` mirrors `tooez.test.js` for the alphanumeric cache and contract, and pins `Z`/`G`/`2`/`6` from the `cervoneue` font against the old `Z→2` mix-up.
 
 ## Lucy bot integrations
 

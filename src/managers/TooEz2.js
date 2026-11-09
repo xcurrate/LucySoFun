@@ -13,7 +13,7 @@ const LUAS_MINIMUM = 10;
 // Ukuran kanvas normalisasi. Nilai sebenarnya diambil dari cache template
 // (payload.size) saat dimuat, supaya bentuk input selalu punya dimensi yang
 // sama dengan mask yang tersimpan.
-let UKURAN = 80;
+let UKURAN = 96;
 const ROTASI_MIN = -45;
 const ROTASI_MAX = 45;
 const ROTASI_STEP = 3;
@@ -259,6 +259,10 @@ function rekanGrup(huruf) {
     return [];
 }
 
+// Selisih skor maksimum antara juara 1 dan 2 supaya disambiguasi rasio aspek
+// dipakai. Kalau juara 1 sudah unggul jelas, keputusan IoU dianggap cukup.
+const MARGIN_DISAMBIGUASI = 0.05;
+
 // Cari huruf terbaik untuk satu objek (semua sudut x semua template).
 function cocokkanObjek(crop, w, h, templates) {
     const skorTerbaik = {};
@@ -269,24 +273,29 @@ function cocokkanObjek(crop, w, h, templates) {
             const skor = skorCocok(bentuk, tpl.mask);
             const prev = skorTerbaik[tpl.huruf];
             if (!prev || skor > prev.skor) {
-                skorTerbaik[tpl.huruf] = { skor, sudut: angle };
+                skorTerbaik[tpl.huruf] = { skor, sudut: angle, template: tpl };
             }
         }
     }
 
     const semuaSkor = Object.entries(skorTerbaik)
-        .map(([huruf, data]) => ({ huruf, skor: data.skor, sudut: data.sudut }))
+        .map(([huruf, data]) => ({ huruf, skor: data.skor, sudut: data.sudut, template: data.template }))
         .sort((a, b) => b.skor - a.skor);
 
-    const terbaik = semuaSkor[0] || { huruf: '?', skor: 0, sudut: 0 };
+    // Salinan dangkal: `terbaik` tidak boleh berbagi referensi dengan semuaSkor[0],
+    // supaya disambiguasi di bawah tidak ikut mengubah daftar skor.
+    const terbaik = { ...(semuaSkor[0] || { huruf: '?', skor: 0, sudut: 0 }) };
     const diterima = terbaik.skor >= AMBANG_COCOK;
 
-    // 0 dan O nyaris identik (IoU sering seri / salah). Putuskan lewat rasio
-    // aspek: bandingkan bentuk input yang TIDAK diputar dengan template (yang
-    // juga lurus) supaya bbox keduanya sebanding.
+    // Bentuk yang mudah tertukar (mis. 2/Z, 6/G) diputuskan lewat rasio aspek.
+    // Hanya saat kedua kandidat nyaris seri: kalau juara 1 sudah unggul jelas,
+    // keputusan IoU sudah benar dan tidak boleh diutak-atik (dulu disambiguasi
+    // tanpa syarat ini justru membalik Z yang sudah menang menjadi 2).
     const juara1 = semuaSkor[0];
     const juara2 = semuaSkor[1];
-    if (juara1 && juara2 && rekanGrup(juara1.huruf).includes(juara2.huruf)) {
+    if (juara1 && juara2
+        && rekanGrup(juara1.huruf).includes(juara2.huruf)
+        && juara1.skor - juara2.skor < MARGIN_DISAMBIGUASI) {
         const rasioInput = rasioAspek(normalisasi(crop, w, h));
         let pilihan = juara1.huruf;
         let selisihTerbaik = Infinity;
