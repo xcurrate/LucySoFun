@@ -102,8 +102,10 @@ Dashboard menyediakan:
 - **Profile Manager** — multi-profile dengan `?profileId=<id>`, PIN per-profile, dan simpan buka/kunci.
 - **Control Panel** — START/PAUSE ALL, start/pause per-akun.
 - **Tab pengaturan Lucy** — Auto Boss2, Auto Use Gems, Auto Adventure, Huntbot2, Monster Catcher, Voice Channel, Kontrol Lucy.
-- **Kartu di halaman utama** — Custom Commands (3 loop kustom) dan Command Tetap (pasangan `lb` + `lh` yang selalu dikirim berurutan `lb` → "sedang mengetik" → `lh` sebagai satu unit).
-- **Tab umum** — Main Settings (kartu Multi Account & Custom Commands), Notifikasi (Telegram), Integrasi Sistem, Safety & Filter, Istirahat, Debug Pesan, Kontrol & Sistem.
+- **Menu Utama (control panel)** — kartu Multi Account (daftar akun, indikator slot, dan form "MASUKKUN TOKEN AKUN BARU") + tombol **👤 HALAMAN PROFIL** menuju profil akun utama.
+- **Halaman Profil** (`?profileId=<id>`) — kartu Custom Commands (3 loop kustom) dan Command Tetap (pasangan `lb` + `lh` yang selalu dikirim berurutan `lb` → "sedang mengetik" → `lh` sebagai satu unit), dengan tombol **⌂ MENU UTAMA** untuk kembali.
+- **Tab umum** — Menu Utama/Profil Akun (sesuai halaman), Notifikasi (Telegram), Integrasi Sistem, Safety & Filter, Istirahat, Debug Pesan, Kontrol & Sistem.
+- **Statistik, info bot, dan logs** tampil di bawah form dan selalu terlihat di kedua halaman.
 
 ### Autentikasi
 

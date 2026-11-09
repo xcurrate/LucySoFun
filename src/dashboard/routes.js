@@ -642,7 +642,7 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                         dashboardLog(acted ? 'info' : 'warn', savedAccountId !== 'default' ? savedAccountId : '', acted
                             ? `🧩 Other Command ${index + 1} ${isStart ? 'dimulai' : 'dihentikan'} tanpa memengaruhi START Global.`
                             : isStart
-                                ? `⚠️ Other Command ${index + 1} ditandai aktif, tetapi runtime akun belum siap. Command akan otomatis dimulai saat akun terhubung (cek token/akun di Main Settings).`
+                                ? `⚠️ Other Command ${index + 1} ditandai aktif, tetapi runtime akun belum siap. Command akan otomatis dimulai saat akun terhubung (cek token/akun di Menu Utama).`
                                 : `⚠️ Other Command ${index + 1} tidak dapat dihentikan: runtime akun belum tersedia.`);
                     }
                 }

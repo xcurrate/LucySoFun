@@ -30,6 +30,9 @@ function renderPage(config) {
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
+        // Target tombol "HALAMAN PROFIL" di control panel: akun utama (token di
+        // config.json) bila profilnya tersimpan, jika tidak profil pertama.
+        const primaryProfileId = profiles.includes(activeProfileId) ? activeProfileId : (profiles[0] || '');
         const profileOptions = profiles.map(id => {
             const profilePath = profileManager.getProfilePath(id);
             const profileConfig = fs.existsSync(profilePath)
@@ -74,6 +77,7 @@ function renderPage(config) {
                     <div class="action-group">
                         ${viewingProfileId ? '<a href="/" class="btn btn-home">⌂ MENU UTAMA</a>' : ''}
                         ${!viewingProfileId ? '<a href="/owner/slots" class="btn btn-home">🔐 IZIN SLOT AKUN</a>' : ''}
+                        ${!viewingProfileId && primaryProfileId ? `<a href="/?profileId=${encodeURIComponent(primaryProfileId)}" class="btn btn-home">👤 HALAMAN PROFIL</a>` : ''}
                         ${viewingProfileId ? '<button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 CONNECT / LOGIN</button>' : ''}
                         <button type="submit" name="action" value="${viewingProfileId ? 'startProfile' : 'start'}" class="btn btn-start">▶ ${viewingProfileId ? 'START / RESUME COMMANDS' : 'START ALL COMMANDS'}</button>
                         <button type="submit" name="action" value="${viewingProfileId ? 'pauseProfile' : 'pause'}" class="btn btn-pause">⏸ ${viewingProfileId ? 'PAUSE COMMANDS' : 'PAUSE ALL COMMANDS'}</button>
@@ -92,7 +96,9 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
-                        homePageCards: `${!viewingProfileId ? renderMultiAccountCard({ profileOptions }) : ''}${renderLucyCommandCards({ config })}`,
+                        homePageCards: viewingProfileId
+                            ? renderLucyCommandCards({ config })
+                            : renderMultiAccountCard({ profileOptions }),
                     })}
                     <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>

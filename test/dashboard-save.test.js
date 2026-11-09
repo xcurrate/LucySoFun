@@ -184,6 +184,41 @@ test('POST /save persists fixed lb/lh pair (single config synced to both slots) 
     });
 });
 
+test('control panel shows Multi Account, profile page shows Custom Commands, and nav buttons separate them', async () => {
+    const profileId = '100000000000000007';
+    const profileConfig = {
+        token: makeToken(profileId),
+        botStatus: { running: false, paused: true },
+        settings: {},
+        otherCommands: [{ text: '!profile', delayMs: 5000, count: 0, channelId: '555', enabled: false }]
+    };
+
+    await withSeededDashboard({
+        mainConfig: { token: '', settings: {}, multiAccount: { enabled: true, maxAccounts: 2 } },
+        profiles: { [profileId]: profileConfig }
+    }, async (url) => {
+        const auth = { Authorization: authHeader() };
+        const controlPanel = await (await fetch(url, { headers: auth })).text();
+        // Control panel: kartu Multi Account + tombol menuju halaman profil.
+        assert.match(controlPanel, /👥 MULTI ACCOUNT/);
+        assert.match(controlPanel, new RegExp(`href="/\\?profileId=${profileId}"`));
+        assert.match(controlPanel, /👤 HALAMAN PROFIL/);
+        assert.match(controlPanel, /🏠 Menu Utama/);
+        // Kartu Custom Commands tidak ada di control panel.
+        assert.doesNotMatch(controlPanel, /id="lucy-command-cards"/);
+
+        const profilePage = await (await fetch(`${url}/?profileId=${profileId}`, { headers: auth })).text();
+        // Halaman profil: kartu Custom Commands + tombol kembali ke menu utama.
+        assert.match(profilePage, /id="lucy-command-cards"/);
+        assert.match(profilePage, /Custom Command Lucy 1/);
+        assert.match(profilePage, /⌂ MENU UTAMA/);
+        assert.match(profilePage, /👤 Profil Akun/);
+        // Kartu Multi Account tidak ada di halaman profil.
+        assert.doesNotMatch(profilePage, /👥 MULTI ACCOUNT/);
+        assert.doesNotMatch(profilePage, /👤 HALAMAN PROFIL/);
+    });
+});
+
 test('POST /save persists Lucy Discord control and the dashboard renders the Lucy menu', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
@@ -208,17 +243,17 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
         assert.equal(savedConfig.settings.control, undefined);
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
-        assert.match(page, /<span>Lucy<\/span>/);
+        assert.match(page, /class="section-label">Lucy</);
         for (const tabId of ['tab-lucy-boss2', 'tab-lucy-gems', 'tab-lucy-adventure', 'tab-lucy-control']) {
             assert.match(page, new RegExp(`id="${tabId}"`));
             assert.match(page, new RegExp(`switchTab\\(event, '${tabId}'\\)`));
         }
-        // Custom Commands kini kartu di halaman utama, bukan tab Settings.
-        assert.match(page, /id="lucy-command-cards"/);
+        // Custom Commands adalah kartu halaman PROFIL, bukan control panel.
+        assert.doesNotMatch(page, /id="lucy-command-cards"/);
+        assert.doesNotMatch(page, /Custom Command Lucy 1/);
         assert.doesNotMatch(page, /id="tab-lucy-commands"/);
         assert.doesNotMatch(page, /tab-other/);
         assert.doesNotMatch(page, /name="other1Captcha"/);
-        assert.match(page, /Custom Command Lucy 1/);
         assert.match(page, /LUCY DISCORD CONTROL/);
         assert.match(page, /name="lucyCtrlStart" value="lgo"/);
         assert.match(page, /name="lucyCtrlAllowIds" value="111,222"/);
@@ -401,9 +436,8 @@ test('POST /save stores empty Lucy send count as infinite and persists Istirahat
             budget: { enabled: true, maxMinutes: 300, minSessionMinutes: 20, maxSessionMinutes: 45 }
         });
 
+        // Custom Commands hanya tampil di halaman profil; setelan Istirahat di tab Settings.
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
-        assert.match(page, /name="other1Count" value="" placeholder="Kosong = ∞ Infinite"/);
-        assert.match(page, /name="other2Count" value="7"/);
         assert.match(page, /id="tab-rest"/);
         assert.match(page, /switchTab\(event, 'tab-rest'\)/);
         assert.match(page, /name="restScheduleStart" value="05:00"/);

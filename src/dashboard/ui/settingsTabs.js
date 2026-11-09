@@ -569,12 +569,15 @@ ${renderRestSettings(config.settings?.rest)}
     }
 
     function renderSettingsTabs(context) {
+        // Tab "Main" berisi kartu berbeda per halaman: Menu Utama (Multi Account)
+        // di control panel, Profil Akun (Custom Commands) di halaman profil.
+        const mainTabLabel = context?.config?.viewingProfileId ? '👤 Profil Akun' : '🏠 Menu Utama';
         return `
                     <div class="settings-nav">
                         <button type="button" class="hamburger-btn" aria-expanded="false" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">
                             <span class="hamburger-icon">☰</span><span>MENU</span>
                         </button>
-                        <strong id="settingsCurrentLabel" class="settings-current">Main Settings</strong>
+                        <strong id="settingsCurrentLabel" class="settings-current">${mainTabLabel}</strong>
                     </div>
                     <button type="button" class="settings-overlay" aria-label="Tutup navigasi" onclick="closeSettingsMenu()"></button>
                     <aside id="settingsMenu" class="settings-menu settings-sidebar" aria-label="Navigasi dashboard">
@@ -584,7 +587,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                         <label class="settings-select-label" for="settingsCategory">Kategori Fitur</label>
                         <select id="settingsCategory" class="input-select settings-category-select" aria-label="Pilih kategori fitur" onchange="switchTab(event, this.value)">
-                            <optgroup label="Dasar"><option value="tab-main" selected>🏠 Main Settings</option></optgroup>
+                            <optgroup label="Dasar"><option value="tab-main" selected>${mainTabLabel}</option></optgroup>
                             <optgroup label="Advanced / Add-ons">
                                 <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
                                 <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
@@ -599,7 +602,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </select>
                         <div class="sidebar-divider"></div>
                         <div class="settings-menu-group"><span>Dasar</span>
-                            <button type="button" class="settings-menu-item active" data-menu-label="Main Settings" onclick="switchTab(event, 'tab-main')">🏠 Main Settings</button>
+                            <button type="button" class="settings-menu-item active" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
                         </div>
                         <div class="settings-menu-group"><span>Advanced / Add-ons</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>

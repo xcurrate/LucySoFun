@@ -57,6 +57,16 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - CCTV (`safety.cctv`) now scopes monitoring to `settings.messageFilter.channelIds` / `guildIds` (empty list = all channels) instead of the removed active-channel list.
 - **Auto Adventure is channel-only**: `settings.adventure = { enabled, channelId }`. `guildId` was removed everywhere (manager `matchesTarget`/`start`, config normalization, dashboard UI); the runtime drops any legacy `guildId` on load.
 
+## Dashboard page layout (Menu Utama vs Halaman Profil)
+
+- The dashboard has two page modes: the **Menu Utama / control panel** (`/`, no `profileId`) and the **Halaman Profil** (`/?profileId=<id>`).
+- `tab-main` is the only tab whose content differs per mode, driven by `homePageCards` in `src/dashboard/ui/page.js`:
+  - Control panel → `renderMultiAccountCard` (account chips + "MASUKKUN TOKEN AKUN BARU" form).
+  - Profile page → `renderLucyCommandCards` (Custom Commands 1–3 + the fixed `lb`/`lh` pair).
+- Navigation buttons live in the action group: control panel shows **🔐 IZIN SLOT AKUN** and **👤 HALAMAN PROFIL** (links to the main/first saved profile); the profile page shows **⌂ MENU UTAMA**. The "HALAMAN PROFIL" target is `activeProfileId` when it is a saved profile, else the first saved profile.
+- The `tab-main` menu/select label is context-aware: `🏠 Menu Utama` on the control panel, `👤 Profil Akun` on a profile page (`mainTabLabel` in `renderSettingsTabs`).
+- Statistics, bot info (`#userProfileBox`), and logs render outside the tab container, so they are always visible on both modes.
+
 ## Dashboard profile actions
 
 - The MULTI ACCOUNT chips (`profileAction=connect|start|pause:<id>`) live inside the main `#configForm`, so clicking one submits the ENTIRE control-panel form. `POST /save` must therefore treat these as status-only: it toggles the target account (`connectAccount`/`setAccountStatus`) and never runs `applySave` on the target profile, otherwise the panel fields (token/settings/otherCommands) overwrite and reset that profile's own config.
