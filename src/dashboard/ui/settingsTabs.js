@@ -48,14 +48,9 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderMainSettings({ config, profileOptions, homePageCards = '' }) {
+    function renderMainSettings({ homePageCards = '' }) {
         return `
                     <div id="tab-main" class="tab-content active">
-
-                        <div class="card">
-                            <label>🔐 TEMPLATE TOKEN / KONFIG UTAMA</label>
-                            <input type="password" name="token" value="${config.token || ''}" placeholder="Token">
-                        </div>
 
                         ${homePageCards}
 

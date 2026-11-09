@@ -62,13 +62,13 @@ test('POST /save parses URL-encoded dashboard data and reports persistence as JS
                 'X-Requested-With': 'XMLHttpRequest',
                 Accept: 'application/json'
             },
-            body: new URLSearchParams({ action: 'save', token: 'saved-token', chan1: '12345' })
+            body: new URLSearchParams({ action: 'save', token: 'ignored-token', chan1: '12345' })
         });
 
         assert.equal(response.status, 200);
         assert.deepEqual(await response.json(), { success: true, message: 'Configuration saved' });
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
-        assert.equal(savedConfig.token, 'saved-token');
+        assert.equal(savedConfig.token, '', 'template token card removed: submitted token is ignored');
         assert.equal(savedConfig.channels, undefined, 'channel card removed: no channels persisted');
     });
 });

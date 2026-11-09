@@ -84,7 +84,6 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
     },
 
     applySave(config, body) {
-        config.token = body.token || config.token;
         config.port = this.toInt(body.port, config.port);
         config.multiAccount = config.multiAccount || {};
         config.multiAccount.enabled = true;

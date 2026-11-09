@@ -61,7 +61,8 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 
 - The MULTI ACCOUNT chips (`profileAction=connect|start|pause:<id>`) live inside the main `#configForm`, so clicking one submits the ENTIRE control-panel form. `POST /save` must therefore treat these as status-only: it toggles the target account (`connectAccount`/`setAccountStatus`) and never runs `applySave` on the target profile, otherwise the panel fields (token/settings/otherCommands) overwrite and reset that profile's own config.
 - Only the profile page's own top buttons (`action=connectProfile|startProfile|pauseProfile`, submitted with `viewingProfileId`) apply the form to the profile being edited.
-- `createSlotPermissionGuard` rewrites `body.token` to the target profile's token for chip actions, but it does not protect the other settings — the status-only rule above is what keeps the profile intact.
+- The `🔐 TEMPLATE TOKEN / KONFIG UTAMA` card (a `name="token"` input in the Main tab) was removed: `applySave` no longer assigns `config.token`, so a submitted `token` field is ignored. The main account's token comes only from `config.json`; new/rotated tokens are added through the MULTI ACCOUNT "MASUKKUN TOKEN AKUN BARU" form (`newToken` → `newProfile`).
+- `createSlotPermissionGuard` still rewrites `body.token` to the target profile's token for chip actions (legacy from the removed template-token card); it is now unused but harmless.
 
 ## Fixed Commands lb/lh (satu unit pasangan)
 

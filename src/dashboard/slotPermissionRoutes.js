@@ -170,7 +170,8 @@ function createSlotPermissionGuard({ slotPermissionManager, configManager, profi
         }
 
         // The account-chip actions share the main dashboard form. Keep the target
-        // profile's token instead of accidentally copying the template token into it.
+        // profile's token on the body so the checks below treat the chip as an
+        // existing account rather than a brand-new one.
         if (body.profileAction && !body.viewingProfileId) {
             const targetId = String(body.profileAction).split(':')[1] || '';
             if (/^\d{17,20}$/.test(targetId)) {
