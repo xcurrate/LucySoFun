@@ -293,3 +293,33 @@ test('pause() menghentikan timer tanpa mengubah flag enabled Command Tetap', asy
         fs.rmSync(dir, { recursive: true, force: true });
     }
 });
+
+// Regresi: START ALL / kontrol Lucy memakai startAll(), dan dulu hanya memulai
+// slot tetap kalau slot `lb` sendiri punya channel. Config dengan channel hanya
+// di `lh` (atau key `lb` tidak ada) membuat unit lb+lh tidak pernah jalan lewat
+// START ALL, padahal tombol kartu (startOtherCommand) menjalankannya.
+test('startAll memulai unit lb/lh walau channel hanya ada di slot lh (atau lb tidak ada)', async () => {
+    const CH = 'c1';
+    const shapes = [
+        { name: 'channel hanya di lh', fixed: { lb: { channelId: '', delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true }, lh: { channelId: CH, delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } },
+        { name: 'key lb tidak ada', fixed: { lh: { channelId: CH, delayMinMs: 30, delayMaxMs: 30, count: 1, enabled: true } } }
+    ];
+
+    for (const shape of shapes) {
+        const sent = [];
+        const state = {
+            config: {
+                otherCommands: normalizeOtherCommands([]),
+                fixedCommands: normalizeFixedCommands(shape.fixed),
+                botStatus: { running: true, paused: false }
+            },
+            loops: {}, nextAt: {}, otherCommandDelays: {}, rest: { active: false }
+        };
+        const loopManager = createLoopManager(state, { async send(cmd) { sent.push(cmd); return true; } });
+
+        loopManager.startAll();
+        await wait(1200);
+        assert.deepEqual(sent, ['lb', 'lh'], `startAll harus menjalankan lb+lh (${shape.name})`);
+    }
+});
+

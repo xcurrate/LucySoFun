@@ -73,6 +73,16 @@ const normalizeFixedCommands = (fixedCommands = {}, fallbackMs = DEFAULT_DELAY_M
         lh.delayMaxMs = lb.delayMaxMs;
         lh.count = lb.count;
     }
+    // Kebalikannya juga: kalau hanya lh yang punya channel (data lama/UI lama),
+    // leader lb ikut memakainya. Tanpa ini unit bisa "separuh terisi" — lb tanpa
+    // channel — sehingga START ALL / kontrol Lucy melewatinya walau lh ada.
+    if (lh.channelId && !lb.channelId) {
+        lb.channelId = lh.channelId;
+        lb.delayMs = lh.delayMs;
+        lb.delayMinMs = lh.delayMinMs;
+        lb.delayMaxMs = lh.delayMaxMs;
+        lb.count = lh.count;
+    }
     return out;
 };
 

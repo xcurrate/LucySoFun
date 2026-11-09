@@ -364,15 +364,27 @@ module.exports = (state, commandSender) => ({
         // lalu mulai ulang semua slot yang enabled.
         const slots = getCommandSlots(state.config);
         slots.forEach(slot => this.clearOtherCommandTimers(slot.index));
+        // Command Tetap (lb/lh) adalah SATU UNIT: cukup mulai sekali lewat leader
+        // (index 3) supaya `startOtherCommand` menjalankan recovery channel-nya.
+        // Kalau tiap slot diperiksa sendiri di sini, unit yang channel lb-nya kosong
+        // tapi lh-nya terisi (atau key lb tidak ada) akan lolos tanpa pernah jalan —
+        // tombol kartu tetap jalan karena lewat `startOtherCommand`, tapi START ALL
+        // dan kontrol Lucy (yang memanggil startAll) tidak. Lihat _getRotation().
+        const rotation = this._getRotation();
+        const fixedStartIndex = rotation ? rotation[0].slot.index : null;
+
         // Mulai slot secara bertahap (bukan serempak) agar tidak mengirim beruntun
         // ketika resume setelah emergency pause.
         let staggerMs = 0;
         let position = 0;
         slots.forEach(slot => {
             const command = slot.command;
-            if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) return;
-            // lh ikut dikirim bersama lb (pasangan); jangan mulai lh sendiri.
-            if (slot.fixed === 'lh' && this._getRotation()?.length === 2) return;
+            if (slot.fixed) {
+                // Unit lb/lh hanya dimulai sekali, dari leader.
+                if (slot.index !== fixedStartIndex) return;
+            } else if (!command?.enabled || !command.text?.trim() || !command.channelId?.trim()) {
+                return;
+            }
             this.startOtherCommand(slot.index, staggerMs + position * 500, { skipIfRunning: true });
             staggerMs += Math.max(500, resolveDelayMs(command));
             position += 1;
