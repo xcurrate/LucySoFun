@@ -592,3 +592,85 @@ test('saving while a profile is paused keeps the enabled flags (no reconcile clo
         assert.equal(saved.botStatus.paused, true, 'saving must not start the account');
     });
 });
+
+// Regresi: tombol "START ALL COMMANDS" di control panel tidak merender input
+// command apa pun, jadi form hanya mengirim `action`. applySave tidak boleh
+// mengosongkan teks/channel command yang sudah diatur di halaman profil.
+test('control panel START ALL does not wipe configured Custom Commands and lb/lh channel', async () => {
+    const mainId = '100000000000000001';
+    const mainConfig = {
+        token: makeToken(mainId),
+        botStatus: { running: false, paused: true },
+        multiAccount: { enabled: true, maxAccounts: 2 },
+        settings: {},
+        otherCommands: [
+            { text: '!c1', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 5, channelId: '111', enabled: true },
+            { text: '!c2', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 3, channelId: '222', enabled: true },
+            { text: '', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '', enabled: false }
+        ],
+        fixedCommands: {
+            lb: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true },
+            lh: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
+        }
+    };
+
+    await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
+        // Persis seperti submit tombol START ALL: tanpa field otherN* sama sekali.
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({ action: 'start' })
+        });
+
+        assert.equal(response.status, 200);
+        const saved = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.equal(saved.otherCommands[0].text, '!c1', 'custom 1 text preserved');
+        assert.equal(saved.otherCommands[0].channelId, '111', 'custom 1 channel preserved');
+        assert.equal(saved.otherCommands[1].text, '!c2', 'custom 2 text preserved');
+        assert.equal(saved.otherCommands[1].channelId, '222', 'custom 2 channel preserved');
+        assert.equal(saved.fixedCommands.lb.channelId, '333', 'lb/lh channel preserved');
+        assert.equal(saved.fixedCommands.lb.count, 0, 'lb/lh infinite count preserved');
+        assert.deepEqual(saved.botStatus, { running: true, paused: false }, 'START ALL still starts the account');
+    });
+});
+
+test('profile-page save still clears a command when its field is explicitly emptied', async () => {
+    const mainId = '100000000000000001';
+    const mainConfig = {
+        token: makeToken(mainId),
+        botStatus: { running: false, paused: true },
+        multiAccount: { enabled: true, maxAccounts: 2 },
+        settings: {},
+        otherCommands: [
+            { text: '!c1', delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 5, channelId: '111', enabled: true }
+        ],
+        fixedCommands: {
+            lb: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true },
+            lh: { delayMs: 5000, delayMinMs: 5000, delayMaxMs: 5000, count: 0, channelId: '333', enabled: true }
+        }
+    };
+
+    await withSeededDashboard({ mainConfig, profiles: {} }, async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({ action: 'save', other1Text: '', other1Channel: '', other4Channel: '' })
+        });
+
+        assert.equal(response.status, 200);
+        const saved = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.equal(saved.otherCommands[0].text, '', 'explicitly emptied custom text stays empty');
+        assert.equal(saved.otherCommands[0].channelId, '', 'explicitly emptied custom channel stays empty');
+        assert.equal(saved.fixedCommands.lb.channelId, '', 'explicitly emptied lb/lh channel stays empty');
+    });
+});
+

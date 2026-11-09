@@ -94,18 +94,24 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             return Math.max(0, this.toInt(value, fallbackSec)) * 1000;
         };
 
+        // Form control panel tidak merender input command sama sekali, jadi body
+        // hanya membawa `action`. Field yang tidak dikirim harus dipertahankan,
+        // bukan dikosongkan, supaya START ALL / kontrol Lucy tidak menghapus teks
+        // dan channel command yang sudah diatur di halaman profil.
+        const hasField = (key) => Object.prototype.hasOwnProperty.call(body, key);
+
         config.otherCommands = [0, 1, 2].map(index => {
             const current = config.otherCommands[index] || {};
             const slot = index + 1;
             const minMs = readSeconds(body[`other${slot}DelayMin`] ?? body[`other${slot}Delay`], current.delayMinMs ?? current.delayMs);
             const maxMs = readSeconds(body[`other${slot}DelayMax`] ?? body[`other${slot}Delay`], current.delayMaxMs ?? current.delayMinMs ?? current.delayMs);
             return {
-                text: String(body[`other${slot}Text`] || '').trim(),
+                text: hasField(`other${slot}Text`) ? String(body[`other${slot}Text`] || '').trim() : (current.text ?? ''),
                 delayMs: Math.min(minMs, maxMs),
                 delayMinMs: Math.min(minMs, maxMs),
                 delayMaxMs: Math.max(minMs, maxMs),
                 count: normalizeSendCount(body[`other${slot}Count`], normalizeSendCount(current.count)),
-                channelId: String(body[`other${slot}Channel`] || '').trim(),
+                channelId: hasField(`other${slot}Channel`) ? String(body[`other${slot}Channel`] || '').trim() : (current.channelId ?? ''),
                 enabled: current.enabled === true
             };
         });
@@ -116,7 +122,9 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         const configCount = normalizeSendCount(body.other4Count, normalizeSendCount(previousFixed.lb?.count));
         const min4 = readSeconds(body.other4DelayMin ?? body.other4Delay, previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
         const max4 = readSeconds(body.other4DelayMax ?? body.other4Delay, previousFixed.lb?.delayMaxMs ?? previousFixed.lb?.delayMinMs ?? previousFixed.lb?.delayMs);
-        const pairChannel = String(body.other4Channel || '').trim();
+        const pairChannel = hasField('other4Channel')
+            ? String(body.other4Channel || '').trim()
+            : String(previousFixed.lb?.channelId || previousFixed.lh?.channelId || '');
         const pairEnabled = previousFixed.lb?.enabled === true || previousFixed.lh?.enabled === true;
         const pair = {
             delayMs: Math.min(min4, max4),
