@@ -4,3 +4,6 @@ slot-permissions.json.tmp
 slot-owner-password.txt
 
 node_modules/
+
+# Scratch/preview workspace for agents.
+.agent_tmp/

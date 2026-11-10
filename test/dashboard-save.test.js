@@ -203,12 +203,14 @@ test('control panel shows Multi Account, profile page shows Custom Commands, and
         assert.match(controlPanel, new RegExp(`href="/\\?profileId=${profileId}"`));
         assert.match(controlPanel, /👤 HALAMAN PROFIL/);
         assert.match(controlPanel, /🏠 Menu Utama/);
-        // Kartu Custom Commands tidak ada di control panel.
-        assert.doesNotMatch(controlPanel, /id="lucy-command-cards"/);
+        // Tab Custom Commands & Command Tetap tidak ada di control panel.
+        assert.doesNotMatch(controlPanel, /id="tab-lucy-commands"/);
+        assert.doesNotMatch(controlPanel, /id="tab-lucy-fixed"/);
 
         const profilePage = await (await fetch(`${url}/?profileId=${profileId}`, { headers: auth })).text();
-        // Halaman profil: kartu Custom Commands + tombol kembali ke menu utama.
-        assert.match(profilePage, /id="lucy-command-cards"/);
+        // Halaman profil: tab Custom Commands + Command Tetap + tombol kembali ke menu utama.
+        assert.match(profilePage, /id="tab-lucy-commands"/);
+        assert.match(profilePage, /id="tab-lucy-fixed"/);
         assert.match(profilePage, /Custom Command Lucy 1/);
         assert.match(profilePage, /⌂ MENU UTAMA/);
         assert.match(profilePage, /👤 Profil Akun/);

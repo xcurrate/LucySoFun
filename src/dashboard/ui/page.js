@@ -1,6 +1,50 @@
 const fs = require('fs');
 const fileService = require('../services/fileService');
-module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
+module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
+    // Ringkasan selalu menampilkan SATU akun. Selector ini membuat cakupannya eksplisit
+    // dan bisa dipindah tanpa kembali ke halaman Menu Utama.
+    function renderScopeBar({ profileOptions = [], viewingProfileId = '' }) {
+        const active = profileOptions.find(profile => profile.isViewing) || null;
+        const name = active ? active.displayName : (viewingProfileId || 'Belum ada akun');
+        const detail = active
+            ? `ID ${active.id} · ${active.statusText === 'START' ? 'sedang berjalan' : 'berhenti'}`
+            : 'Belum ada akun tersimpan. Tambahkan token akun di halaman Menu Utama.';
+        const options = profileOptions.map(profile => `
+            <a class="${profile.isViewing ? 'active' : ''}" href="/?profileId=${encodeURIComponent(profile.id)}">${escapeHtml(profile.displayName)}</a>
+        `).join('');
+
+        return `
+        <div class="scope-bar">
+            <div class="sb-text">
+                <strong>Menampilkan: ${escapeHtml(name)}</strong>
+                <small>${escapeHtml(detail)}</small>
+            </div>
+            ${options ? `<div class="scope-seg" role="tablist">${options}</div>` : ''}
+        </div>
+        `;
+    }
+
+    // Halaman profil: kartu pengantar + status akun. Daftar Custom Commands ada di
+    // tab sendiri, jadi tidak dirender ulang di sini.
+    function renderProfileHomeCard({ profileOptions = [], viewingProfileId = '' }) {
+        const current = profileOptions.find(profile => profile.id === viewingProfileId) || null;
+        const name = current ? escapeHtml(current.displayName) : escapeHtml(viewingProfileId);
+        const others = profileOptions.filter(profile => profile.id !== viewingProfileId);
+        return `
+        <div class="card">
+            <label>👤 PROFIL AKUN</label>
+            <p class="input-hint">Kamu sedang mengatur akun <strong>${name}</strong>. Pengaturan di halaman ini hanya berlaku untuk akun tersebut.</p>
+            <div class="divider"></div>
+            <div class="stat-label">Status akun ini</div>
+            <div class="stat-value" style="font-size:18px">${current ? (current.running ? '▶ Sedang berjalan' : '⏸ Dijeda') : '—'}</div>
+            ${others.length ? `
+            <div class="divider"></div>
+            <div class="stat-label">Ganti akun</div>
+            <div class="scope-seg">${others.map(profile => `<a href="/?profileId=${encodeURIComponent(profile.id)}">${escapeHtml(profile.displayName)}</a>`).join('')}</div>` : ''}
+        </div>
+        `;
+    }
+
 function renderPage(config) {
         console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
 
@@ -19,6 +63,11 @@ function renderPage(config) {
         const viewingProfileId = config.viewingProfileId || '';
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
+        const viewingProfileName = viewingProfileId ? profileManager.getProfileDisplayName(viewingProfileId) : '';
+        // Di control panel statistik dibaca dari token global (akun utama), jadi labelnya
+        // diambil dari token itu, bukan dari profil yang sedang dibuka.
+        const statsScopeName = viewingProfileName
+            || (config.token ? profileManager.getProfileDisplayName(profileManager.getUserId(config.token)) : '');
 
         const renderLucyCommandCards = renderSettingsTabs.renderLucyCommandCards || (() => '');
         const renderMultiAccountCard = renderSettingsTabs.renderMultiAccountCard || (() => '');
@@ -97,10 +146,9 @@ function renderPage(config) {
                         messageDebug,
                         voice,
                         homePageCards: viewingProfileId
-                            ? renderLucyCommandCards({ config })
+                            ? renderProfileHomeCard({ profileOptions, viewingProfileId })
                             : renderMultiAccountCard({ profileOptions }),
                     })}
-                    <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>
 
                 ${viewingProfileId ? `
@@ -139,13 +187,19 @@ function renderPage(config) {
                     ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
                 </div>
 
-                ${getDashboardStatsCard(statsSnapshot)}
+                ${viewingProfileId && profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
+
+                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}
                 ${getLogCard()}
             </div>
             <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
             <div id="unsavedBanner" class="unsaved-banner warning" style="display:none" role="status" aria-live="polite">
                 <span class="unsaved-dot"></span>
-                <span>⚠️ Ada perubahan yang belum disimpan</span>
+                <span class="unsaved-text" id="unsavedText">Ada perubahan yang belum disimpan</span>
+                <span class="unsaved-actions">
+                    <button type="button" class="btn btn-secondary" id="unsavedCancel">Batalkan</button>
+                    <button type="submit" class="btn btn-save" id="unsavedSave" form="configForm" name="action" value="save">💾 Simpan semua perubahan →</button>
+                </span>
             </div>
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
@@ -224,29 +278,51 @@ function renderPage(config) {
                 let toastTimeout;
 
                 const unsavedBanner = document.getElementById('unsavedBanner');
+                const unsavedText = document.getElementById('unsavedText');
+                const unsavedCancel = document.getElementById('unsavedCancel');
                 let isSaving = false;
+                let dirtyCount = 0;
 
                 function trackUnsaved() {
                     let dirty = false;
+                    const dirtyFields = new Set();
                     const showBanner = () => {
                         if (!unsavedBanner) return;
                         if (dirty && !isSaving) {
                             unsavedBanner.style.display = 'flex';
+                            document.body.classList.add('has-savebar');
+                            if (unsavedText) {
+                                unsavedText.textContent = (dirtyCount > 1 ? dirtyCount + ' perubahan lokal belum disimpan.' : '1 perubahan lokal belum disimpan.');
+                            }
                         } else {
                             unsavedBanner.style.display = 'none';
+                            document.body.classList.remove('has-savebar');
                         }
                     };
-                    const markDirty = () => {
+                    const markDirty = (event) => {
                         dirty = true;
+                        // Hitung elemen berbeda yang berubah, bukan tiap ketikan.
+                        if (event && event.target && event.target.name && !dirtyFields.has(event.target.name)) {
+                            dirtyFields.add(event.target.name);
+                        }
+                        dirtyCount = dirtyFields.size || 1;
                         showBanner();
                     };
                     const markClean = () => {
                         dirty = false;
+                        dirtyFields.clear();
+                        dirtyCount = 0;
                         showBanner();
                     };
 
                     form.addEventListener('input', markDirty);
                     form.addEventListener('change', markDirty);
+
+                    // Batalkan: kembalikan form ke kondisi terakhir tersimpan.
+                    unsavedCancel?.addEventListener('click', () => {
+                        form.reset();
+                        markClean();
+                    });
 
                     window.addEventListener('beforeunload', (event) => {
                         if (dirty && !isSaving) {

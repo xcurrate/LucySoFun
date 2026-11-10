@@ -274,17 +274,19 @@ ${renderRestSettings(config.settings?.rest)}
 
     // Kartu Custom Command + Command Tetap. Dipakai di halaman utama.
     function renderLucyCommandCards({ config }) {
-        const fixedCommands = config?.fixedCommands || {};
+        const commands = config?.otherCommands || [];
+        const needsProfile = !config?.viewingProfileId;
         return `
-                    <div id="lucy-command-cards">
+                    <div id="tab-lucy-commands" class="tab-content">
                         <div class="category-heading">
                             <div>
-                                <span class="section-label">Lucy</span>
+                                <span class="section-label">Commands Lucy</span>
                                 <h3>🧩 Custom Commands Lucy</h3>
                             </div>
                         </div>
-                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Delay memakai rentang min-max (boleh sama). Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut.</div>
-                        ${(config.otherCommands || []).map((command, index) => {
+                        <div class="input-hint">Setiap slot dikirim ke channel pilihannya sendiri. Delay memakai rentang min-max (boleh sama). Start menjalankan sejumlah pengiriman yang diatur (kosongkan Jumlah Pengiriman untuk infinite); Stop membatalkan slot tersebut. Pengaturan di sini masuk ke savebar; Start/Stop berlaku langsung.</div>
+                        ${needsProfile ? '<div class="card" style="border-color:#a8782f"><label style="color:var(--yellow)">PILIH AKUN DULU</label><p style="color:var(--muted);font-size:13px;line-height:1.6">Custom Commands disimpan per akun. Buka halaman profil akun, lalu atur slotnya di sini.</p></div>' : ''}
+                        ${commands.map((command, index) => {
                             const slot = index + 1;
                             const isInfinite = !(Number(command.count) > 0);
                             const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
@@ -308,42 +310,41 @@ ${renderRestSettings(config.settings?.rest)}
                                     </div>
                                 </div>`;
                         }).join('')}
+                    </div>
+                `;
+    }
 
-                        <details class="command-dropdown">
-                            <summary>📌 Command Tetap (lh &amp; lb) <span class="dropdown-hint">Pengaturan pasangan command</span></summary>
-                            <div class="category-heading" style="margin-top: 22px;">
-                                <div>
-                                    <span class="section-label">Lucy</span>
-                                    <h3>📌 Command Tetap (lh &amp; lb)</h3>
-                                </div>
+    function renderFixedCommandCard({ config }) {
+        const command = config?.fixedCommands || {};
+        const isInfinite = !(Number(command.count) > 0);
+        const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+        const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
+        const channel = command.channelId || '';
+        const enabled = command.enabled === true;
+        return `
+                    <div id="tab-lucy-fixed" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Commands Lucy</span>
+                                <h3>📌 Command Tetap: lb + lh</h3>
                             </div>
-                            <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
-                            ${(() => {
-                                const command = fixedCommands || {};
-                                const isInfinite = !(Number(command.count) > 0);
-                                const minSec = Math.floor((command.delayMinMs ?? command.delayMs ?? 0) / 1000);
-                                const maxSec = Math.floor((command.delayMaxMs ?? command.delayMinMs ?? command.delayMs ?? 0) / 1000);
-                                const channel = command.channelId || '';
-                                const enabled = command.enabled === true;
-                                return `
-                                    <div class="card">
-                                        <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
-                                        <div class="row">
-                                            <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
-                                            <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
-                                            <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
-                                        </div>
-                                        <label>Target Channel</label>
-                                        <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
-                                        <div class="action-group" style="margin-top: 12px;">
-                                            <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
-                                            <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
-                                            <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
-                                        </div>
-                                    </div>`;
-                            })()}
-    
-                        </details>
+                        </div>
+                        <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks sudah terkunci — cukup atur channel, delay, dan jumlah pengiriman (kosongkan = ∞).</div>
+                        <div class="card">
+                            <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
+                            <div class="row">
+                                <div class="col"><label>Delay Min (detik)</label><input type="number" min="0" step="1" name="other4DelayMin" value="${minSec}"></div>
+                                <div class="col"><label>Delay Max (detik)</label><input type="number" min="0" step="1" name="other4DelayMax" value="${maxSec}"></div>
+                                <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
+                            </div>
+                            <label>Target Channel</label>
+                            <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
+                            <div class="action-group" style="margin-top: 12px;">
+                                <button type="submit" name="action" value="otherCommandStart4" class="btn btn-start">▶ START</button>
+                                <button type="submit" name="action" value="otherCommandStop4" class="btn btn-pause">⏸ STOP</button>
+                                <span class="input-hint">${enabled ? '▶ Menunggu / berjalan' : '⏹ Berhenti'} · ${isInfinite ? '∞ Infinite' : `${command.count}x`} · lb then lh</span>
+                            </div>
+                        </div>
                     </div>
                 `;
     }
@@ -572,6 +573,20 @@ ${renderRestSettings(config.settings?.rest)}
         // Tab "Main" berisi kartu berbeda per halaman: Menu Utama (Multi Account)
         // di control panel, Profil Akun (Custom Commands) di halaman profil.
         const mainTabLabel = context?.config?.viewingProfileId ? '👤 Profil Akun' : '🏠 Menu Utama';
+        // Custom Commands & Command Tetap hanya relevan di halaman profil akun.
+        const isProfilePage = !!context?.config?.viewingProfileId;
+        const commandsSelectGroup = isProfilePage
+            ? `<optgroup label="Commands Lucy">
+                                <option value="tab-lucy-commands">🧩 Custom Commands</option>
+                                <option value="tab-lucy-fixed">📌 Command Tetap lb+lh</option>
+                            </optgroup>`
+            : '';
+        const commandsMenuGroup = isProfilePage
+            ? `<div class="settings-menu-group"><span>Commands Lucy</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Custom Commands" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Command Tetap lb+lh" onclick="switchTab(event, 'tab-lucy-fixed')">📌 Command Tetap lb+lh</button>
+                        </div>`
+            : '';
         return `
                     <div class="settings-nav">
                         <button type="button" class="hamburger-btn" aria-expanded="false" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">
@@ -588,31 +603,25 @@ ${renderRestSettings(config.settings?.rest)}
                         <label class="settings-select-label" for="settingsCategory">Kategori Fitur</label>
                         <select id="settingsCategory" class="input-select settings-category-select" aria-label="Pilih kategori fitur" onchange="switchTab(event, this.value)">
                             <optgroup label="Dasar"><option value="tab-main" selected>${mainTabLabel}</option></optgroup>
-                            <optgroup label="Advanced / Add-ons">
-                                <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
-                                <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
-                                <option value="tab-message-debug">🔎 Debug Pesan</option><option value="tab-control">🎮 Kontrol &amp; Sistem</option>
-                            </optgroup>
-                            <optgroup label="Lucy">
+${commandsSelectGroup}
+                            <optgroup label="Fitur Lucy">
                                 <option value="tab-lucy-boss2">🐲 Auto Boss2</option><option value="tab-lucy-gems">💎 Auto Use Gems</option>
                                 <option value="tab-lucy-adventure">🗺️ Auto Adventure</option><option value="tab-lucy-huntbot2">🤖 Huntbot2</option>
                                 <option value="tab-lucy-monster-catcher">🐾 Monster Catcher</option><option value="tab-lucy-voice">🔊 Voice Channel</option>
                                 <option value="tab-lucy-control">🎮 Kontrol Lucy</option>
+                            </optgroup>
+                            <optgroup label="Sistem">
+                                <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
+                                <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
+                                <option value="tab-message-debug">🔎 Debug Pesan</option><option value="tab-control">🎮 Kontrol &amp; Sistem</option>
                             </optgroup>
                         </select>
                         <div class="sidebar-divider"></div>
                         <div class="settings-menu-group"><span>Dasar</span>
                             <button type="button" class="settings-menu-item active" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
                         </div>
-                        <div class="settings-menu-group"><span>Advanced / Add-ons</span>
-                            <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety &amp; Filter</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol &amp; Sistem</button>
-                        </div>
-                        <div class="settings-menu-group"><span>Lucy Features</span>
+${commandsMenuGroup}
+                        <div class="settings-menu-group"><span>Fitur Lucy</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
@@ -621,14 +630,24 @@ ${renderRestSettings(config.settings?.rest)}
                             <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
                         </div>
+                        <div class="settings-menu-group"><span>Sistem</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety &amp; Filter</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol &amp; Sistem</button>
+                        </div>
                     </aside>
                     <div class="settings-tabs">
                         ${renderMainSettings(context)}
+                        ${isProfilePage ? renderLucyCommandCards(context) : ''}
+                        ${isProfilePage ? renderFixedCommandCard(context) : ''}
                         ${renderAdvancedSettings(context)}
                         ${renderLucySettings(context)}
                     </div>
         `;
     }
 
-    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderMultiAccountCard, renderSettingsTabs };
+    return { renderMainSettings, renderAdvancedSettings, renderLucySettings, renderLucyCommandCards, renderFixedCommandCard, renderMultiAccountCard, renderSettingsTabs };
 };

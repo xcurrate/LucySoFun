@@ -102,9 +102,24 @@ function getStyles() {
             .save-toast.visible { opacity: 1; transform: translateY(0); }
             .save-toast.success { border-color: #2e7a52; color: var(--green); background: var(--green-soft); }
             .save-toast.error { border-color: #7a363c; color: var(--red); background: var(--red-soft); }
-            .unsaved-banner { position: fixed; top: 12px; right: 16px; z-index: 200; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-strong); color: var(--text); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); font-weight: 800; font-size: 14px; }
-            .unsaved-banner .unsaved-dot { width: 10px; height: 10px; border-radius: 50%; background: #e6a23c; box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.5); animation: unsavedPulse 1.6s ease-out infinite; }
-            .unsaved-banner.warning { border-color: #a8782f; color: #e6a23c; background: var(--panel-strong); }
+            /* Savebar: fixed di bawah viewport, tidak ikut scroll. */
+            .unsaved-banner { position: fixed; left: 24px; right: 24px; bottom: 18px; z-index: 200; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1120px; margin: 0 auto; padding: 12px 14px; border: 1px solid #344054; border-radius: 14px; background: rgba(19, 25, 38, 0.97); color: var(--text); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55); font-weight: 800; font-size: 14px; backdrop-filter: blur(14px); }
+            .unsaved-banner .unsaved-dot { width: 10px; height: 10px; border-radius: 50%; background: #e6a23c; box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.5); animation: unsavedPulse 1.6s ease-out infinite; flex: 0 0 auto; }
+            .unsaved-banner.warning { border-color: #a8782f; color: #e6a23c; }
+            .unsaved-banner .unsaved-text { flex: 1 1 200px; min-width: 0; }
+            .unsaved-banner .unsaved-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+            .unsaved-banner .unsaved-actions .btn { min-width: 0; width: auto; padding: 10px 16px; }
+            body.has-savebar { padding-bottom: 96px; }
+            /* Scope bar: penanda akun yang sedang ditampilkan di Ringkasan. */
+            .scope-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #3a4a6b; border-radius: 16px; background: linear-gradient(120deg, rgba(99, 102, 241, 0.13), rgba(16, 24, 39, 0.95) 70%); }
+            .scope-bar .sb-text { min-width: 0; flex: 1 1 200px; }
+            .scope-bar .sb-text strong { display: block; font-size: 13.5px; }
+            .scope-bar .sb-text small { color: var(--muted); font-size: 11.5px; }
+            .scope-seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 12px; background: #0b1322; }
+            .scope-seg button, .scope-seg a { padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+            .scope-seg button:hover, .scope-seg a:hover { color: var(--text); }
+            .scope-seg button.active, .scope-seg a.active { background: var(--blue-soft); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.35); }
+            .stat-card .stat-who { color: var(--accent); font-weight: 800; text-transform: none; letter-spacing: 0; }
             @keyframes unsavedPulse { 0% { box-shadow: 0 0 0 0 rgba(230, 162, 60, 0.45); } 70% { box-shadow: 0 0 0 8px rgba(230, 162, 60, 0); } 100% { box-shadow: 0 0 0 0 rgba(230, 162, 60, 0); } }
             .action-group { display: flex; gap: 10px; margin-bottom: 16px; }
             .divider { border-top: 1px solid var(--border); margin: 16px 0; }

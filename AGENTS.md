@@ -74,7 +74,12 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - The dashboard has two page modes: the **Menu Utama / control panel** (`/`, no `profileId`) and the **Halaman Profil** (`/?profileId=<id>`).
 - `tab-main` is the only tab whose content differs per mode, driven by `homePageCards` in `src/dashboard/ui/page.js`:
   - Control panel → `renderMultiAccountCard` (account chips + "MASUKKUN TOKEN AKUN BARU" form).
-  - Profile page → `renderLucyCommandCards` (Custom Commands 1–3 + the fixed `lb`/`lh` pair).
+  - Profile page → `renderProfileHomeCard` (perkenalan akun + status + tombol ganti akun). Daftar Custom Commands TIDAK lagi di `tab-main`; ia punya tab sendiri.
+- Sidebar (`renderSettingsTabs`) dikelompokkan berurutan: **Dasar**, **Commands Lucy** (hanya di halaman profil), **Fitur Lucy**, **Sistem**. Grup "Commands Lucy" dan tab `tab-lucy-commands`/`tab-lucy-fixed` hanya dirender bila `config.viewingProfileId` ada (control panel tidak memilikinya).
+- Custom Commands 1–3 ada di `tab-lucy-commands` (`renderLucyCommandCards`); pasangan tetap `lb`+`lh` ada di `tab-lucy-fixed` (`renderFixedCommandCard`). Keduanya diekspor dari `settingsTabs.js`.
+- Halaman profil menampilkan **scope bar** (`renderScopeBar` di `page.js`) di atas kartu statistik: segmen per-akun (tanpa "Semua Akun") yang berpindah lewat `/?profileId=<id>`.
+- Kartu statistik (`dashboardStatsCard.js`) menerima `{ scopeName }` dan menempelkan nama akun pada label Uptime/Status Info/Total Command. `page.js` mengirim `viewingProfileName` di halaman profil, atau nama akun dari `config.token` di control panel.
+- Savebar tetap (`#unsavedSave`, `#unsavedCancel`, `#unsavedBanner`) di `page.js` + `.save-toast`/`.scope-bar` di `styles.js`; counter `dirtyCount`/`trackUnsaved()` menandai perubahan form yang belum disimpan.
 - Navigation buttons live in the action group: control panel shows **🔐 IZIN SLOT AKUN** and **👤 HALAMAN PROFIL** (links to the main/first saved profile); the profile page shows **⌂ MENU UTAMA**. The "HALAMAN PROFIL" target is `activeProfileId` when it is a saved profile, else the first saved profile.
 - The `tab-main` menu/select label is context-aware: `🏠 Menu Utama` on the control panel, `👤 Profil Akun` on a profile page (`mainTabLabel` in `renderSettingsTabs`).
 - Statistics, bot info (`#userProfileBox`), and logs render outside the tab container, so they are always visible on both modes.

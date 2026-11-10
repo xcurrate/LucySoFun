@@ -1,5 +1,7 @@
 module.exports = function createDashboardStatsCard({ escapeHtml, statsService }) {
-function getDashboardStatsCard(snapshot) {
+function getDashboardStatsCard(snapshot, { scopeName = '' } = {}) {
+        // Nama akun ditempel di label supaya angka tidak pernah ambigu pemiliknya.
+        const who = scopeName ? ` <span class="stat-who">· ${escapeHtml(scopeName)}</span>` : '';
         const commandTypes = Object.entries(snapshot.commands.byType || {})
             .sort((a, b) => b[1] - a[1])
             .map(([type, total]) => `<span class="pill">${escapeHtml(type)}: <strong>${total}</strong></span>`)
@@ -22,17 +24,17 @@ function getDashboardStatsCard(snapshot) {
         return `
         <div class="dashboard-grid" id="statsGrid">
             <div class="stat-card">
-                <div class="stat-label">Uptime</div>
+                <div class="stat-label">Uptime${who}</div>
                 <div class="stat-value" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
                 <div class="stat-note" data-stat="startedAt">Start: ${escapeHtml(snapshot.uptime.startedAt)}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Status Info</div>
+                <div class="stat-label">Status Info${who}</div>
                 <div class="stat-value" data-stat="statusText" style="font-size: 18px;">${escapeHtml(snapshot.status.text)}</div>
                 <div class="stat-note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Total Command</div>
+                <div class="stat-label">Total Command${who}</div>
                 <div class="stat-value" data-stat="commandTotal">${snapshot.commands.total}</div>
                 <div class="stat-note" data-stat="lastCommand">${escapeHtml(lastCommand)}</div>
             </div>

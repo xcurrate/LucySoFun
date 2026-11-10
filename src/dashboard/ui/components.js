@@ -16,6 +16,7 @@ module.exports = function createUiComponents({ CONSTANTS, serializeForScript, es
         configManager,
         profileManager,
         statsService,
+        escapeHtml,
         getStyles,
         getDashboardStatsCard,
         getLogCard,
