@@ -666,3 +666,49 @@ test('profile-page save still clears a command when its field is explicitly empt
     });
 });
 
+
+// Regresi: bot menulis config.json/profiles relatif ke cwd-nya, sementara modul
+// dashboard ada di folder aplikasi. Bila keduanya berbeda (umum di panel
+// hosting), kartu "Akun Tersimpan" dulu menampilkan "0 akun" padahal profil ada.
+test('control panel lists saved accounts from the bot working directory', async () => {
+    const { resolveBaseDir } = require('../src/appPaths');
+    const botDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-cwd-'));
+    const originalCwd = process.cwd();
+    try {
+        fs.writeFileSync(path.join(botDir, 'config.json'), JSON.stringify({ token: '', settings: {} }));
+        const profilesDir = path.join(botDir, 'profiles');
+        fs.mkdirSync(profilesDir, { recursive: true });
+        const id = '481927365500000001';
+        fs.writeFileSync(path.join(profilesDir, `config_${id}.json`), JSON.stringify({
+            token: makeToken(id),
+            botStatus: { running: true, paused: false },
+            settings: {}
+        }));
+        fs.writeFileSync(path.join(profilesDir, 'meta.json'), JSON.stringify({
+            profiles: { [id]: { username: 'yth_dzula', globalName: 'yth_dzula' } }
+        }));
+
+        process.chdir(botDir);
+        assert.equal(resolveBaseDir(), botDir, 'resolver follows the bot working directory');
+
+        const { app } = createDashboardApp();
+        const server = app.listen(0);
+        await new Promise(resolve => server.once('listening', resolve));
+
+        try {
+            const response = await fetch(`http://127.0.0.1:${server.address().port}/`, {
+                headers: { Authorization: authHeader() }
+            });
+            const html = await response.text();
+            assert.match(html, /👥 Akun Tersimpan/);
+            assert.match(html, /1 akun/);
+            assert.match(html, /yth_dzula/);
+            assert.doesNotMatch(html, /Belum ada profil tersimpan/);
+        } finally {
+            await new Promise(resolve => server.close(resolve));
+        }
+    } finally {
+        process.chdir(originalCwd);
+        fs.rmSync(botDir, { recursive: true, force: true });
+    }
+});

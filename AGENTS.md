@@ -118,6 +118,14 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - `createSlotExpirySweeper(...)` di `slotPermissionRoutes.js` melakukan teardown yang sama dengan revoke grant `used` (via helper `teardownUsedGrant`): `logoutAccount` → `deleteProfile` → hitung ulang `maxAccounts` → `reconcile`. Dijalankan tiap 60 detik dari `src/dashboard/app.js` (timer `.unref()` agar tidak menahan proses saat test).
 - Test: `test/slot-permissions.test.js` (grant/consume/durasi/expiry/sweeper).
 
+## Lokasi data (baseDir) — bot vs dashboard
+
+- `src/appPaths.js` `resolveBaseDir()` adalah satu-satunya penentu folder data (`config.json`, `profiles/`, `slot-permissions.json`). Urutan pilih: `process.cwd()` bila punya `profiles/config_*.json` → folder aplikasi (`APP_ROOT`) bila punya `profiles/config_*.json` → `process.cwd()` bila punya `config.json` → `APP_ROOT` bila punya `config.json` → `process.cwd()`.
+- Bot (`src/services/config.js`, `src/core/multiAccount.js`) dan dashboard (`src/dashboard/app.js`) memakai resolver yang sama. Sebelumnya bot memakai `process.cwd()` sementara dashboard memakai `path.join(__dirname,'../..')`; bila proses dijalankan dari cwd yang berbeda dari folder aplikasi (umum di panel hosting), kartu "Akun Tersimpan" menampilkan "0 akun" walau profil ada dan akun berjalan.
+- `createDashboardApp({ baseDir })` masih bisa memaksa folder eksplisit (dipakai test).
+- Regresi dijaga `test/dashboard-save.test.js` ("control panel lists saved accounts from the bot working directory"): menjalankan dashboard dari cwd bot yang berbeda dan memastikan akun tetap tampil.
+
+
 ## Auto Boss2 (Guild-only)
 
 - `src/managers/boss2.js` sekarang **hanya menangani Guild Boss**. Deteksi/penanganan Global Boss (teks "Global Raid Boss ...", state `kind: 'global'`, saldo tiket Global) sudah dihapus.

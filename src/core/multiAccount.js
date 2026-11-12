@@ -5,6 +5,7 @@ const statsService = require('../services/stats');
 const log = require('../../logger');
 
 const CONSTANTS = require('../constants');
+const { resolveBaseDir } = require('../appPaths');
 
 const DEFAULT_MAX_ACCOUNTS = 0;
 const ABSOLUTE_MAX_ACCOUNTS = 4;
@@ -24,7 +25,7 @@ const writeJson = (filePath, value) => {
 
 const getAccountIdFromToken = createAccountRuntime.getAccountIdFromToken;
 
-module.exports = function createMultiAccountManager({ rootState, baseDir = process.cwd(), configManager }) {
+module.exports = function createMultiAccountManager({ rootState, baseDir = resolveBaseDir(), configManager }) {
     const configPath = path.join(baseDir, 'config.json');
     const profilesDir = path.join(baseDir, 'profiles');
     const runtimes = new Map();

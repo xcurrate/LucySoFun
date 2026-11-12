@@ -19,13 +19,14 @@ const createDashboardAuth = require('./auth');
 const createUiComponents = require('./ui/components');
 const createDashboardRoutes = require('./routes');
 const { escapeHtml, serializeForScript } = require('./utils/html');
+const { resolveBaseDir, resolveSlotDir } = require('../appPaths');
 
-function createDashboardApp({ baseDir = path.join(__dirname, '../..') } = {}) {
+function createDashboardApp({ baseDir = resolveBaseDir() } = {}) {
     const configPath = path.join(baseDir, CONSTANTS.CONFIG_FILE);
     const profileManager = createProfileManager({ baseDir, fileService });
     const profilePin = createProfilePin({ baseDir, profileManager, fileService });
     const configManager = createConfigManager({ configPath, fileService, CONSTANTS });
-    const slotPermissionManager = createSlotPermissionManager({ baseDir });
+    const slotPermissionManager = createSlotPermissionManager({ baseDir: resolveSlotDir(baseDir) });
     const logService = createLogService({ logger });
     const statsService = createStatsService({ state, runtimeStatsService, configManager });
     const uiComponents = createUiComponents({

@@ -3,7 +3,9 @@ const { normalizeGemsSettings } = require('../managers/gems');
 const { normalizeMonsterCatcherSettings } = require('../managers/monsterCatcher');
 const { normalizeRestSettings } = require('../managers/rest');
 const fs = require('fs');
+const path = require('path');
 const { safeJsonStringify } = require('../utils');
+const { resolveBaseDir } = require('../appPaths');
 
 const ensureRuntimeShape = (config = {}) => {
     config.settings = config.settings || {};
@@ -16,10 +18,13 @@ const ensureRuntimeShape = (config = {}) => {
     return config;
 };
 
-module.exports = (state) => ({
+module.exports = (state) => {
+    const baseDir = resolveBaseDir();
+    const configFile = path.join(baseDir, 'config.json');
+    return {
     read() {
         try {
-            const raw = fs.readFileSync('./config.json', 'utf8');
+            const raw = fs.readFileSync(configFile, 'utf8');
             return ensureRuntimeShape(JSON.parse(raw));
         } catch (e) {
             return null;
@@ -28,7 +33,7 @@ module.exports = (state) => ({
 
     save() {
         ensureRuntimeShape(state.config);
-        fs.writeFileSync('./config.json', JSON.stringify(state.config, null, 2));
+        fs.writeFileSync(configFile, JSON.stringify(state.config, null, 2));
     },
 
     getLucyControlCommands() {
@@ -79,4 +84,5 @@ module.exports = (state) => ({
 
         return { tokenChanged, previousToken, voiceChanged, statusChanged, wasPaused, wasRunning, nowPaused, nowRunning };
     }
-});
+    };
+};
