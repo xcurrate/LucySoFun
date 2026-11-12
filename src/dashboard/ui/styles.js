@@ -251,6 +251,48 @@ function getStyles() {
             .command-dropdown > .card { margin: 0 14px 14px; }
             .dropdown-hint { color: var(--muted); font-size: 11px; font-weight: 500; }
 
+            /* ===== v7 layout: sidebar kiri permanen + topbar ===== */
+            :root { --sidebar-w: 250px; --topbar-h: 60px; }
+            .page-head { margin: 0 0 18px; }
+            .page-head h1 { font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -.04em; margin-bottom: 4px; font-weight: 850; }
+            .page-head p { color: var(--muted); max-width: 640px; line-height: 1.5; }
+            .topbar { position: sticky; top: 0; z-index: 50; display: none; align-items: center; gap: 14px; min-height: var(--topbar-h); padding: 8px 18px; background: rgba(10,16,28,.92); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+            .topbar .tb-account { display: flex; align-items: center; gap: 10px; min-width: 0; }
+            .topbar .tb-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#818cf8,#4f46e5); display: grid; place-items: center; font-weight: 900; font-size: 13px; flex: 0 0 auto; }
+            .topbar .tb-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .topbar .tb-id { color: var(--muted); font-size: 11px; }
+            .topbar .tb-spacer { flex: 1; }
+            .topbar .tb-pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); font-size: 12px; font-weight: 800; white-space: nowrap; }
+            .topbar .tb-pill.run { color: var(--green); border-color: #2e7a52; background: rgba(74,222,161,.10); }
+            .topbar .tb-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: tbPulse 1.8s infinite; }
+            @keyframes tbPulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,161,.45); } 70% { box-shadow: 0 0 0 7px rgba(74,222,161,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,161,0); } }
+            .topbar .tb-actions { display: flex; gap: 8px; }
+            .topbar .tb-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 14px; border-radius: 10px; border: 1px solid transparent; font-weight: 800; font-size: 12px; cursor: pointer; font-family: inherit; }
+            .topbar .tb-btn:hover { filter: brightness(1.1); }
+            .topbar .tb-btn.start { background: linear-gradient(135deg,#159b6b,#08784e); color: #fff; }
+            .topbar .tb-btn.pause { background: transparent; border-color: #7a363c; color: var(--red); }
+            .topbar .tb-burger { display: none; background: none; border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 8px 10px; cursor: pointer; font-size: 15px; }
+
+            /* Desktop: sidebar selalu terlihat, konten digeser ke kanan. */
+            @media (min-width: 861px) {
+                body { padding: 0; }
+                .topbar { display: flex; padding-left: calc(var(--sidebar-w) + 18px); }
+                .container { max-width: 1180px; margin: 0; padding: 22px 24px 170px; margin-left: var(--sidebar-w); }
+                .settings-nav { display: none; }
+                .settings-overlay { display: none !important; }
+                .settings-menu.settings-sidebar { transform: none; visibility: visible; width: var(--sidebar-w); padding: 16px 12px 26px; border-radius: 0; border-right: 1px solid var(--border); background: #0b1322; box-shadow: none; }
+                .settings-menu.settings-sidebar .sidebar-divider { display: none; }
+                .settings-menu.settings-sidebar .settings-select-label,
+                .settings-menu.settings-sidebar .settings-category-select { display: none; }
+            }
+            @media (max-width: 860px) {
+                .topbar { display: flex; }
+                .topbar .tb-burger { display: inline-flex; }
+                .topbar .tb-name, .topbar .tb-id { display: none; }
+                .topbar .tb-pill, .topbar .tb-actions { display: none; }
+                .container { padding-top: 14px; }
+            }
+
         </style>
         `;
     }

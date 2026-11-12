@@ -103,6 +103,11 @@ function renderPage(config) {
             };
         });
 
+        const topbarScopeName = statsScopeName || (isControlPanel ? 'Control Panel' : viewingProfileId);
+        const topbarInitial = (topbarScopeName || 'L').trim().charAt(0).toUpperCase() || 'L';
+        const topbarStatus = statusText || 'OFFLINE';
+        const topbarStatusClass = statusClass === 'running' ? 'run' : '';
+
         return `
         <!DOCTYPE html>
         <html lang="en">
@@ -113,9 +118,27 @@ function renderPage(config) {
             ${getStyles()}
         </head>
         <body>
+            <header class="topbar">
+                <button type="button" class="tb-burger" aria-label="Buka navigasi" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">☰</button>
+                <div class="tb-account">
+                    <span class="tb-avatar">${escapeHtml(topbarInitial)}</span>
+                    <div style="min-width:0">
+                        <div class="tb-name">${escapeHtml(topbarScopeName)}</div>
+                        <div class="tb-id">${isControlPanel ? 'Semua akun tersimpan' : 'ID ' + escapeHtml(viewingProfileId)}</div>
+                    </div>
+                </div>
+                <div class="tb-spacer"></div>
+                <span class="tb-pill ${topbarStatusClass}"><span class="dot"></span> ${escapeHtml(topbarStatus)}</span>
+                <div class="tb-actions">
+                    <button type="submit" form="configForm" name="action" value="${viewingProfileId ? 'startProfile' : 'start'}" class="tb-btn start">▶ START</button>
+                    <button type="submit" form="configForm" name="action" value="${viewingProfileId ? 'pauseProfile' : 'pause'}" class="tb-btn pause">⏸ PAUSE</button>
+                </div>
+            </header>
             <div class="container">
-                <h2>LucySoFun Dashboard</h2>
-                <div class="subtitle">${isControlPanel ? 'Control Panel utama untuk mengontrol semua akun dan slot paralel; halaman ini bukan akun default.' : `Sedang melihat akun: ${viewingProfileId}`}</div>
+                <div class="page-head">
+                    <h1>${isControlPanel ? 'Control Panel' : escapeHtml(viewingProfileName || 'Profil Akun')}</h1>
+                    <p>${isControlPanel ? 'Kontrol semua akun dan slot paralel. Pilih akun untuk membuka profilnya.' : `Sedang melihat akun ID ${escapeHtml(viewingProfileId)}.`}</p>
+                </div>
 
                 <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="${isControlPanel ? 'true' : 'false'}">
                     ${isControlPanel ? '🧭 Control Panel — tidak ada akun default. Pilih akun tersimpan untuk melihat profil Discord.' : '⏳ Menghubungi Discord API...'}

@@ -83,6 +83,7 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Navigation buttons live in the action group: control panel shows **🔐 IZIN SLOT AKUN** and **👤 HALAMAN PROFIL** (links to the main/first saved profile); the profile page shows **⌂ MENU UTAMA**. The "HALAMAN PROFIL" target is `activeProfileId` when it is a saved profile, else the first saved profile.
 - The `tab-main` menu/select label is context-aware: `🏠 Menu Utama` on the control panel, `👤 Profil Akun` on a profile page (`mainTabLabel` in `renderSettingsTabs`).
 - Statistics, bot info (`#userProfileBox`), and logs render outside the tab container, so they are always visible on both modes.
+- Layout (v7): sidebar kiri **permanen** (250px) + **topbar** sticky dengan nama akun, status pill, dan tombol START/PAUSE (`form="configForm"`). Di layar < 861px sidebar berubah jadi drawer (tombol ☰ di topbar, `toggleSettingsMenu`), dan topbar menyembunyikan nama/pill/aksi. CSS-nya di blok `/* ===== v7 layout ===== */` `styles.js`; markup topbar di `renderPage` (`page.js`), sidebar di `renderSettingsTabs` (`settingsTabs.js`).
 
 ## Dashboard profile actions
 
