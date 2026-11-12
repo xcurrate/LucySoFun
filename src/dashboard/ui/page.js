@@ -498,13 +498,23 @@ function renderPage(config) {
 
                         // "➕ Buat" menyimpan slot akun baru, jadi muat ulang supaya
                         // daftar "Akun Tersimpan" langsung menampilkan akun baru.
+                        // Hapus akun juga reload supaya baris yang dihapus hilang
+                        // dari layar (sebelumnya server sudah hapus, tapi UI tetap
+                        // menampilkan barisnya sehingga terlihat "tidak terhapus").
                         // Kalau ada perubahan lain yang belum disimpan, jangan reload
                         // agar perubahan itu tidak hilang diam-diam.
-                        if (submitter.name === 'action' && submitter.value === 'newProfile') {
-                            const tokenInput = form.querySelector('input[name="newToken"]');
-                            if (tokenInput) tokenInput.value = '';
+                        const isNewProfile = submitter.name === 'action' && submitter.value === 'newProfile';
+                        const isDeleteProfile = String(submitter.name || '') === 'profileAction'
+                            && String(submitter.value || '').startsWith('delete:');
+                        if (isNewProfile || isDeleteProfile) {
+                            if (isNewProfile) {
+                                const tokenInput = form.querySelector('input[name="newToken"]');
+                                if (tokenInput) tokenInput.value = '';
+                            }
+                            const ownerField = form.querySelector('input[name="ownerPassword"]');
+                            if (ownerField) ownerField.value = '';
                             if (unsaved?.isDirty()) {
-                                showToast('success', 'Akun baru dibuat. Simpan perubahan lain dulu, lalu muat ulang.');
+                                showToast('success', 'Tersimpan. Simpan perubahan lain dulu, lalu muat ulang halaman.');
                             } else {
                                 setTimeout(() => window.location.reload(), 600);
                             }

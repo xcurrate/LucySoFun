@@ -169,6 +169,21 @@ function createSlotPermissionGuard({ slotPermissionManager, configManager, profi
             return next();
         }
 
+        // Menghapus slot akun hanya boleh oleh pemilik: wajib password pemilik
+        // (SLOT_OWNER_PASSWORD / slot-owner-password.txt), sama seperti ubah jumlah slot.
+        const profileActionValue = String(body.profileAction || '');
+        if (profileActionValue.startsWith('delete:')) {
+            if (!slotPermissionManager.isConfigured()) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Hapus akun butuh password pemilik, tapi password pemilik belum diatur. Set SLOT_OWNER_PASSWORD (atau slot-owner-password.txt) lalu restart bot.'
+                });
+            }
+            if (!ownerPasswordValid) {
+                return res.status(403).json({ success: false, message: 'Password pemilik salah. Hapus akun dibatalkan.' });
+            }
+        }
+
         // The account-chip actions share the main dashboard form. Keep the target
         // profile's token on the body so the checks below treat the chip as an
         // existing account rather than a brand-new one.

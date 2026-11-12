@@ -41,12 +41,14 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                             <button type="submit" name="profileAction" value="connect:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Connect/Login akun ${escapeHtml(profile.id)} tanpa start loop">🔌</button>
                                             <button type="submit" name="profileAction" value="start:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Start/Resume commands akun ${escapeHtml(profile.id)}">▶</button>
                                             <button type="submit" name="profileAction" value="pause:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Pause commands akun ${escapeHtml(profile.id)}">⏸</button>
-                                            <button type="submit" name="profileAction" value="delete:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Hapus slot akun ${escapeHtml(profile.id)}" onclick="return confirm('Hapus slot akun ini? Slot akan berkurang 1.');">🗑</button>
+                                            <button type="submit" name="profileAction" value="delete:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Hapus slot akun ${escapeHtml(profile.id)} (butuh password pemilik)" onclick="return confirmDeleteAccount(this, '${escapeHtml(profile.displayName || profile.id)}');">🗑</button>
                                             <a class="btn btn-primary" href="/?profileId=${encodeURIComponent(profile.id)}">Lihat</a>
                                         </div>
                                     </div>`;
                                 }).join('') : '<div class="input-hint">Belum ada profil tersimpan.</div>'}
                             </div>
+
+                            <div class="input-hint">🗑 Hapus akun butuh <strong>password pemilik</strong>. Slot yang dihapus tidak bisa dikembalikan.</div>
 
                             <div class="slot-pills">
                                 <span class="pill">📦 Terpakai: <strong>${usedSlots}/${slotLimit}</strong></span>

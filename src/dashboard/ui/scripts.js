@@ -251,6 +251,32 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 if (button) button.setAttribute('aria-expanded', 'false');
             }
 
+            // Hapus slot akun wajib password pemilik. Prompt di sini hanya untuk
+            // kenyamanan; server tetap memverifikasi ulang (createSlotPermissionGuard).
+            function confirmDeleteAccount(button, label) {
+                const name = label ? ' "' + label + '"' : '';
+                if (!window.confirm('Hapus slot akun' + name + '? Slot akan berkurang 1 dan tidak bisa dibatalkan.')) {
+                    return false;
+                }
+                const password = window.prompt('Masukkan password pemilik untuk menghapus akun ini:');
+                if (password === null) return false;
+                if (!password.trim()) {
+                    window.alert('Password pemilik wajib diisi. Hapus akun dibatalkan.');
+                    return false;
+                }
+                const form = button.form;
+                if (!form) return false;
+                let field = form.querySelector('input[name="ownerPassword"]');
+                if (!field) {
+                    field = document.createElement('input');
+                    field.type = 'hidden';
+                    field.name = 'ownerPassword';
+                    form.appendChild(field);
+                }
+                field.value = password;
+                return true;
+            }
+
             function switchTab(event, tabId) {
                 const target = document.getElementById(tabId);
                 if (!target) return;

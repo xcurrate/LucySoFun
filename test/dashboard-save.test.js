@@ -743,5 +743,77 @@ test('new-account token field is excluded from the unsaved-changes banner', asyn
         // Tombol Buat memuat ulang halaman agar akun baru muncul di daftar.
         assert.match(html, /submitter\.value === 'newProfile'/);
         assert.match(html, /window\.location\.reload\(\)/);
+        // Hapus akun: prompt password pemilik + reload setelah sukses.
+        assert.match(html, /function confirmDeleteAccount\(/);
+        assert.match(html, /name = 'ownerPassword'/);
+        assert.match(html, /startsWith\('delete:'\)/);
     });
+});
+
+test('deleting an account is blocked while the owner password is unset', async () => {
+    const profileId = '100000000000000009';
+    await withSeededDashboard({
+        mainConfig: { token: '', settings: {}, multiAccount: { enabled: true, maxAccounts: 1 } },
+        profiles: {
+            [profileId]: { token: makeToken(profileId), botStatus: { running: false, paused: true }, settings: {} }
+        }
+    }, async (url, baseDir) => {
+        const headers = {
+            Authorization: authHeader(),
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'application/json'
+        };
+        const profilePath = path.join(baseDir, 'profiles', `config_${profileId}.json`);
+
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers,
+            body: new URLSearchParams({ profileAction: `delete:${profileId}`, ownerPassword: 'apa-saja' })
+        });
+
+        assert.equal(response.status, 403);
+        assert.match((await response.json()).message, /password pemilik belum diatur/i);
+        assert.equal(fs.existsSync(profilePath), true, 'profil tetap ada saat password pemilik belum diatur');
+    });
+});
+
+test('deleting an account requires the correct owner password', async () => {
+    const profileId = '100000000000000010';
+    const previousPassword = process.env.SLOT_OWNER_PASSWORD;
+    process.env.SLOT_OWNER_PASSWORD = 'test-owner-password-123';
+    try {
+        await withSeededDashboard({
+            mainConfig: { token: '', settings: {}, multiAccount: { enabled: true, maxAccounts: 1 } },
+            profiles: {
+                [profileId]: { token: makeToken(profileId), botStatus: { running: false, paused: true }, settings: {} }
+            }
+        }, async (url, baseDir) => {
+            const headers = {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json'
+            };
+            const profilePath = path.join(baseDir, 'profiles', `config_${profileId}.json`);
+            const deleteBody = extra => new URLSearchParams({ profileAction: `delete:${profileId}`, ...extra });
+
+            const missing = await fetch(`${url}/save`, { method: 'POST', headers, body: deleteBody() });
+            assert.equal(missing.status, 403);
+            assert.match((await missing.json()).message, /Password pemilik salah/i);
+            assert.equal(fs.existsSync(profilePath), true);
+
+            const wrong = await fetch(`${url}/save`, { method: 'POST', headers, body: deleteBody({ ownerPassword: 'password-salah' }) });
+            assert.equal(wrong.status, 403);
+            assert.equal(fs.existsSync(profilePath), true);
+
+            const ok = await fetch(`${url}/save`, { method: 'POST', headers, body: deleteBody({ ownerPassword: 'test-owner-password-123' }) });
+            assert.equal(ok.status, 200);
+            assert.equal((await ok.json()).success, true);
+            assert.equal(fs.existsSync(profilePath), false, 'profil terhapus setelah password pemilik benar');
+        });
+    } finally {
+        if (previousPassword === undefined) delete process.env.SLOT_OWNER_PASSWORD;
+        else process.env.SLOT_OWNER_PASSWORD = previousPassword;
+    }
 });
