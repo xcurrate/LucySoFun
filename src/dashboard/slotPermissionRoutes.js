@@ -15,7 +15,12 @@ function formatExpiry(expiresAt) {
 
 // Menghapus profil akun + runtime untuk izin yang sudah dipakai (revoke/kedaluwarsa).
 function teardownUsedGrant({ accountId, configManager, profileManager, state }) {
-    state?.multiAccountManager?.logoutAccount?.(accountId);
+    const manager = state?.multiAccountManager;
+    if (manager && typeof manager.forgetAccount === 'function') {
+        manager.forgetAccount(accountId);
+    } else if (manager && typeof manager.logoutAccount === 'function') {
+        manager.logoutAccount(accountId);
+    }
     profileManager.deleteProfile(accountId);
     const remainingProfiles = profileManager.getSavedProfiles();
     const mainConfig = configManager.ensureShape(configManager.get());

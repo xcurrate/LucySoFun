@@ -126,6 +126,10 @@ const createRuntimeConfigManager = (state, filePath) => ({
 
     save() {
         ensureRuntimeShape(state.config);
+        // Setelah profil dihapus dari disk, jangan tulis ulang: pause()/destroy()
+        // tetap dipanggil saat hapus/logout, dan penulisan itu akan membuat
+        // kembali file config_<id>.json yang baru saja dihapus.
+        if (state.configDeleted) return;
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, JSON.stringify(state.config, null, 2));
     },
@@ -316,6 +320,11 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         filePath,
         state,
         configManager,
+        // Dipakai jalur hapus profil: setelah ini pause()/destroy() tidak boleh
+        // menulis ulang file config akun yang sudah dihapus.
+        markConfigDeleted() {
+            state.configDeleted = true;
+        },
         restManager,
         getRestStatus() {
             return restManager.getStatus();

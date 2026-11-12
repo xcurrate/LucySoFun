@@ -208,6 +208,18 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = resol
             syncDashboardState();
             return true;
         },
+        // Hapus permanen: tandai config sudah dihapus SEBELUM destroy, supaya
+        // pause()/destroy() tidak menulis ulang file config_<id>.json.
+        forgetAccount(accountId) {
+            const runtime = getRuntime(accountId);
+            if (runtime) {
+                if (typeof runtime.markConfigDeleted === 'function') runtime.markConfigDeleted();
+                runtime.destroy();
+                runtimes.delete(accountId);
+                syncDashboardState();
+            }
+            return !!runtime;
+        },
         joinVoiceAccount(accountId) {
             const runtime = getRuntime(accountId);
             if (!runtime || typeof runtime.joinVoice !== 'function') return false;

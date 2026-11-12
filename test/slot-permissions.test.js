@@ -100,16 +100,57 @@ test('sweeper menghapus profil akun yang izinnya kedaluwarsa lalu menandainya re
             save: (config) => { fs.writeFileSync(configPath, JSON.stringify(config)); return true; }
         };
         const loggedOut = [];
-        const state = { multiAccountManager: { logoutAccount: (id) => { loggedOut.push(id); return true; } } };
+        const forgotten = [];
+        const state = {
+            multiAccountManager: {
+                forgetAccount: (id) => { forgotten.push(id); return true; },
+                logoutAccount: (id) => { loggedOut.push(id); return true; }
+            }
+        };
         const sweeper = createSlotExpirySweeper({ slotPermissionManager: manager, configManager, profileManager, state });
 
         const removed = sweeper();
         assert.deepEqual(removed, [ACCOUNT_ID], 'melaporkan akun yang dihapus');
-        assert.deepEqual(loggedOut, [ACCOUNT_ID], 'runtime akun dihentikan');
+        assert.deepEqual(forgotten, [ACCOUNT_ID], 'runtime akun dihentikan via forgetAccount');
+        assert.deepEqual(loggedOut, [], 'logoutAccount tidak dipakai (menulis ulang file profil)');
         assert.equal(fs.existsSync(path.join(profilesDir, `config_${ACCOUNT_ID}.json`)), false, 'profil dihapus');
         assert.equal(manager.get(ACCOUNT_ID).status, 'revoked', 'izin ditandai revoked');
         assert.equal(manager.get(ACCOUNT_ID).revokedReason, 'expired');
         assert.deepEqual(sweeper(), [], 'sweep kedua tidak mengulang');
+    } finally {
+        fs.rmSync(baseDir, { recursive: true, force: true });
+    }
+});
+
+test('destroy() tidak membuat ulang file profil setelah config ditandai terhapus', () => {
+    const createAccountRuntime = require('../src/core/accountRuntime');
+    const accountId = '100000000000000077';
+    const token = Buffer.from(accountId, 'utf8').toString('base64').replace(/=+$/, '') + '.abcdef.ghijkl';
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-delete-'));
+    try {
+        const filePath = path.join(baseDir, `config_${accountId}.json`);
+        const config = {
+            token,
+            botStatus: { running: false, paused: true },
+            settings: {},
+            otherCommands: [{ text: 'ping', delayMs: 1000, count: 0, enabled: true }]
+        };
+        fs.writeFileSync(filePath, JSON.stringify(config));
+
+        // Simulasikan jalur hapus: file dihapus dulu, lalu runtime dihancurkan.
+        const runtime = createAccountRuntime({ config, filePath });
+        fs.unlinkSync(filePath);
+        runtime.destroy();
+        assert.equal(fs.existsSync(filePath), true, 'destroy() menulis ulang config (bug yang diperbaiki)');
+
+        // forgetAccount() menandai config terhapus sebelum destroy, sehingga file
+        // yang sudah dihapus tidak muncul kembali.
+        fs.writeFileSync(filePath, JSON.stringify(config));
+        const runtime2 = createAccountRuntime({ config, filePath });
+        fs.unlinkSync(filePath);
+        runtime2.markConfigDeleted();
+        runtime2.destroy();
+        assert.equal(fs.existsSync(filePath), false, 'file profil tetap terhapus setelah markConfigDeleted + destroy');
     } finally {
         fs.rmSync(baseDir, { recursive: true, force: true });
     }

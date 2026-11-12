@@ -532,7 +532,15 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                     return respondSuccess('Account logged out');
                 }
                 if (accountId && action === 'delete') {
-                    logoutAccount(accountId);
+                    // Pakai forgetAccount: menandai config sudah dihapus lalu destroy,
+                    // sehingga pause()/destroy() tidak menulis ulang file profil.
+                    // logoutAccount() akan membuat kembali config_<id>.json.
+                    const manager = state?.multiAccountManager;
+                    if (manager && typeof manager.forgetAccount === 'function') {
+                        manager.forgetAccount(accountId);
+                    } else {
+                        logoutAccount(accountId);
+                    }
                     const removed = profileManager.deleteProfile(accountId);
                     const remainingProfiles = profileManager.getSavedProfiles();
                     const mainConfig = configManager.ensureShape(configManager.get());
@@ -543,7 +551,6 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                     dashboardLog(removed ? 'success' : 'warn', accountId, removed
                         ? `🗑 Slot akun dihapus. Slot aktif sekarang ${mainConfig.multiAccount.maxAccounts}/4, tersisa ${4 - mainConfig.multiAccount.maxAccounts} slot.`
                         : '⚠️ Hapus slot gagal: profil akun tidak ditemukan.');
-                    const manager = state?.multiAccountManager;
                     if (manager && typeof manager.reconcile === 'function') manager.reconcile();
                     return removed
                         ? respondSuccess('Account profile deleted')
