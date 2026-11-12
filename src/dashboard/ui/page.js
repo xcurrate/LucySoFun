@@ -151,8 +151,10 @@ function renderPage(config) {
                         ${!viewingProfileId ? '<a href="/owner/slots" class="btn btn-home">🔐 IZIN SLOT AKUN</a>' : ''}
                         ${!viewingProfileId && primaryProfileId ? `<a href="/?profileId=${encodeURIComponent(primaryProfileId)}" class="btn btn-home">👤 HALAMAN PROFIL</a>` : ''}
                         ${viewingProfileId ? '<button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 CONNECT / LOGIN</button>' : ''}
-                        <button type="submit" name="action" value="${viewingProfileId ? 'startProfile' : 'start'}" class="btn btn-start">▶ ${viewingProfileId ? 'START / RESUME COMMANDS' : 'START ALL COMMANDS'}</button>
-                        <button type="submit" name="action" value="${viewingProfileId ? 'pauseProfile' : 'pause'}" class="btn btn-pause">⏸ ${viewingProfileId ? 'PAUSE COMMANDS' : 'PAUSE ALL COMMANDS'}</button>
+                        ${!viewingProfileId ? '<button type="submit" name="action" value="start" class="btn btn-start">▶ START ALL COMMANDS</button>' : ''}
+                        ${!viewingProfileId ? '<button type="submit" name="action" value="pause" class="btn btn-pause">⏸ PAUSE ALL COMMANDS</button>' : ''}
+                        ${viewingProfileId ? '<button type="submit" name="action" value="startProfile" class="btn btn-start">▶ START / RESUME</button>' : ''}
+                        ${viewingProfileId ? '<button type="submit" name="action" value="pauseProfile" class="btn btn-pause">⏸ PAUSE</button>' : ''}
                         ${viewingProfileId ? '<button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 JOIN VOICE</button>' : ''}
                         ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>

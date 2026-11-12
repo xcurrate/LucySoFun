@@ -7,3 +7,7 @@ node_modules/
 
 # Scratch/preview workspace for agents.
 .agent_tmp/
+
+# Screenshot/asset lokal, jangan di-commit.
+Screenshot_*.jpg
+Screenshot_*.png

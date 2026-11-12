@@ -293,6 +293,48 @@ function getStyles() {
                 .container { padding-top: 14px; }
             }
 
+            /* ===== v7 content polish: toggle switch, kartu, tipografi ===== */
+            /* Checkbox di dalam .toggle-row tampil sebagai saklar geser. */
+            .toggle-row { padding: 13px 0; gap: 14px; }
+            .toggle-row > span, .toggle-row > label { font-size: 13.5px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; }
+            .toggle-row input[type=checkbox] {
+                appearance: none; -webkit-appearance: none; position: relative; flex: 0 0 auto;
+                width: 46px; height: 26px; border-radius: 999px; background: #2c3d5b;
+                cursor: pointer; border: none; margin: 0; transition: background .18s;
+            }
+            .toggle-row input[type=checkbox]::before {
+                content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+                border-radius: 50%; background: #fff; transition: transform .18s;
+            }
+            .toggle-row input[type=checkbox]:checked { background: var(--accent-solid); }
+            .toggle-row input[type=checkbox]:checked::before { transform: translateX(20px); }
+            .toggle-row input[type=checkbox]:focus-visible { box-shadow: 0 0 0 3px rgba(129,140,248,.25); }
+
+            .card { padding: 20px; border-radius: 18px; }
+            .card > label:first-child { font-size: 11px; letter-spacing: .075em; color: #a5b2c8; margin-bottom: 10px; }
+            .divider { margin: 16px 0; }
+
+            .category-heading { padding: 18px 20px; border-radius: 18px; }
+            .category-heading h3 { font-size: clamp(19px, 2.2vw, 24px); }
+            .category-heading .section-label { color: #8b9ab4; }
+
+            .stat-card { background: linear-gradient(145deg,#17243a,#101827); border: 1px solid #2b3c59; border-radius: 18px; padding: 16px; }
+            .stat-label { display: flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .06em; margin-bottom: 9px; }
+            .stat-label .stat-who { color: var(--accent); font-size: 10px; letter-spacing: 0; text-transform: none; }
+            .stat-value { font-size: 26px; font-weight: 850; letter-spacing: -.04em; line-height: 1.1; }
+            .stat-note { margin-top: 7px; }
+
+            .info-item { border-radius: 12px; }
+            .pill { font-weight: 800; }
+
+            .action-group .btn { min-height: 44px; }
+            .btn-connect, .btn-save { background: linear-gradient(135deg,#6366f1,#4f46e5); }
+            .btn-start { background: linear-gradient(135deg,#159b6b,#08784e); }
+            .btn-pause { background: linear-gradient(135deg,#c24155,#9f3044); }
+            .btn-voice { background: linear-gradient(135deg,#7c3aed,#5b21b6); }
+            .btn-logout { background: linear-gradient(135deg,#475467,#344054); }
+            .btn-home, .btn-secondary { background: var(--panel-soft); border-color: var(--border); }
+
         </style>
         `;
     }
