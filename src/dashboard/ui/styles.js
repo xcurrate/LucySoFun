@@ -33,25 +33,6 @@ function getStyles() {
             .profile-box { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; padding: 10px; background: var(--panel-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 500; font-size: 13px; color: var(--muted); }
             .profile-box-top { justify-content: flex-start; margin: 14px 0 16px; padding: 14px 16px; background: var(--panel); border-radius: 18px; }
             .profile-box img { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); }
-            .account-chip-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-            .account-chip-group { display: inline-flex; align-items: stretch; gap: 4px; max-width: 100%; }
-            .account-chip { width: auto; max-width: min(100%, 320px); padding: 7px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 850; white-space: nowrap; }
-            .account-chip:hover { transform: translateY(-1px); border-color: var(--accent); }
-            .account-chip.running { color: var(--green); border-color: #2e7a52; background: rgba(71, 205, 137, 0.13); }
-            .account-chip.paused { color: var(--red); border-color: #7a363c; background: rgba(249, 112, 102, 0.12); }
-            .account-chip.viewing { outline: 2px solid var(--accent); outline-offset: 2px; }
-            .account-chip-name { overflow: hidden; text-overflow: ellipsis; }
-            .account-chip-id { color: var(--muted); font-size: 10px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
-            .account-chip-status { font-size: 10px; letter-spacing: 0.04em; }
-            .account-chip-action { width: 30px; min-width: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); color: var(--text); font-weight: 900; cursor: pointer; }
-            .account-chip-action.connect { color: var(--accent); border-color: #4d5fc0; }
-            .account-chip-action.start { color: var(--green); border-color: #2e7a52; }
-            .account-chip-action.pause { color: var(--red); border-color: #7a363c; }
-            .account-chip-action.delete { color: var(--yellow); border-color: #8a5d16; }
-            .account-chip-action:hover { border-color: var(--accent); background: var(--blue-soft); }
-            .slot-indicator { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-            .slot-indicator span { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); color: var(--text); font-size: 12px; font-weight: 800; }
-            .slot-indicator strong { color: var(--accent); }
             .profile-preview { display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 10px; background: var(--blue-soft); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 13px; }
             .profile-preview.visible { display: flex; }
             .profile-preview strong { color: var(--accent); }
@@ -191,7 +172,6 @@ function getStyles() {
             .stat-value { letter-spacing:-.04em; }
             .info-item,.recent-item { background:#111d30; border-color:#2a3a55; }
             .log-box,.debug-output { background:#080f1c; border-color:#293b58; border-radius:14px; }
-            .account-chip { border-radius:12px; }
             .profile-picker-card { border-color:#4c5e91; background:linear-gradient(135deg,rgba(42,52,91,.48),rgba(16,24,39,.98)); }
             .profile-picker-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
             .profile-picker-heading .section-label { margin:0 0 3px; }
@@ -222,9 +202,6 @@ function getStyles() {
             .settings-menu-item.active { background: rgba(99,102,241,.16); border-color: rgba(129,140,248,.35); color: #c7d2fe; }
             .settings-overlay { display: block; position: fixed; inset: 0; z-index: 80; border: 0; background: rgba(2,6,15,.58); opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s ease; }
             body:has(.settings-sidebar.open) .settings-overlay { opacity: 1; visibility: visible; }
-            .account-chip-wrap { gap: 10px; }
-            .account-chip-group { padding: 5px; border: 1px solid var(--border); border-radius: 14px; background: rgba(8,15,28,.48); }
-            .account-chip { border-radius: 9px; }
             #lucy-command-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 14px; }
             #lucy-command-cards > .category-heading, #lucy-command-cards > .input-hint { grid-column: 1 / -1; }
             #lucy-command-cards > .card { margin-bottom: 12px; }
@@ -343,6 +320,30 @@ function getStyles() {
             .btn-voice { background: linear-gradient(135deg,#7c3aed,#5b21b6); }
             .btn-logout { background: linear-gradient(135deg,#475467,#344054); }
             .btn-home, .btn-secondary { background: var(--panel-soft); border-color: var(--border); }
+
+            /* ===== v7 komponen: kartu akun, badge sidebar, pill ===== */
+            .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+            .card-head h3 { display:flex; align-items:center; gap:10px; font-size:16px; letter-spacing:-.02em; margin:0; }
+            .chip-list { display:grid; gap:10px; }
+            .acct { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px; border:1px solid var(--border); border-radius:14px; background:var(--panel-soft); }
+            .acct-av { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#818cf8,#4f46e5); display:grid; place-items:center; font-weight:900; flex:0 0 auto; color:#fff; }
+            .acct-body { min-width:0; flex:1 1 190px; }
+            .acct-body strong { display:block; font-size:14px; }
+            .acct-body small { color:var(--muted); font-size:11.5px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+            .acct-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+            .icon-btn { width:36px; min-width:36px; padding:0; min-height:36px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; }
+            .btn-ghost { background:var(--panel-soft); border-color:var(--border); color:var(--text); }
+            .btn-primary { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; }
+            .action-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+            .action-row .btn { flex:1 1 auto; min-width:140px; }
+            .slot-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+            .slot-pills .pill strong { color:var(--accent); }
+            .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 9px; border:1px solid var(--border); border-radius:999px; background:var(--panel-soft); font-size:11px; font-weight:800; }
+            .pill-run { color:var(--green); border-color:#2e7a52; }
+            .page-head { margin-bottom:20px; }
+            .page-head h1 { font-size:clamp(22px,2.6vw,30px); letter-spacing:-.04em; margin-bottom:4px; }
+            .page-head p { color:var(--muted); max-width:640px; }
+            .sidebar-nav-item .badge, .settings-menu-item .badge { margin-left:auto; font-size:10px; font-weight:900; padding:2px 7px; border-radius:999px; background:var(--green-soft); color:var(--green); }
 
         </style>
         `;

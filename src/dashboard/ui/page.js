@@ -24,22 +24,31 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
         `;
     }
 
-    // Halaman profil: kartu pengantar + status akun. Daftar Custom Commands ada di
-    // tab sendiri, jadi tidak dirender ulang di sini.
+    // Halaman profil: kartu pengantar + status akun + aksi langsung. Daftar Custom
+    // Commands ada di tab sendiri, jadi tidak dirender ulang di sini.
     function renderProfileHomeCard({ profileOptions = [], viewingProfileId = '' }) {
         const current = profileOptions.find(profile => profile.id === viewingProfileId) || null;
         const name = current ? escapeHtml(current.displayName) : escapeHtml(viewingProfileId);
         const others = profileOptions.filter(profile => profile.id !== viewingProfileId);
+        const running = current ? current.running : false;
         return `
         <div class="card">
-            <label>👤 PROFIL AKUN</label>
-            <p class="input-hint">Kamu sedang mengatur akun <strong>${name}</strong>. Pengaturan di halaman ini hanya berlaku untuk akun tersebut.</p>
-            <div class="divider"></div>
-            <div class="stat-label">Status akun ini</div>
-            <div class="stat-value" style="font-size:18px">${current ? (current.running ? '▶ Sedang berjalan' : '⏸ Dijeda') : '—'}</div>
+            <div class="card-head">
+                <h3>👤 Akun Aktif</h3>
+                <span class="pill ${running ? 'pill-run' : ''}">${running ? '● RUNNING' : '⏸ PAUSED'}</span>
+            </div>
+            <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="false">⏳ Menghubungi Discord API...</div>
+            <div class="action-row">
+                <button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 Connect / Login</button>
+                <button type="submit" name="action" value="startProfile" class="btn btn-start">▶ Start / Resume</button>
+                <button type="submit" name="action" value="pauseProfile" class="btn btn-pause">⏸ Pause</button>
+                <button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 Join Voice</button>
+                <button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 Logout</button>
+            </div>
+            <p class="input-hint">Tombol di atas adalah aksi langsung dan tidak masuk savebar. Start/Resume memakai konfigurasi yang <strong>sudah tersimpan</strong> — kalau ada perubahan di layar, simpan dulu lewat savebar.</p>
             ${others.length ? `
             <div class="divider"></div>
-            <div class="stat-label">Ganti akun</div>
+            <div class="section-label">Ganti akun</div>
             <div class="scope-seg">${others.map(profile => `<a href="/?profileId=${encodeURIComponent(profile.id)}">${escapeHtml(profile.displayName)}</a>`).join('')}</div>` : ''}
         </div>
         `;
@@ -108,13 +117,13 @@ function renderPage(config) {
         const topbarStatus = statusText || 'OFFLINE';
         const topbarStatusClass = statusClass === 'running' ? 'run' : '';
 
-        // Halaman Ringkasan: status akun, cakupan, statistik, dan log langsung.
+        // Halaman Ringkasan: cakupan akun, statistik, dan log langsung.
         const ringkasanCards = `
+                ${profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
                 <div class="status-box ${statusClass}">
                     <span style="font-size: 16px;">${statusText}</span>
                     ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
                 </div>
-                ${viewingProfileId && profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
                 ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}
                 ${getLogCard()}`;
 
@@ -145,28 +154,12 @@ function renderPage(config) {
                 </div>
             </header>
             <div class="container">
-                <div class="page-head">
-                    <h1>${isControlPanel ? 'Control Panel' : escapeHtml(viewingProfileName || 'Profil Akun')}</h1>
-                    <p>${isControlPanel ? 'Kontrol semua akun dan slot paralel. Pilih akun untuk membuka profilnya.' : `Sedang melihat akun ID ${escapeHtml(viewingProfileId)}.`}</p>
-                </div>
-
-                <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="${isControlPanel ? 'true' : 'false'}">
-                    ${isControlPanel ? '🧭 Control Panel — tidak ada akun default. Pilih akun tersimpan untuk melihat profil Discord.' : '⏳ Menghubungi Discord API...'}
-                </div>
-
                 <form id="configForm" action="/save" method="POST">
                     ${viewingProfileId ? `<input type="hidden" name="viewingProfileId" value="${viewingProfileId}">` : ''}
                     <div class="action-group">
                         ${viewingProfileId ? '<a href="/" class="btn btn-home">⌂ MENU UTAMA</a>' : ''}
                         ${!viewingProfileId ? '<a href="/owner/slots" class="btn btn-home">🔐 IZIN SLOT AKUN</a>' : ''}
                         ${!viewingProfileId && primaryProfileId ? `<a href="/?profileId=${encodeURIComponent(primaryProfileId)}" class="btn btn-home">👤 HALAMAN PROFIL</a>` : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 CONNECT / LOGIN</button>' : ''}
-                        ${!viewingProfileId ? '<button type="submit" name="action" value="start" class="btn btn-start">▶ START ALL COMMANDS</button>' : ''}
-                        ${!viewingProfileId ? '<button type="submit" name="action" value="pause" class="btn btn-pause">⏸ PAUSE ALL COMMANDS</button>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="startProfile" class="btn btn-start">▶ START / RESUME</button>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="pauseProfile" class="btn btn-pause">⏸ PAUSE</button>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 JOIN VOICE</button>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
                     </div>
 
                     ${pageSettingsTabs({
@@ -180,9 +173,10 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
+                        viewingProfileName,
                         homePageCards: viewingProfileId
                             ? renderProfileHomeCard({ profileOptions, viewingProfileId })
-                            : renderMultiAccountCard({ profileOptions }),
+                            : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),
                         ringkasanCards,
                     })}
                 </form>

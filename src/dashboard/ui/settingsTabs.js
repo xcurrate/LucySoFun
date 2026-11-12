@@ -1,46 +1,62 @@
 module.exports = function createSettingsTabs({ escapeHtml }) {
-    function renderMultiAccountCard({ profileOptions = [] }) {
-        const usedSlots = Math.min(4, profileOptions.length);
-        const remainingSlots = Math.max(0, 4 - usedSlots);
+    // Batas slot sebenarnya ada di config.multiAccount.maxAccounts (0 = belum diatur,
+    // artinya pakai batas absolut). Jangan hardcode 4 di tampilan.
+    const ABSOLUTE_MAX_SLOTS = 4;
+
+    function renderMultiAccountCard({ profileOptions = [], maxAccounts = 0 }) {
+        const slotLimit = Math.max(1, Math.min(ABSOLUTE_MAX_SLOTS, parseInt(maxAccounts, 10) || ABSOLUTE_MAX_SLOTS));
+        const usedSlots = Math.min(slotLimit, profileOptions.length);
+        const remainingSlots = Math.max(0, slotLimit - usedSlots);
+        const avatarHue = (id) => String(id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
         return `
-<div class="card" style="border-color: var(--accent);">
-                            <label style="color: var(--accent);">👥 MULTI ACCOUNT</label>
-                            
-                            <div style="margin-bottom: 12px;">
-                                <div class="account-chip-wrap">
-                                    ${profileOptions.length ? profileOptions.map(profile => `
-                                        <span class="account-chip-group">
-                                            <a class="account-chip ${profile.statusClass || 'paused'} ${profile.isViewing ? 'viewing' : ''}" href="/?profileId=${encodeURIComponent(profile.id)}" title="Lihat akun ${escapeHtml(profile.id)}">
-                                                <span class="account-chip-name">${profile.hasPin ? '🔒 ' : ''}${escapeHtml(profile.displayName)}</span>
-                                                <span class="account-chip-id">${escapeHtml(profile.id)}</span>
-                                                <span class="account-chip-status">${profile.running ? '● START' : '● PAUSE'}</span>
-                                            </a>
-                                            <button type="submit" name="profileAction" value="connect:${escapeHtml(profile.id)}" class="account-chip-action connect" title="Connect/Login akun ${escapeHtml(profile.id)} tanpa start loop">🔌</button>
-                                            <button type="submit" name="profileAction" value="start:${escapeHtml(profile.id)}" class="account-chip-action start" title="Start/Resume commands akun ${escapeHtml(profile.id)}">▶</button>
-                                            <button type="submit" name="profileAction" value="pause:${escapeHtml(profile.id)}" class="account-chip-action pause" title="Pause commands akun ${escapeHtml(profile.id)}">⏸</button>
-                                            <button type="submit" name="profileAction" value="delete:${escapeHtml(profile.id)}" class="account-chip-action delete" title="Hapus slot akun ${escapeHtml(profile.id)}" onclick="return confirm('Hapus slot akun ini? Slot akan berkurang 1.');">🗑</button>
-                                        </span>
-                                    `).join('') : '<div class="input-hint">Belum ada profil.</div>'}
-                                </div>
-                                <label>Slot akun paralel otomatis</label>
-                                <div class="slot-indicator" aria-live="polite">
-                                    <span>📦 Terpakai: <strong>${usedSlots}/4</strong></span>
-                                    <span>🟢 Sisa slot: <strong>${remainingSlots}</strong></span>
-                                </div>
-                                <input type="hidden" name="selectedProfile" id="selectedProfile" value="">
-                                <div id="selectedProfilePreview" class="profile-preview" aria-live="polite"></div>
+<div class="card">
+                            <div class="card-head">
+                                <h3>👥 MULTI ACCOUNT</h3>
+                                <span class="pill">${profileOptions.length} akun</span>
                             </div>
+
+                            <div class="chip-list">
+                                ${profileOptions.length ? profileOptions.map(profile => {
+                                    const hue = avatarHue(profile.id);
+                                    const initial = escapeHtml((profile.displayName || profile.id).trim().charAt(0).toUpperCase() || '?');
+                                    return `
+                                    <div class="acct">
+                                        <div class="acct-av" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
+                                        <div class="acct-body">
+                                            <strong>${profile.hasPin ? '🔒 ' : ''}${escapeHtml(profile.displayName)}
+                                                <span class="pill ${profile.running ? 'pill-run' : ''}">${profile.running ? '● RUNNING' : '⏸ PAUSED'}</span>
+                                            </strong>
+                                            <small>ID ${escapeHtml(profile.id)} · ${profile.running ? 'command berjalan' : 'command dijeda'}</small>
+                                        </div>
+                                        <div class="acct-actions">
+                                            <button type="submit" name="profileAction" value="connect:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Connect/Login akun ${escapeHtml(profile.id)} tanpa start loop">🔌</button>
+                                            <button type="submit" name="profileAction" value="start:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Start/Resume commands akun ${escapeHtml(profile.id)}">▶</button>
+                                            <button type="submit" name="profileAction" value="pause:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Pause commands akun ${escapeHtml(profile.id)}">⏸</button>
+                                            <button type="submit" name="profileAction" value="delete:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Hapus slot akun ${escapeHtml(profile.id)}" onclick="return confirm('Hapus slot akun ini? Slot akan berkurang 1.');">🗑</button>
+                                            <a class="btn btn-primary" href="/?profileId=${encodeURIComponent(profile.id)}">Lihat</a>
+                                        </div>
+                                    </div>`;
+                                }).join('') : '<div class="input-hint">Belum ada profil tersimpan.</div>'}
+                            </div>
+
+                            <div class="slot-pills">
+                                <span class="pill">📦 Terpakai: <strong>${usedSlots}/${slotLimit}</strong></span>
+                                <span class="pill">🟢 Sisa slot: <strong>${remainingSlots}</strong></span>
+                            </div>
+
+                            <input type="hidden" name="selectedProfile" id="selectedProfile" value="">
+                            <div id="selectedProfilePreview" class="profile-preview" aria-live="polite"></div>
 
                             <div class="divider"></div>
 
                             <div>
-                                <label>ATAU MASUKKUN TOKEN AKUN BARU</label>
+                                <label>ATAU MASUKKAN TOKEN AKUN BARU</label>
                                 <div class="row">
                                     <div class="col">
-                                        <input type="password" name="newToken" placeholder="Token">
+                                        <input type="password" name="newToken" placeholder="Discord token akun baru">
                                     </div>
                                     <div class="col" style="flex: 0.4;">
-                                        <button type="submit" name="action" value="newProfile" class="btn" style="background: var(--green); color: white;">➕ BUAT</button>
+                                        <button type="submit" name="action" value="newProfile" class="btn btn-primary">➕ Buat</button>
                                     </div>
                                 </div>
                             </div>
@@ -48,15 +64,22 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderMainSettings({ homePageCards = '', ringkasanCards = '' }) {
+    function renderMainSettings({ homePageCards = '', ringkasanCards = '', config = {}, profileOptions = [], viewingProfileName = '' }) {
+        const viewingProfileId = config.viewingProfileId || '';
+        const isControlPanel = !viewingProfileId;
+        const head = isControlPanel
+            ? `<div class="page-head"><h1>Menu Utama</h1><p>Control panel untuk semua akun. Halaman ini bukan akun default.</p></div>`
+            : `<div class="page-head"><h1>Profil Akun</h1><p>Sedang melihat akun <strong>${escapeHtml(viewingProfileName || viewingProfileId)}</strong> · ID ${escapeHtml(viewingProfileId)}. Semua setting di halaman lain berlaku untuk akun ini.</p></div>`;
         return `
                     <div id="tab-ringkasan" class="tab-content active">
+                        <div class="page-head"><h1>Ringkasan</h1><p>Status dan aktivitas command untuk satu akun. Pilih akun di bawah.</p></div>
 
                         ${ringkasanCards}
 
                     </div>
 
                     <div id="tab-main" class="tab-content">
+                        ${head}
 
                         ${homePageCards}
 
@@ -581,9 +604,15 @@ ${renderRestSettings(config.settings?.rest)}
         const mainTabLabel = context?.config?.viewingProfileId ? '👤 Profil Akun' : '🏠 Menu Utama';
         // Custom Commands & Command Tetap hanya relevan di halaman profil akun.
         const isProfilePage = !!context?.config?.viewingProfileId;
+        // Badge mengikuti mockup: jumlah Custom Commands terisi, "ON" untuk fitur
+        // yang aktif. Semua dihitung dari config, tidak ada angka hardcode.
+        const customCount = (context?.config?.otherCommands || [])
+            .filter(command => String(command?.text || '').trim()).length;
+        const badge = (text) => text ? ` <span class="badge">${escapeHtml(text)}</span>` : '';
+        const onBadge = (settings) => settings?.enabled ? 'ON' : '';
         const commandsMenuGroup = isProfilePage
             ? `<div class="settings-menu-group"><span>Commands Lucy</span>
-                            <button type="button" class="settings-menu-item" data-menu-label="Custom Commands" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Custom Commands" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands${badge(customCount ? String(customCount) : '')}</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Command Tetap lb+lh" onclick="switchTab(event, 'tab-lucy-fixed')">📌 Command Tetap lb+lh</button>
                         </div>`
             : '';
@@ -606,11 +635,11 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
 ${commandsMenuGroup}
                         <div class="settings-menu-group"><span>Fitur Lucy</span>
-                            <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Auto Boss2" onclick="switchTab(event, 'tab-lucy-boss2')">🐲 Auto Boss2${badge(onBadge(context?.config?.settings?.boss2))}</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Auto Use Gems" onclick="switchTab(event, 'tab-lucy-gems')">💎 Auto Use Gems</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Auto Adventure" onclick="switchTab(event, 'tab-lucy-adventure')">🗺️ Auto Adventure</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Huntbot2" onclick="switchTab(event, 'tab-lucy-huntbot2')">🤖 Huntbot2</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher <span class="badge">NEW</span></button>
                             <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
                         </div>
