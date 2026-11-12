@@ -70,12 +70,11 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
                 <span class="pill ${running ? 'pill-run' : ''}">${running ? '● RUNNING' : '⏸ PAUSED'}</span>
             </div>
             <div class="acct" style="margin-bottom:14px">
-                <div class="acct-av" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
+                <div class="acct-av" id="userProfileAvatar" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
                 <div class="acct-body">
-                    <strong>${escapeHtml(name)}</strong>
-                    <small>${escapeHtml(metaLine.join(' · '))}</small>
+                    <strong id="userProfileName">${escapeHtml(name)}</strong>
+                    <small id="userProfileMeta">${escapeHtml(metaLine.join(' · '))}</small>
                 </div>
-                <div id="userProfileBox" class="profile-box" data-control-panel="false">⏳ Menghubungi Discord API...</div>
             </div>
             <div class="action-row">
                 <button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 Connect / Login</button>
@@ -191,7 +190,7 @@ function renderPage(config) {
         </head>
         <body>
             <header class="topbar">
-                <button type="button" class="tb-burger" aria-label="Buka navigasi" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">☰</button>
+                <button type="button" class="tb-burger" aria-label="Buka navigasi" aria-controls="settingsMenu" aria-expanded="false" onclick="toggleSettingsMenu(event)">☰</button>
                 <div class="tb-account">
                     <span class="tb-avatar">${escapeHtml(topbarInitial)}</span>
                     <div style="min-width:0">

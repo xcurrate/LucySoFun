@@ -626,17 +626,12 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>`
             : '';
         return `
-                    <div class="settings-nav">
-                        <button type="button" class="hamburger-btn" aria-expanded="false" aria-controls="settingsMenu" onclick="toggleSettingsMenu(event)">
-                            <span class="hamburger-icon">☰</span><span>MENU</span>
-                        </button>
-                        <strong id="settingsCurrentLabel" class="settings-current">${mainTabLabel}</strong>
-                    </div>
                     <button type="button" class="settings-overlay" aria-label="Tutup navigasi" onclick="closeSettingsMenu()"></button>
                     <aside id="settingsMenu" class="settings-menu settings-sidebar" aria-label="Navigasi dashboard">
                         <div class="sidebar-brand">
                             <span class="sidebar-brand-mark">L</span>
                             <div><strong>LucySoFun</strong><small>Control Panel</small></div>
+                            <button type="button" class="sidebar-close" aria-label="Tutup navigasi" onclick="closeSettingsMenu()">✕</button>
                         </div>
                         <div class="settings-menu-group"><span>Dasar</span>
                             <button type="button" class="settings-menu-item active" data-menu-label="Ringkasan" onclick="switchTab(event, 'tab-ringkasan')">📊 Ringkasan</button>

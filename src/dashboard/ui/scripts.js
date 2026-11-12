@@ -169,29 +169,28 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 
                 // AUTO FETCH PROFILE SCRIPT
                 async function fetchProfile() {
+                    const avatarEl = document.getElementById('userProfileAvatar');
+                    const nameEl = document.getElementById('userProfileName');
+                    const metaEl = document.getElementById('userProfileMeta');
+                    if (!avatarEl) return;
                     try {
                         const res = await fetch('/api/profile' + profileQuery);
                         const data = await res.json();
-                        const profileBox = document.getElementById('userProfileBox');
-                        
+
                         if (data.username) {
                             const name = data.global_name || data.username;
-                            const avatarUrl = data.avatar 
+                            const avatarUrl = data.avatar
                                 ? \`https://cdn.discordapp.com/avatars/\${data.id}/\${data.avatar}.png?size=64\`
                                 : \`https://cdn.discordapp.com/embed/avatars/0.png\`;
-                                
-                            profileBox.innerHTML = \`
-                                <img src="\${avatarUrl}" alt="Avatar">
-                                <div>
-                                    <div style="color: var(--text); font-weight: bold; font-size: 14px;">\${name}</div>
-                                    <div style="font-size: 11px; color: #8e9297;">@\${data.username} (\${data.id})</div>
-                                </div>
-                            \`;
-                        } else {
-                            profileBox.innerHTML = '❌ Gagal memuat data akun. (Cek token)';
+
+                            avatarEl.innerHTML = \`<img src="\${avatarUrl}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover">\`;
+                            if (nameEl) nameEl.textContent = name;
+                            if (metaEl) metaEl.textContent = \`@\${data.username} · ID \${data.id}\`;
+                        } else if (metaEl) {
+                            metaEl.textContent = 'Gagal memuat data akun. (Cek token)';
                         }
                     } catch (err) {
-                        document.getElementById('userProfileBox').innerHTML = '⚠️ Koneksi ke Discord API gagal.';
+                        if (metaEl) metaEl.textContent = 'Koneksi ke Discord API gagal.';
                     }
                 }
                 if (!isControlPanel) {
@@ -247,7 +246,7 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
 
             function closeSettingsMenu() {
                 const menu = document.getElementById('settingsMenu');
-                const button = document.querySelector('.hamburger-btn');
+                const button = document.querySelector('.tb-burger');
                 if (menu) menu.classList.remove('open');
                 if (button) button.setAttribute('aria-expanded', 'false');
             }
@@ -266,19 +265,20 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     profilePinSection.style.display = tabId === 'tab-main' ? '' : 'none';
                 }
 
-                const currentLabel = document.getElementById('settingsCurrentLabel');
                 if (event && event.currentTarget) {
                     const control = event.currentTarget;
                     control.classList.add('active');
-                    const label = control.getAttribute('data-menu-label') || control.textContent.trim();
-                    if (currentLabel) currentLabel.textContent = label;
                 }
                 closeSettingsMenu();
             }
 
             document.addEventListener('click', function(event) {
-                const nav = document.querySelector('.settings-nav');
-                if (nav && !nav.contains(event.target)) closeSettingsMenu();
+                const menu = document.getElementById('settingsMenu');
+                if (!menu || !menu.classList.contains('open')) return;
+                // Klik pada tombol hamburger ditangani oleh toggle-nya sendiri,
+                // jangan sampai handler ini langsung menutup menu yang baru dibuka.
+                if (event.target.closest && event.target.closest('.tb-burger')) return;
+                if (!menu.contains(event.target)) closeSettingsMenu();
             });
         </script>
         `;
