@@ -79,7 +79,7 @@ test('set PIN locks a profile; correct PIN unlocks it and invalid PIN is rejecte
             headers: { Authorization: authHeader(), Cookie: cookie.split(';')[0] }
         });
         assert.equal(opened.status, 200);
-        assert.match(await opened.text(), /PIN PROFILE/);
+        assert.match(await opened.text(), /PIN Profile/);
     });
 });
 

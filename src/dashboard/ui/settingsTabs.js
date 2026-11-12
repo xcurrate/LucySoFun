@@ -1,6 +1,6 @@
 module.exports = function createSettingsTabs({ escapeHtml }) {
-    // Batas slot sebenarnya ada di config.multiAccount.maxAccounts (0 = belum diatur,
-    // artinya pakai batas absolut). Jangan hardcode 4 di tampilan.
+    // Batas slot sebenarnya ada di config.multiAccount.maxAccounts (0 = belum
+    // diatur, artinya pakai batas absolut). Jangan hardcode 4 di tampilan.
     const ABSOLUTE_MAX_SLOTS = 4;
 
     function renderMultiAccountCard({ profileOptions = [], maxAccounts = 0 }) {
@@ -8,10 +8,15 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         const usedSlots = Math.min(slotLimit, profileOptions.length);
         const remainingSlots = Math.max(0, slotLimit - usedSlots);
         const avatarHue = (id) => String(id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+        const statusOf = (profile) => {
+            if (profile.running) return { text: '● RUNNING', cls: 'pill-run' };
+            if (profile.hasConfig === false) return { text: '○ OFFLINE', cls: '' };
+            return { text: '⏸ PAUSED', cls: '' };
+        };
         return `
 <div class="card">
                             <div class="card-head">
-                                <h3>👥 MULTI ACCOUNT</h3>
+                                <h3>👥 Akun Tersimpan</h3>
                                 <span class="pill">${profileOptions.length} akun</span>
                             </div>
 
@@ -19,14 +24,18 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
                                 ${profileOptions.length ? profileOptions.map(profile => {
                                     const hue = avatarHue(profile.id);
                                     const initial = escapeHtml((profile.displayName || profile.id).trim().charAt(0).toUpperCase() || '?');
+                                    const status = statusOf(profile);
+                                    const metaBits = [`ID ${profile.id}`];
+                                    if (profile.meta?.username) metaBits.push('@' + profile.meta.username);
+                                    metaBits.push(profile.running ? 'command berjalan' : (profile.hasConfig === false ? 'belum connect' : 'command dijeda'));
                                     return `
                                     <div class="acct">
                                         <div class="acct-av" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
                                         <div class="acct-body">
                                             <strong>${profile.hasPin ? '🔒 ' : ''}${escapeHtml(profile.displayName)}
-                                                <span class="pill ${profile.running ? 'pill-run' : ''}">${profile.running ? '● RUNNING' : '⏸ PAUSED'}</span>
+                                                <span class="pill ${status.cls}">${status.text}</span>
                                             </strong>
-                                            <small>ID ${escapeHtml(profile.id)} · ${profile.running ? 'command berjalan' : 'command dijeda'}</small>
+                                            <small>${escapeHtml(metaBits.join(' · '))}</small>
                                         </div>
                                         <div class="acct-actions">
                                             <button type="submit" name="profileAction" value="connect:${escapeHtml(profile.id)}" class="btn btn-ghost icon-btn" title="Connect/Login akun ${escapeHtml(profile.id)} tanpa start loop">🔌</button>

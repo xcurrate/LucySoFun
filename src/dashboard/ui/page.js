@@ -24,20 +24,59 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
         `;
     }
 
-    // Halaman profil: kartu pengantar + status akun + aksi langsung. Daftar Custom
-    // Commands ada di tab sendiri, jadi tidak dirender ulang di sini.
-    function renderProfileHomeCard({ profileOptions = [], viewingProfileId = '' }) {
+    // Halaman Profil Akun mengikuti mockup: kartu Akun Aktif (avatar + meta +
+    // aksi), Ringkasan Akun Ini (statistik), PIN Profile, lalu pintasan ke
+    // Custom Commands. Statistik di sini memakai data-stat yang sama dengan
+    // tab Ringkasan, jadi refresh live tetap berlaku.
+    function renderProfileHomeCard({ profileOptions = [], viewingProfileId = '', snapshot = null, statsService = null }) {
         const current = profileOptions.find(profile => profile.id === viewingProfileId) || null;
-        const name = current ? escapeHtml(current.displayName) : escapeHtml(viewingProfileId);
         const others = profileOptions.filter(profile => profile.id !== viewingProfileId);
         const running = current ? current.running : false;
+        const name = current ? current.displayName : viewingProfileId;
+        const hue = String(viewingProfileId).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+        const initial = escapeHtml((name || viewingProfileId).trim().charAt(0).toUpperCase() || '?');
+        const meta = current?.meta || null;
+        const metaLine = [`ID ${viewingProfileId}`, running ? 'command berjalan' : 'command dijeda'];
+        if (meta?.username) metaLine.push('@' + meta.username);
+        const stats = snapshot && statsService ? `
+            <div class="divider"></div>
+            <div class="card-head" style="margin-bottom:10px"><h3>📊 Ringkasan Akun Ini</h3><span class="pill">${escapeHtml(name)}</span></div>
+            <div class="grid four">
+                <div class="stat">
+                    <div class="lbl">Uptime</div>
+                    <div class="val" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
+                    <div class="note" data-stat="startedAt">Sejak ${escapeHtml(snapshot.uptime.startedAt)}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Command terkirim</div>
+                    <div class="val" data-stat="commandTotal">${snapshot.commands.total}</div>
+                    <div class="note" data-stat="lastCommand">${escapeHtml(snapshot.commands.last ? `${snapshot.commands.last.cmd} • ${snapshot.commands.last.type}` : 'Belum ada command terkirim')}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Status</div>
+                    <div class="val" style="font-size:18px" data-stat="statusText">${escapeHtml(snapshot.status.text)}</div>
+                    <div class="note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Notifikasi</div>
+                    <div class="val" style="font-size:18px" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
+                    <div class="note">Telegram opsional</div>
+                </div>
+            </div>` : '';
         return `
         <div class="card">
             <div class="card-head">
                 <h3>👤 Akun Aktif</h3>
                 <span class="pill ${running ? 'pill-run' : ''}">${running ? '● RUNNING' : '⏸ PAUSED'}</span>
             </div>
-            <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="false">⏳ Menghubungi Discord API...</div>
+            <div class="acct" style="margin-bottom:14px">
+                <div class="acct-av" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
+                <div class="acct-body">
+                    <strong>${escapeHtml(name)}</strong>
+                    <small>${escapeHtml(metaLine.join(' · '))}</small>
+                </div>
+                <div id="userProfileBox" class="profile-box" data-control-panel="false">⏳ Menghubungi Discord API...</div>
+            </div>
             <div class="action-row">
                 <button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 Connect / Login</button>
                 <button type="submit" name="action" value="startProfile" class="btn btn-start">▶ Start / Resume</button>
@@ -45,7 +84,20 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
                 <button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 Join Voice</button>
                 <button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 Logout</button>
             </div>
-            <p class="input-hint">Tombol di atas adalah aksi langsung dan tidak masuk savebar. Start/Resume memakai konfigurasi yang <strong>sudah tersimpan</strong> — kalau ada perubahan di layar, simpan dulu lewat savebar.</p>
+            <div class="callout">
+                <span class="co-ico">⚠️</span>
+                <p>Tombol di atas adalah aksi langsung dan tidak masuk savebar. Start/Resume memakai konfigurasi yang <strong>sudah tersimpan</strong> — kalau ada perubahan di layar, simpan dulu lewat savebar.</p>
+            </div>
+            ${stats}
+            <div class="divider"></div>
+            <div class="card-head" style="margin-bottom:10px">
+                <h3>➡️ Lanjut ke Commands</h3>
+            </div>
+            <p class="input-hint">Custom Commands dan Command Tetap lb+lh kini punya menu sendiri di sidebar, sejajar dengan fitur Lucy lain.</p>
+            <div class="action-row">
+                <button type="button" class="btn btn-primary" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands</button>
+                <button type="button" class="btn btn-ghost" onclick="switchTab(event, 'tab-lucy-fixed')">📌 Command Tetap lb+lh</button>
+            </div>
             ${others.length ? `
             <div class="divider"></div>
             <div class="section-label">Ganti akun</div>
@@ -100,6 +152,7 @@ function renderPage(config) {
             const isRunning = !!profileStatus.running && !profileStatus.paused;
             return {
                 id,
+                hasConfig: !!profileConfig,
                 meta: (() => { const meta = profileManager.getProfileMeta(id); return meta ? { username: meta.username, globalName: meta.globalName, avatar: meta.avatar } : null; })(),
                 hasPin: !!profileManager.getProfileMeta(id)?.pin,
                 displayName: profileManager.getProfileDisplayName(id),
@@ -175,7 +228,7 @@ function renderPage(config) {
                         voice,
                         viewingProfileName,
                         homePageCards: viewingProfileId
-                            ? renderProfileHomeCard({ profileOptions, viewingProfileId })
+                            ? renderProfileHomeCard({ profileOptions, viewingProfileId, snapshot: statsSnapshot, statsService })
                             : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),
                         ringkasanCards,
                     })}
@@ -183,31 +236,36 @@ function renderPage(config) {
 
                 ${viewingProfileId ? `
                 <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px; display:none">
-                    <label>🔒 PIN PROFILE</label>
-                    <p style="font-size:13px;color:#aeb7c8">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional. Tanpa PIN, profile dapat dibuka langsung.'}</p>
+                    <div class="card-head">
+                        <h3>🔒 PIN Profile</h3>
+                        <span class="pill ${viewingProfileHasPin ? 'pill-run' : ''}">${viewingProfileHasPin ? '🔒 Aktif' : 'Tanpa PIN'}</span>
+                    </div>
+                    <p class="input-hint">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional — tanpa PIN, profile dapat dibuka langsung.'}</p>
                     ${viewingProfileHasPin ? `
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin" style="margin-bottom:12px">
+                    <form class="pin-row" method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
                         <input type="hidden" name="pinAction" value="change">
                         <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
                         <input type="password" name="newPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="new-password" placeholder="PIN baru (4 digit)" required>
-                        <button class="btn btn-save" type="submit">Ganti PIN</button>
+                        <button class="btn btn-primary" type="submit">Ganti PIN</button>
                     </form>
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin" style="margin-bottom:12px">
-                        <input type="hidden" name="pinAction" value="delete">
-                        <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
-                        <button class="btn btn-pause" type="submit">Hapus PIN</button>
-                    </form>
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/lock">
-                        <button class="btn btn-home" type="submit">🔒 Kunci Profile</button>
-                    </form>
+                    <div class="pin-row">
+                        <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/lock">
+                            <button class="btn btn-ghost" type="submit">🔒 Kunci Profile</button>
+                        </form>
+                        <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
+                            <input type="hidden" name="pinAction" value="delete">
+                            <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
+                            <button class="btn btn-warn" type="submit">Hapus PIN</button>
+                        </form>
+                    </div>
                     ` : `
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
+                    <form class="pin-row" method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
                         <input type="hidden" name="pinAction" value="set">
                         <input type="password" name="newPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="new-password" placeholder="PIN baru (4 digit)" required>
-                        <button class="btn btn-save" type="submit">Tambah PIN</button>
+                        <button class="btn btn-primary" type="submit">Tambah PIN</button>
                     </form>
                     `}
-                    <p style="font-size:12px;color:#aeb7c8">Lupa PIN? Pemilik server harus menghapus properti <code>profiles[${viewingProfileId}].pin</code> dari <code>profiles/meta.json</code>. Tidak ada reset PIN dari dashboard.</p>
+                    <p class="input-hint">Lupa PIN? Pemilik server harus menghapus properti <code>profiles[${viewingProfileId}].pin</code> dari <code>profiles/meta.json</code>. Tidak ada reset PIN dari dashboard.</p>
                 </section>
                 ` : ''}
             </div>

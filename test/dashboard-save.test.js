@@ -199,7 +199,7 @@ test('control panel shows Multi Account, profile page shows Custom Commands, and
         const auth = { Authorization: authHeader() };
         const controlPanel = await (await fetch(url, { headers: auth })).text();
         // Control panel: kartu Multi Account + tombol menuju halaman profil.
-        assert.match(controlPanel, /👥 MULTI ACCOUNT/);
+        assert.match(controlPanel, /👥 Akun Tersimpan/);
         assert.match(controlPanel, new RegExp(`href="/\\?profileId=${profileId}"`));
         assert.match(controlPanel, /👤 HALAMAN PROFIL/);
         assert.match(controlPanel, /🏠 Menu Utama/);
@@ -215,7 +215,7 @@ test('control panel shows Multi Account, profile page shows Custom Commands, and
         assert.match(profilePage, /⌂ MENU UTAMA/);
         assert.match(profilePage, /👤 Profil Akun/);
         // Kartu Multi Account tidak ada di halaman profil.
-        assert.doesNotMatch(profilePage, /👥 MULTI ACCOUNT/);
+        assert.doesNotMatch(profilePage, /👥 Akun Tersimpan/);
         assert.doesNotMatch(profilePage, /👤 HALAMAN PROFIL/);
     });
 });

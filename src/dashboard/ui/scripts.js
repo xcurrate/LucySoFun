@@ -46,9 +46,9 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         const item = parseLogLine(line);
                         const levelClass = getLogLevelClass(item.level);
                         return '<div class="log-line ' + levelClass + '">' +
-                            '<span class="log-time">' + escapeHtml(item.time) + '</span>' +
-                            '<span class="log-level">' + escapeHtml(item.level) + '</span>' +
-                            '<span class="log-message">' + escapeHtml(item.message) + '</span>' +
+                            '<span class="t">' + escapeHtml(item.time) + '</span>' +
+                            '<span class="lv">' + escapeHtml(item.level) + '</span>' +
+                            '<span class="m">' + escapeHtml(item.message) + '</span>' +
                         '</div>';
                     }).join('');
 
@@ -73,9 +73,10 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     }
                 }
 
+                // Halaman Ringkasan dan kartu "Ringkasan Akun Ini" memakai
+                // data-stat yang sama, jadi semua kecocokan harus diperbarui.
                 function updateText(selector, text) {
-                    const el = document.querySelector(selector);
-                    if (el) el.textContent = text;
+                    document.querySelectorAll(selector).forEach(el => { el.textContent = text; });
                 }
 
                 function renderCommandTypes(byType) {
@@ -93,11 +94,11 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     const entries = (commands || []).slice(-5).reverse();
                     target.innerHTML = entries.length
                         ? entries.map(item => '<div class="recent-item">' +
-                            '<span class="recent-muted">' + escapeHtml(item.atFormatted || '-') + '</span>' +
-                            '<strong>' + escapeHtml(item.type || 'Command') + '</strong>' +
-                            '<span>' + escapeHtml(item.cmd || '-') + '</span>' +
+                            '<span class="tt">' + escapeHtml(item.atFormatted || '-') + '</span>' +
+                            '<span class="pill">' + escapeHtml(item.type || 'Command') + '</span>' +
+                            '<span class="m">' + escapeHtml(item.cmd || '-') + '</span>' +
                         '</div>').join('')
-                        : '<div class="recent-item"><span class="recent-muted">Belum ada command terkirim sejak bot berjalan.</span></div>';
+                        : '<div class="recent-item"><span class="m">Belum ada command terkirim sejak bot berjalan.</span></div>';
                 }
 
                 const viewingProfileId = ${viewingProfileIdJson};
