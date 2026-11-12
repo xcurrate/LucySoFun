@@ -171,8 +171,6 @@ function getStyles() {
             .settings-nav-heading { display:grid; gap:2px; }
             .settings-nav-heading .section-label { margin:0; color:#8b9ab4; }
             .settings-nav-heading strong { font-size:15px; color:var(--text); }
-            .settings-select-label { margin:0; font-size:11px; color:#aab7cd; }
-            .settings-category-select { margin:0 !important; min-height:46px; border-radius:12px !important; font-weight:750; }
             .category-heading { align-items:center; padding:20px 22px; margin-bottom:18px; background:linear-gradient(120deg,rgba(99,102,241,.13),rgba(16,24,39,.95) 68%); border-color:#344567; border-radius:20px; }
             .category-heading h3 { font-size:clamp(20px,2.4vw,26px); }
             .category-heading p { color:var(--muted); text-align:left; }
@@ -218,9 +216,6 @@ function getStyles() {
             .sidebar-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: linear-gradient(135deg,#818cf8,#4f46e5); color: white; font-size: 22px; font-weight: 900; }
             .sidebar-brand strong,.sidebar-brand small { display: block; }
             .sidebar-brand strong { font-size: 15px; }.sidebar-brand small { color: var(--muted); font-size: 10px; margin-top: 2px; }
-            .settings-select-label { margin: 0; }
-            .settings-category-select { margin-top: 6px !important; }
-            .sidebar-divider { height: 1px; background: var(--border); }
             .settings-menu-group { display: grid; gap: 5px; }
             .settings-menu-group > span { padding: 0 8px 4px; color: #8998b2; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .09em; }
             .settings-menu-item { padding: 10px 12px; border-radius: 10px; font-size: 13px; text-align: left; }
@@ -281,9 +276,6 @@ function getStyles() {
                 .settings-nav { display: none; }
                 .settings-overlay { display: none !important; }
                 .settings-menu.settings-sidebar { transform: none; visibility: visible; width: var(--sidebar-w); padding: 16px 12px 26px; border-radius: 0; border-right: 1px solid var(--border); background: #0b1322; box-shadow: none; }
-                .settings-menu.settings-sidebar .sidebar-divider { display: none; }
-                .settings-menu.settings-sidebar .settings-select-label,
-                .settings-menu.settings-sidebar .settings-category-select { display: none; }
             }
             @media (max-width: 860px) {
                 .topbar { display: flex; }

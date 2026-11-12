@@ -265,21 +265,13 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     profilePinSection.style.display = tabId === 'tab-main' ? '' : 'none';
                 }
 
-                const categorySelect = document.getElementById('settingsCategory');
                 const currentLabel = document.getElementById('settingsCurrentLabel');
-                if (categorySelect) categorySelect.value = tabId;
                 if (event && event.currentTarget) {
                     const control = event.currentTarget;
-                    if (control.tagName === 'SELECT') {
-                        const option = control.options[control.selectedIndex];
-                        if (currentLabel) currentLabel.textContent = option ? option.textContent.trim() : 'Pengaturan';
-                    } else {
-                        control.classList.add('active');
-                        const label = control.getAttribute('data-menu-label') || control.textContent.trim();
-                        if (currentLabel) currentLabel.textContent = label;
-                    }
+                    control.classList.add('active');
+                    const label = control.getAttribute('data-menu-label') || control.textContent.trim();
+                    if (currentLabel) currentLabel.textContent = label;
                 }
-
                 closeSettingsMenu();
             }
 

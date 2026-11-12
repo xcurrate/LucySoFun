@@ -48,9 +48,15 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderMainSettings({ homePageCards = '' }) {
+    function renderMainSettings({ homePageCards = '', ringkasanCards = '' }) {
         return `
-                    <div id="tab-main" class="tab-content active">
+                    <div id="tab-ringkasan" class="tab-content active">
+
+                        ${ringkasanCards}
+
+                    </div>
+
+                    <div id="tab-main" class="tab-content">
 
                         ${homePageCards}
 
@@ -575,12 +581,6 @@ ${renderRestSettings(config.settings?.rest)}
         const mainTabLabel = context?.config?.viewingProfileId ? '👤 Profil Akun' : '🏠 Menu Utama';
         // Custom Commands & Command Tetap hanya relevan di halaman profil akun.
         const isProfilePage = !!context?.config?.viewingProfileId;
-        const commandsSelectGroup = isProfilePage
-            ? `<optgroup label="Commands Lucy">
-                                <option value="tab-lucy-commands">🧩 Custom Commands</option>
-                                <option value="tab-lucy-fixed">📌 Command Tetap lb+lh</option>
-                            </optgroup>`
-            : '';
         const commandsMenuGroup = isProfilePage
             ? `<div class="settings-menu-group"><span>Commands Lucy</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Custom Commands" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands</button>
@@ -598,27 +598,11 @@ ${renderRestSettings(config.settings?.rest)}
                     <aside id="settingsMenu" class="settings-menu settings-sidebar" aria-label="Navigasi dashboard">
                         <div class="sidebar-brand">
                             <span class="sidebar-brand-mark">L</span>
-                            <div><strong>LucySoFun</strong><small>Dashboard Navigation</small></div>
+                            <div><strong>LucySoFun</strong><small>Control Panel</small></div>
                         </div>
-                        <label class="settings-select-label" for="settingsCategory">Kategori Fitur</label>
-                        <select id="settingsCategory" class="input-select settings-category-select" aria-label="Pilih kategori fitur" onchange="switchTab(event, this.value)">
-                            <optgroup label="Dasar"><option value="tab-main" selected>${mainTabLabel}</option></optgroup>
-${commandsSelectGroup}
-                            <optgroup label="Fitur Lucy">
-                                <option value="tab-lucy-boss2">🐲 Auto Boss2</option><option value="tab-lucy-gems">💎 Auto Use Gems</option>
-                                <option value="tab-lucy-adventure">🗺️ Auto Adventure</option><option value="tab-lucy-huntbot2">🤖 Huntbot2</option>
-                                <option value="tab-lucy-monster-catcher">🐾 Monster Catcher</option><option value="tab-lucy-voice">🔊 Voice Channel</option>
-                                <option value="tab-lucy-control">🎮 Kontrol Lucy</option>
-                            </optgroup>
-                            <optgroup label="Sistem">
-                                <option value="tab-notifications">📱 Notifikasi</option><option value="tab-integrations">🔌 Integrasi Sistem</option>
-                                <option value="tab-safety">🛡️ Safety &amp; Filter</option><option value="tab-rest">😴 Istirahat</option>
-                                <option value="tab-message-debug">🔎 Debug Pesan</option><option value="tab-control">🎮 Kontrol &amp; Sistem</option>
-                            </optgroup>
-                        </select>
-                        <div class="sidebar-divider"></div>
                         <div class="settings-menu-group"><span>Dasar</span>
-                            <button type="button" class="settings-menu-item active" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
+                            <button type="button" class="settings-menu-item active" data-menu-label="Ringkasan" onclick="switchTab(event, 'tab-ringkasan')">📊 Ringkasan</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
                         </div>
 ${commandsMenuGroup}
                         <div class="settings-menu-group"><span>Fitur Lucy</span>

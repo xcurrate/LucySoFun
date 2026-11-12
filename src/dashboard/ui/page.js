@@ -108,6 +108,16 @@ function renderPage(config) {
         const topbarStatus = statusText || 'OFFLINE';
         const topbarStatusClass = statusClass === 'running' ? 'run' : '';
 
+        // Halaman Ringkasan: status akun, cakupan, statistik, dan log langsung.
+        const ringkasanCards = `
+                <div class="status-box ${statusClass}">
+                    <span style="font-size: 16px;">${statusText}</span>
+                    ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
+                </div>
+                ${viewingProfileId && profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
+                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}
+                ${getLogCard()}`;
+
         return `
         <!DOCTYPE html>
         <html lang="en">
@@ -173,11 +183,12 @@ function renderPage(config) {
                         homePageCards: viewingProfileId
                             ? renderProfileHomeCard({ profileOptions, viewingProfileId })
                             : renderMultiAccountCard({ profileOptions }),
+                        ringkasanCards,
                     })}
                 </form>
 
                 ${viewingProfileId ? `
-                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px">
+                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px; display:none">
                     <label>🔒 PIN PROFILE</label>
                     <p style="font-size:13px;color:#aeb7c8">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional. Tanpa PIN, profile dapat dibuka langsung.'}</p>
                     ${viewingProfileHasPin ? `
@@ -205,17 +216,6 @@ function renderPage(config) {
                     <p style="font-size:12px;color:#aeb7c8">Lupa PIN? Pemilik server harus menghapus properti <code>profiles[${viewingProfileId}].pin</code> dari <code>profiles/meta.json</code>. Tidak ada reset PIN dari dashboard.</p>
                 </section>
                 ` : ''}
-
-                <div class="status-box ${statusClass}">
-                    <span style="font-size: 16px;">${statusText}</span>
-
-                    ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
-                </div>
-
-                ${viewingProfileId && profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
-
-                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}
-                ${getLogCard()}
             </div>
             <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
             <div id="unsavedBanner" class="unsaved-banner warning" style="display:none" role="status" aria-live="polite">

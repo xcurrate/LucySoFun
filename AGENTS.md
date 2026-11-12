@@ -82,8 +82,10 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Savebar tetap (`#unsavedSave`, `#unsavedCancel`, `#unsavedBanner`) di `page.js` + `.save-toast`/`.scope-bar` di `styles.js`; counter `dirtyCount`/`trackUnsaved()` menandai perubahan form yang belum disimpan.
 - Navigation buttons live in the action group: control panel shows **🔐 IZIN SLOT AKUN** and **👤 HALAMAN PROFIL** (links to the main/first saved profile); the profile page shows **⌂ MENU UTAMA**. The "HALAMAN PROFIL" target is `activeProfileId` when it is a saved profile, else the first saved profile.
 - The `tab-main` menu/select label is context-aware: `🏠 Menu Utama` on the control panel, `👤 Profil Akun` on a profile page (`mainTabLabel` in `renderSettingsTabs`).
-- Statistics, bot info (`#userProfileBox`), and logs render outside the tab container, so they are always visible on both modes.
+- Bot info (`#userProfileBox`) renders outside the tab container, so it is always visible on both modes. Statistics and the live log live inside `tab-ringkasan` (the default tab).
 - Layout (v7): sidebar kiri **permanen** (250px) + **topbar** sticky dengan nama akun, status pill, dan tombol START/PAUSE (`form="configForm"`). Di layar < 861px sidebar berubah jadi drawer (tombol ☰ di topbar, `toggleSettingsMenu`), dan topbar menyembunyikan nama/pill/aksi. CSS-nya di blok `/* ===== v7 layout ===== */` `styles.js`; markup topbar di `renderPage` (`page.js`), sidebar di `renderSettingsTabs` (`settingsTabs.js`).
+- Sidebar hanya punya SATU daftar nav: grup `Dasar` (📊 Ringkasan, Menu Utama/Profil Akun), `Commands Lucy` (halaman profil saja), `Fitur Lucy`, `Sistem`. Jangan menambah lagi select "Kategori Fitur" atau blok nav kedua — itu bug lama yang sudah dihapus.
+- Tab default adalah `tab-ringkasan` (statistik + log langsung). `tab-main` berisi kartu Menu Utama/Multi Account atau Profil Akun. `#profilePinSection` ada di luar form tab dan disembunyikan (`display:none`) kecuali saat `tab-main` aktif (diatur `switchTab`).
 
 ## Dashboard profile actions
 
