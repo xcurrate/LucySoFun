@@ -183,3 +183,25 @@ test('PIN metadata stores only salted hash and is never rendered in dashboard HT
         assert.equal(html.includes(meta.profiles[PROFILE_A].pin.salt), false);
     });
 });
+
+test('halaman Profil Akun menampilkan kartu Log Akun Ini khusus akun tersebut', async () => {
+    await withDashboard(async (url) => {
+        const html = await (await fetch(`${url}/?profileId=${PROFILE_A}`, {
+            headers: { Authorization: authHeader() }
+        })).text();
+
+        // Kartu log per-akun hadir, terpisah dari kartu log Ringkasan.
+        assert.match(html, /id="logBoxProfile"/);
+        assert.match(html, /Log Akun Ini/);
+        assert.match(html, /data-empty="✨ Belum ada log untuk akun ini/);
+        assert.match(html, /Hanya menampilkan log milik akun/);
+
+        // Kotak log generik memakai penanda data-log-box agar script mengisi semuanya.
+        assert.match(html, /id="logBox" data-log-box/);
+        assert.match(html, /querySelectorAll\('\[data-log-box\]'\)/);
+
+        // Halaman Menu Utama tidak menampilkan kartu log per-akun.
+        const control = await (await fetch(`${url}/`, { headers: { Authorization: authHeader() } })).text();
+        assert.doesNotMatch(control, /id="logBoxProfile"/);
+    });
+});

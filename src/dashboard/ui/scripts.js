@@ -30,34 +30,38 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 }
 
                 function renderLogs(lines) {
-                    const logBox = document.getElementById('logBox');
-                    if (!logBox) return;
-                    if (isSelectingInside(logBox)) return;
+                    const boxes = document.querySelectorAll('[data-log-box]');
+                    if (!boxes.length) return;
 
-                    const previousScrollTop = logBox.scrollTop;
-                    const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
-                    const shouldStickToBottom = logBox.dataset.userScrolled !== 'true' || distanceFromBottom < 48;
+                    boxes.forEach(logBox => {
+                        if (isSelectingInside(logBox)) return;
 
-                    if (!lines || !lines.length) {
-                        logBox.innerHTML = '<div class="log-empty">✨ Belum ada log...</div>';
-                        return;
-                    }
-                    logBox.innerHTML = lines.map(line => {
-                        const item = parseLogLine(line);
-                        const levelClass = getLogLevelClass(item.level);
-                        return '<div class="log-line ' + levelClass + '">' +
-                            '<span class="t">' + escapeHtml(item.time) + '</span>' +
-                            '<span class="lv">' + escapeHtml(item.level) + '</span>' +
-                            '<span class="m">' + escapeHtml(item.message) + '</span>' +
-                        '</div>';
-                    }).join('');
+                        const previousScrollTop = logBox.scrollTop;
+                        const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
+                        const shouldStickToBottom = logBox.dataset.userScrolled !== 'true' || distanceFromBottom < 48;
 
-                    if (shouldStickToBottom) {
-                        logBox.scrollTop = logBox.scrollHeight;
-                        logBox.dataset.userScrolled = 'false';
-                    } else {
-                        logBox.scrollTop = previousScrollTop;
-                    }
+                        if (!lines || !lines.length) {
+                            const emptyText = logBox.dataset.empty || '✨ Belum ada log...';
+                            logBox.innerHTML = '<div class="log-empty">' + escapeHtml(emptyText) + '</div>';
+                            return;
+                        }
+                        logBox.innerHTML = lines.map(line => {
+                            const item = parseLogLine(line);
+                            const levelClass = getLogLevelClass(item.level);
+                            return '<div class="log-line ' + levelClass + '">' +
+                                '<span class="t">' + escapeHtml(item.time) + '</span>' +
+                                '<span class="lv">' + escapeHtml(item.level) + '</span>' +
+                                '<span class="m">' + escapeHtml(item.message) + '</span>' +
+                            '</div>';
+                        }).join('');
+
+                        if (shouldStickToBottom) {
+                            logBox.scrollTop = logBox.scrollHeight;
+                            logBox.dataset.userScrolled = 'false';
+                        } else {
+                            logBox.scrollTop = previousScrollTop;
+                        }
+                    });
                 }
 
                 async function refreshLogs() {
@@ -104,13 +108,12 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 const viewingProfileId = ${viewingProfileIdJson};
                 const isControlPanel = ${isControlPanelJson};
                 const profileQuery = viewingProfileId ? '?profileId=' + encodeURIComponent(viewingProfileId) : '';
-                const logBox = document.getElementById('logBox');
-                if (logBox) {
+                document.querySelectorAll('[data-log-box]').forEach(logBox => {
                     logBox.addEventListener('scroll', () => {
                         const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
                         logBox.dataset.userScrolled = distanceFromBottom >= 48 ? 'true' : 'false';
                     }, { passive: true });
-                }
+                });
 
                 async function refreshStats() {
                     try {

@@ -228,6 +228,13 @@ function renderPage(config) {
                         viewingProfileName,
                         homePageCards: viewingProfileId
                             ? renderProfileHomeCard({ profileOptions, viewingProfileId, snapshot: statsSnapshot, statsService })
+                                + getLogCard({
+                                    id: 'logBoxProfile',
+                                    title: '🧾 Log Akun Ini',
+                                    stamp: 'live',
+                                    emptyText: '✨ Belum ada log untuk akun ini...',
+                                    hint: `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`
+                                })
                             : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),
                         ringkasanCards,
                     })}

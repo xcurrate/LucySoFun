@@ -1,11 +1,12 @@
-function getLogCard() {
+function getLogCard({ id = 'logBox', title = '🧾 Log Langsung', stamp = 'live', emptyText = '✨ Belum ada log...', hint = '' } = {}) {
         return `
         <div class="card">
             <div class="card-head">
-                <h3>🧾 Log Langsung</h3>
-                <span class="pill" id="logStamp">live</span>
+                <h3>${title}</h3>
+                <span class="pill">${stamp}</span>
             </div>
-            <div id="logBox" class="log-box"><div class="log-empty">(loading...)</div></div>
+            ${hint ? `<p class="input-hint">${hint}</p>` : ''}
+            <div id="${id}" data-log-box data-empty="${emptyText}" class="log-box"><div class="log-empty">(loading...)</div></div>
         </div>
         `;
     }
