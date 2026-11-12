@@ -80,14 +80,14 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
             ? `<div class="page-head"><h1>Menu Utama</h1><p>Control panel untuk semua akun. Halaman ini bukan akun default.</p></div>`
             : `<div class="page-head"><h1>Profil Akun</h1><p>Sedang melihat akun <strong>${escapeHtml(viewingProfileName || viewingProfileId)}</strong> · ID ${escapeHtml(viewingProfileId)}. Semua setting di halaman lain berlaku untuk akun ini.</p></div>`;
         return `
-                    <div id="tab-ringkasan" class="tab-content active">
+                    <div id="tab-ringkasan" class="tab-content">
                         <div class="page-head"><h1>Ringkasan</h1><p>Status dan aktivitas command untuk satu akun. Pilih akun di bawah.</p></div>
 
                         ${ringkasanCards}
 
                     </div>
 
-                    <div id="tab-main" class="tab-content">
+                    <div id="tab-main" class="tab-content active">
                         ${head}
 
                         ${homePageCards}
@@ -634,8 +634,8 @@ ${renderRestSettings(config.settings?.rest)}
                             <button type="button" class="sidebar-close" aria-label="Tutup navigasi" onclick="closeSettingsMenu()">✕</button>
                         </div>
                         <div class="settings-menu-group"><span>Dasar</span>
-                            <button type="button" class="settings-menu-item active" data-menu-label="Ringkasan" onclick="switchTab(event, 'tab-ringkasan')">📊 Ringkasan</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Ringkasan" onclick="switchTab(event, 'tab-ringkasan')">📊 Ringkasan</button>
+                            <button type="button" class="settings-menu-item active" data-menu-label="${mainTabLabel}" onclick="switchTab(event, 'tab-main')">${mainTabLabel}</button>
                         </div>
 ${commandsMenuGroup}
                         <div class="settings-menu-group"><span>Fitur Lucy</span>

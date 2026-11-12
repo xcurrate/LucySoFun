@@ -234,7 +234,7 @@ function renderPage(config) {
                 </form>
 
                 ${viewingProfileId ? `
-                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px; display:none">
+                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px">
                     <div class="card-head">
                         <h3>🔒 PIN Profile</h3>
                         <span class="pill ${viewingProfileHasPin ? 'pill-run' : ''}">${viewingProfileHasPin ? '🔒 Aktif' : 'Tanpa PIN'}</span>
@@ -376,10 +376,15 @@ function renderPage(config) {
                         }
                     };
                     const markDirty = (event) => {
+                        const fieldName = event && event.target && event.target.name;
+                        // Token akun baru punya tombol simpan sendiri (➕ Buat), jadi
+                        // jangan pernah masuk hitungan savebar: kalau tokennya salah,
+                        // peringatan "belum tersimpan" tidak boleh tertinggal di layar.
+                        if (fieldName === 'newToken') return;
                         dirty = true;
                         // Hitung elemen berbeda yang berubah, bukan tiap ketikan.
-                        if (event && event.target && event.target.name && !dirtyFields.has(event.target.name)) {
-                            dirtyFields.add(event.target.name);
+                        if (fieldName && !dirtyFields.has(fieldName)) {
+                            dirtyFields.add(fieldName);
                         }
                         dirtyCount = dirtyFields.size || 1;
                         showBanner();
@@ -490,6 +495,25 @@ function renderPage(config) {
                         submitter.textContent = '✓ BERHASIL';
                         showToast('success', 'Tersimpan');
                         unsaved?.markClean();
+
+                        // "➕ Buat" menyimpan slot akun baru, jadi muat ulang supaya
+                        // daftar "Akun Tersimpan" langsung menampilkan akun baru.
+                        // Kalau ada perubahan lain yang belum disimpan, jangan reload
+                        // agar perubahan itu tidak hilang diam-diam.
+                        if (submitter.name === 'action' && submitter.value === 'newProfile') {
+                            const tokenInput = form.querySelector('input[name="newToken"]');
+                            if (tokenInput) tokenInput.value = '';
+                            if (unsaved?.isDirty()) {
+                                showToast('success', 'Akun baru dibuat. Simpan perubahan lain dulu, lalu muat ulang.');
+                            } else {
+                                setTimeout(() => window.location.reload(), 600);
+                            }
+                            setTimeout(() => {
+                                submitter.disabled = false;
+                                submitter.textContent = originalText;
+                            }, 1000);
+                            return;
+                        }
 
                         setTimeout(() => {
                             submitter.disabled = false;

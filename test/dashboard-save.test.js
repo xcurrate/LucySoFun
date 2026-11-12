@@ -712,3 +712,36 @@ test('control panel lists saved accounts from the bot working directory', async 
         fs.rmSync(botDir, { recursive: true, force: true });
     }
 });
+
+test('control panel opens on Menu Utama (tab-main), not Ringkasan', async () => {
+    const profileId = '100000000000000008';
+    await withSeededDashboard({
+        mainConfig: { token: '', settings: {}, multiAccount: { enabled: true, maxAccounts: 1 } },
+        profiles: {
+            [profileId]: { token: makeToken(profileId), botStatus: { running: false, paused: true }, settings: {} }
+        }
+    }, async (url) => {
+        const auth = { Authorization: authHeader() };
+
+        const controlPanel = await (await fetch(url, { headers: auth })).text();
+        assert.match(controlPanel, /id="tab-main" class="tab-content active"/);
+        assert.match(controlPanel, /id="tab-ringkasan" class="tab-content"/);
+        assert.match(controlPanel, /class="settings-menu-item active" data-menu-label="🏠 Menu Utama"/);
+
+        const profilePage = await (await fetch(`${url}/?profileId=${profileId}`, { headers: auth })).text();
+        assert.match(profilePage, /id="tab-main" class="tab-content active"/);
+        assert.match(profilePage, /class="settings-menu-item active" data-menu-label="👤 Profil Akun"/);
+        // Kartu PIN ikut terlihat karena halaman profil kini default-nya tab-main.
+        assert.match(profilePage, /id="profilePinSection" class="card profile-home-only" style="margin-top:16px"/);
+    });
+});
+
+test('new-account token field is excluded from the unsaved-changes banner', async () => {
+    await withDashboard(async (url) => {
+        const html = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
+        assert.match(html, /if \(fieldName === 'newToken'\) return;/);
+        // Tombol Buat memuat ulang halaman agar akun baru muncul di daftar.
+        assert.match(html, /submitter\.value === 'newProfile'/);
+        assert.match(html, /window\.location\.reload\(\)/);
+    });
+});
