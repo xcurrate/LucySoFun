@@ -2,22 +2,22 @@ function getStyles() {
         return `
         <style>
             :root {
-                --bg: #0c1118;
-                --panel: #121923;
-                --panel-soft: #182231;
-                --panel-strong: #1d2939;
-                --text: #eef2f6;
-                --muted: #98a2b3;
-                --border: #263345;
-                --accent: #8ea4ff;
-                --accent-solid: #5865f2;
-                --green: #47cd89;
-                --red: #f97066;
-                --yellow: #fdb022;
-                --blue-soft: #202b46;
-                --green-soft: #163526;
-                --red-soft: #3b1f23;
-                --yellow-soft: #3a2d16;
+                --bg: #080d18;
+                --panel: #101827;
+                --panel-soft: #151f31;
+                --panel-strong: #1b2940;
+                --text: #f4f7ff;
+                --muted: #9aa8bf;
+                --border: #263650;
+                --accent: #a5b4fc;
+                --accent-solid: #6366f1;
+                --green: #4adea1;
+                --red: #fb7185;
+                --yellow: #fbbf24;
+                --blue-soft: #202d4a;
+                --green-soft: #123629;
+                --red-soft: #3d202c;
+                --yellow-soft: #3a2e19;
                 --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
             }
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: Inter, 'Segoe UI', system-ui, sans-serif; }
@@ -294,6 +294,23 @@ function getStyles() {
             }
 
             /* ===== v7 content polish: toggle switch, kartu, tipografi ===== */
+            /* Item sidebar mengikuti .nav-item mockup: ikon rata kiri, hover, glow saat aktif. */
+            .settings-menu.settings-sidebar { gap: 6px; }
+            .settings-menu-group { gap: 4px; }
+            .settings-menu-group > span { padding: 12px 8px 3px; letter-spacing: .1em; }
+            .settings-menu-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border-radius: 11px; border: 1px solid transparent; background: none; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
+            .settings-menu-item:hover { background: var(--panel-soft); border-color: var(--border); }
+            .settings-menu-item.active { background: rgba(99,102,241,.16); border-color: rgba(129,140,248,.35); color: #c7d2fe; }
+            .sidebar-brand { padding: 4px 8px 16px; margin-bottom: 8px; }
+            .sidebar-brand strong { font-size: 15px; letter-spacing: -.02em; }
+            .sidebar-brand small { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+
+            /* Header kartu: label pertama jadi judul seperti .card-head mockup. */
+            .card > label:first-child { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; color: var(--text); text-transform: none; letter-spacing: -.01em; margin-bottom: 14px; }
+            .card > label:first-child + .input-hint { margin-top: -8px; }
+
+            .stat-card { min-height: 110px; }
+            @media (min-width: 1100px) { .dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
             /* Checkbox di dalam .toggle-row tampil sebagai saklar geser. */
             .toggle-row { padding: 13px 0; gap: 14px; }
             .toggle-row > span, .toggle-row > label { font-size: 13.5px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; }
