@@ -85,6 +85,7 @@ test('rutinitas startup mengirim lhb walau akun pause', async () => {
     const startupSend = sent.find(item => item.cmd === 'lhb 1D' && item.via === 'sender');
     assert.ok(startupSend, 'expected startup lhb via commandSender');
     assert.equal(startupSend.options?.allowWhilePaused, true);
+    assert.equal(startupSend.options?.idleOnly, true, 'startup lhb should yield to main commands');
     assert.equal(startupSend.type, 'Huntbot2');
     assert.equal(startupSend.channelId, 'hb-chan');
 });

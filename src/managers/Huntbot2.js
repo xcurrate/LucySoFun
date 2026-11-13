@@ -13,6 +13,11 @@ const DM_DONE_TEXT = 'huntbot sudah selesai berburu hewan silahkan gunakan comma
 const READY_TRIGGER_TEXT = 'siap berburu';
 // Jeda setelah login sebelum rutinitas startup dikirim, agar cache channel siap.
 const STARTUP_DELAY_MS = 3000;
+// Rutinitas startup lhb menunggu antrian aksi Lucy diam selama ini sebelum
+// masuk antrian, supaya command utama (Custom Command, Adventure, Gems, ...)
+// selalu didahulukan. Batas tunggu mencegah startup tertahan selamanya.
+const STARTUP_QUEUE_IDLE_MS = 1200;
+const STARTUP_QUEUE_MAX_WAIT_MS = 90000;
 
 function normalizeSettings(raw = {}) {
     const inputDuration = String(raw.duration || DEFAULTS.duration).trim().toUpperCase();
@@ -92,7 +97,13 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
         // Rutinitas startup tetap dikirim walau akun pause/stop (mirip whb/wboss dulu),
         // jadi pakai jalur commandSender yang mendukung allowWhilePaused.
         if (options.allowWhilePaused && commandSender?.send) {
-            const sent = await commandSender.send(command, 'Huntbot2', channelId, { allowWhilePaused: true });
+            const sendOptions = { allowWhilePaused: true };
+            if (options.idleOnly) {
+                sendOptions.idleOnly = true;
+                sendOptions.idleMs = options.idleMs;
+                sendOptions.maxWaitMs = options.maxWaitMs;
+            }
+            const sent = await commandSender.send(command, 'Huntbot2', channelId, sendOptions);
             if (sent) log.info(prefix() + 'Terkirim: ' + command);
             else log.error(prefix() + 'Gagal mengirim "' + command + '".');
             return sent;
@@ -115,8 +126,15 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
             log.info(prefix() + 'Rutinitas startup dilewati: fitur nonaktif atau channel belum diatur.');
             return false;
         }
-        log.info(prefix() + 'Rutinitas startup: mengirim lhb ' + cfg.duration + '.');
-        return sendCommand('lhb ' + cfg.duration, { allowWhilePaused: true });
+        log.info(prefix() + 'Rutinitas startup: mengirim lhb ' + cfg.duration + ' (menunggu command utama selesai).');
+        // idleOnly: tunggu antrian aksi Lucy diam dulu agar command utama
+        // (Custom Command, Adventure, Gems, ...) didahulukan, lalu kirim berurutan.
+        return sendCommand('lhb ' + cfg.duration, {
+            allowWhilePaused: true,
+            idleOnly: true,
+            idleMs: STARTUP_QUEUE_IDLE_MS,
+            maxWaitMs: STARTUP_QUEUE_MAX_WAIT_MS
+        });
     };
     const schedule = (delayMs, callback) => {
         const timer = setTimeout(async () => {

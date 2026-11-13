@@ -6,9 +6,14 @@ const statsService = require('../services/stats');
 module.exports = (state, emergencyHandler) => ({
     async runLucyAction(action, options = {}) {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        // Aksi "idleOnly" (mis. rutinitas lhb Huntbot2) menunggu antrian diam dulu,
+        // supaya command utama (Custom Command, Adventure, Gems, ...) tetap
+        // didahulukan; setelah itu barulah masuk antrian normal (berurutan).
+        if (options.idleOnly) await this.waitForLucyQueueIdle(options.idleMs, options.maxWaitMs);
         const previous = state.lucyActionQueue || Promise.resolve();
         let release;
         state.lucyActionQueue = new Promise(resolve => { release = resolve; });
+        state.lucyActionPending = Number(state.lucyActionPending || 0) + 1;
         await previous;
         try {
             const remaining = (state.lucyCooldownUntil || 0) - Date.now();
@@ -16,8 +21,30 @@ module.exports = (state, emergencyHandler) => ({
             if (!options.skipRetry) state.lucyCooldownLastAction = action;
             return await action();
         } finally {
+            state.lucyActionPending = Math.max(0, Number(state.lucyActionPending || 0) - 1);
             release();
         }
+    },
+
+    // Menunggu antrian aksi Lucy kosong selama `idleMs` berturut-turut. Dipakai
+    // aksi prioritas rendah agar tidak menyerobot command utama yang sedang jalan.
+    waitForLucyQueueIdle(idleMs = 800, maxWaitMs = 90000) {
+        const grace = Math.max(0, Number(idleMs) || 0);
+        const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
+        return new Promise(resolve => {
+            let quietSince = null;
+            const tick = () => {
+                if (Number(state.lucyActionPending || 0) === 0) {
+                    if (quietSince === null) quietSince = Date.now();
+                    if (Date.now() - quietSince >= grace) return resolve(true);
+                } else {
+                    quietSince = null;
+                }
+                if (Date.now() >= deadline) return resolve(false);
+                setTimeout(tick, 250);
+            };
+            tick();
+        });
     },
 
     async handleLucyCooldownMessage(msg) {
@@ -57,6 +84,14 @@ module.exports = (state, emergencyHandler) => ({
             return this.runLucyAction(sendAction, { skipRetry: true });
         }
         if (/^(Adventure|Gems|Daily)/i.test(String(type))) return this.runLucyAction(sendAction);
+        // Huntbot2 berbagi antrian aksi Lucy yang sama. Rutinitas startup lhb
+        // (idleOnly) menunggu antrian diam dulu agar command utama diprioritaskan,
+        // lalu tetap berurutan; tanpa retry cooldown agar lhb tidak terkirim ganda.
+        if (String(type) === 'Huntbot2') {
+            return this.runLucyAction(sendAction, options.idleOnly
+                ? { idleOnly: true, idleMs: options.idleMs, maxWaitMs: options.maxWaitMs, skipRetry: true }
+                : {});
+        }
         return sendAction();
     },
 

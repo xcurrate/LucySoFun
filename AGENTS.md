@@ -63,7 +63,8 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 
 ## Huntbot2 startup routine & "siap berburu" trigger
 
-- `Huntbot2.start({ delayMs })` runs the new-bot startup routine: it sends `lhb <duration>` to the configured huntbot2 channel on every client `ready` (connect/login/restart). It uses `commandSender.send(..., { allowWhilePaused: true })`, so it fires even when the account is paused.
+- `Huntbot2.start({ delayMs })` runs the new-bot startup routine: it sends `lhb <duration>` to the configured huntbot2 channel on every client `ready` (connect/login/restart). It uses `commandSender.send(..., { allowWhilePaused: true, idleOnly: true })`, so it fires even when the account is paused while still yielding to main commands.
+- Ordering: `command.js` routes `Huntbot2` sends through `runLucyAction`. Startup `lhb` passes `idleOnly` so `runLucyAction` first calls `waitForLucyQueueIdle(idleMs, maxWaitMs)` (default `STARTUP_QUEUE_IDLE_MS = 1200`, cap `STARTUP_QUEUE_MAX_WAIT_MS = 90000`) — it waits until the Lucy action queue (`state.lucyActionPending`) has been empty for the grace period before entering the normal FIFO queue. Main commands (Custom Command, Adventure, Gems, Daily, lb/lh) therefore always take priority; startup `lhb` runs sequentially after them and never overlaps. Startup `lhb` uses `skipRetry: true` so a Lucy "pelan-pelan" cooldown does not resend it.
 - If Lucy replies with "ini passwordmu" the manager OCRs the image and re-sends `lhb <duration> <password>`. After the captcha is verified Lucy sends a message containing "siap berburu"; that trigger (`READY_TRIGGER_TEXT`) starts an `lhb` cycle via `scheduleHunt(1500, duration)` (e.g. `lhb 1D`).
 - `Huntbot2.start`/`stop` are wired in `src/core/client.js` (on ready) and `src/core/accountRuntime.js` (feature timers). `start()` is a no-op unless the feature is enabled and a channel is configured.
 
