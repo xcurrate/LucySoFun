@@ -3,6 +3,7 @@ const { normalizeGemsSettings } = require('../../managers/gems');
 const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
 const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
+const { normalizeDailySettings } = require('../../managers/daily');
 const { normalizeSendCount } = require('../../utils');
 const { normalizeOtherCommands, normalizeFixedCommands, setSlotEnabled } = require('../../managers/commandSlots');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
@@ -64,6 +65,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.gems = normalizeGemsSettings(config.settings.gems);
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
         config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
+        config.settings.daily = normalizeDailySettings(config.settings.daily);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
         config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
         delete config.settings.adventure.guildId;
@@ -228,6 +230,13 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             retryWaitMs: Math.max(0, this.toInt(body.mcRetryWaitSec, 60) * 1000),
             maxRetries: Math.max(0, this.toInt(body.mcMaxRetries, 5)),
             dmChannelId: String(body.mcDmChannelId || '').trim()
+        });
+
+        config.settings.daily = normalizeDailySettings({
+            ...config.settings.daily,
+            enabled: this.toBool(body.dailyEnabled),
+            channelId: String(body.dailyChannelId || '').trim(),
+            command: String(body.dailyCommand || '').trim() || 'lucy daily'
         });
 
         config.safety.cctv = this.toBool(body.cctvEnabled);

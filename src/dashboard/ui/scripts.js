@@ -169,6 +169,37 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     }
                 }
                 refreshMonsterCatcher(); setInterval(refreshMonsterCatcher, 2000);
+
+                // LUCY DAILY STATUS
+                async function refreshDaily() {
+                    const target = document.querySelector('[data-daily-status]');
+                    if (!target) return;
+                    try {
+                        const res = await fetch('/api/daily-status' + profileQuery, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+                        if (!res.ok) throw new Error('HTTP Error');
+                        const data = await res.json();
+                        const acc = (data.accounts || [])[0];
+                        if (!acc) { updateText('[data-daily-status]', '⚠️ Akun belum tersedia'); return; }
+                        const s = acc.status || {};
+                        const parts = [s.enabled ? '✅ Aktif' : '⛔ Nonaktif'];
+                        if (s.nextRunAt) {
+                            const when = new Date(s.nextRunAt);
+                            parts.push('berikutnya ' + when.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }) + ' WIB');
+                        }
+                        if (s.lastResult) {
+                            const who = s.lastResult.server ? s.lastResult.server + ' · ' : '';
+                            parts.push('terakhir ' + who + s.lastResult.days + ' hari');
+                        } else {
+                            parts.push('belum ada balasan daily');
+                        }
+                        updateText('[data-daily-status]', parts.join(' • '));
+                    } catch (err) {
+                        updateText('[data-daily-status]', 'Status tidak bisa dimuat');
+                    }
+                }
+                refreshDaily(); setInterval(refreshDaily, 5000);
+
+
                 
                 // AUTO FETCH PROFILE SCRIPT
                 async function fetchProfile() {

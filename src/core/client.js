@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, configManager, messageHandler, telegramService, voiceManager) => ({
+module.exports = (state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager) => ({
     initialize() {
         if (state.client) {
             log.warn(`${accountPrefix(state)}🔄 Merestart sesi Discord...`);
@@ -28,6 +28,16 @@ module.exports = (state, configManager, messageHandler, telegramService, voiceMa
 
             if (voiceManager && state.config.botStatus?.running === true && state.config.botStatus?.paused !== true) {
                 voiceManager.joinConfigured('restart').catch(err => log.error(`${accountPrefix(state)}❌ Auto Join VC gagal: ${err.message}`));
+            }
+
+            // Rutinitas setiap bot baru startup: Huntbot2 mengirim lhb ke channel
+            // huntbot2 (captcha ditangani lewat pesan Lucy), lalu siklus lhb diulang
+            // saat Lucy mengirim "siap berburu". Daily hanya menjadwalkan 00:00 WIB.
+            if (huntbot2Manager && typeof huntbot2Manager.start === 'function') {
+                huntbot2Manager.start();
+            }
+            if (dailyManager && typeof dailyManager.start === 'function') {
+                dailyManager.start();
             }
         });
 

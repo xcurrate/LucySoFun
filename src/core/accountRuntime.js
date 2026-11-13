@@ -18,6 +18,8 @@ const createMessageHandler = require('../managers/message');
 const createHuntbot2Manager = require('../managers/Huntbot2');
 const createMonsterCatcherManager = require('../managers/monsterCatcher');
 const { normalizeMonsterCatcherSettings } = createMonsterCatcherManager;
+const createDailyManager = require('../managers/daily');
+const { normalizeDailySettings } = createDailyManager;
 const createVoiceManager = require('../managers/voice');
 const createClientManager = require('./client');
 const log = require('../../logger');
@@ -75,6 +77,7 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.gems = normalizeGemsSettings(config.settings.gems);
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
     config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
+    config.settings.daily = normalizeDailySettings(config.settings.daily);
     config.settings.rest = normalizeRestSettings(config.settings.rest);
     config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
     delete config.settings.adventure.guildId;
@@ -159,6 +162,10 @@ const createRuntimeConfigManager = (state, filePath) => ({
         return normalizeMonsterCatcherSettings(state.config.settings?.monsterCatcher);
     },
 
+    getDailySettings() {
+        return normalizeDailySettings(state.config.settings?.daily);
+    },
+
     getAdventureSettings() {
         const adventure = state.config.settings?.adventure || {};
         return {
@@ -208,6 +215,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const voiceManager = createVoiceManager(state, configManager);
     const huntbot2Manager = createHuntbot2Manager(state, commandSender);
     const monsterCatcherManager = createMonsterCatcherManager(state, configManager, loopManager, commandSender);
+    const dailyManager = createDailyManager(state, configManager, commandSender);
     const messageHandler = createMessageHandler(
         state,
         configManager,
@@ -221,9 +229,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         boss2Manager,
         gemsManager,
         huntbot2Manager,
-        monsterCatcherManager
+        monsterCatcherManager,
+        dailyManager
     );
-    const clientManager = createClientManager(state, configManager, messageHandler, telegramService, voiceManager);
+    const clientManager = createClientManager(state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager);
 
     const otherCommandReadyWatchers = new Map();
     let runtimeRunning = false;
@@ -245,6 +254,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             loopsActive = true;
         }
         adventureManager.start().catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
+        // Daily Lucy: penjadwal 00:00 WIB idempoten (start ulang hanya menjadwalkan
+        // ulang), jadi aman dipanggil setiap kali runtime siap/mulai.
+        try { dailyManager.start(); }
+        catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Daily gagal dimulai: ${error.message}`); }
         return true;
     };
 
@@ -311,6 +324,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         gemsManager.stop();
         huntbot2Manager?.stop?.();
         monsterCatcherManager?.stop?.();
+        dailyManager?.stop?.();
     };
 
     restManager.start();
@@ -334,6 +348,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         voiceManager,
         adventureManager,
         monsterCatcherManager,
+        dailyManager,
         getDisplayName() {
             return state.client?.user?.tag || accountId;
         },
@@ -453,6 +468,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             otherCommandReadyWatchers.clear();
             huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
+            dailyManager?.stop?.();
             boss2Manager.stop();
             gemsManager.stop();
             adventureManager.stop();
@@ -467,6 +483,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const oldLoopSignature = getLoopConfigSignature(oldConfig);
             const oldVoice = safeJsonStringify(oldConfig.settings?.voice || {});
             const oldAdventure = safeJsonStringify(oldConfig.settings?.adventure || {});
+            const oldDaily = safeJsonStringify(oldConfig.settings?.daily || {});
             const oldStatus = safeJsonStringify(oldConfig.botStatus || {});
 
             state.config = ensureRuntimeShape(dropOwOConfig(nextConfig || {}));
@@ -475,6 +492,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const tokenChanged = oldToken !== state.activeToken;
             const voiceChanged = oldVoice !== safeJsonStringify(state.config.settings?.voice || {});
             const adventureChanged = oldAdventure !== safeJsonStringify(state.config.settings?.adventure || {});
+            const dailyChanged = oldDaily !== safeJsonStringify(state.config.settings?.daily || {});
             const statusChanged = oldStatus !== safeJsonStringify(state.config.botStatus || {});
             const loopConfigChanged = oldLoopSignature !== getLoopConfigSignature(state.config);
 
@@ -489,6 +507,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             if (statusChanged) log.info(`${accountPrefix(state)}🔁 Status config berubah: running=${!!state.config.botStatus?.running}, paused=${!!state.config.botStatus?.paused}`);
             if (voiceChanged) log.info(`${accountPrefix(state)}🔊 Config voice berubah: enabled=${state.config.settings?.voice?.enabled === true}, channel=${state.config.settings?.voice?.channelId || '-'}`);
             if (adventureChanged && state.config.settings?.adventure?.enabled !== true) adventureManager.stop();
+            if (dailyChanged) {
+                if (state.config.settings?.daily?.enabled === true) dailyManager.start();
+                else dailyManager.stop();
+            }
 
             if (!runtimeRunning || !state.client?.isReady()) return;
 

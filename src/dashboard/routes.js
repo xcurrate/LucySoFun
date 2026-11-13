@@ -333,6 +333,22 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         res.json({ accounts });
     });
 
+    router.get('/api/daily-status', (req, res) => {
+        if (req.query.profileId && !requireProfileAccess(req.query.profileId, req, res)) return;
+        const accountId = String(req.query.profileId || '');
+        const runtimes = Array.from(state?.accountRuntimes?.values?.() || []);
+        const accounts = runtimes
+            .filter(runtime => !accountId || String(runtime.accountId) === accountId)
+            .filter(runtime => typeof runtime?.dailyManager?.getStatus === 'function')
+            .map(runtime => ({
+                accountId: runtime.accountId,
+                name: typeof runtime.getDisplayName === 'function' ? runtime.getDisplayName() : runtime.accountId,
+                status: runtime.dailyManager.getStatus()
+            }));
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ accounts });
+    });
+
     router.post('/api/message-debug/clear', (req, res) => {
         if (req.body?.profileId && !requireProfileAccess(req.body.profileId, req, res)) return;
         const accountId = String(req.body?.profileId || '');

@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -120,6 +120,9 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         if (boss2Manager) await boss2Manager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);
+
+        // Daily Lucy: menangkap balasan "streak harianmu xx hari!" dari Lucy.
+        if (dailyManager && typeof dailyManager.handle === 'function') await dailyManager.handle(msg);
     },
 
     captureMessageDebug(msg) {
@@ -224,6 +227,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         settings.adventure = { ...(settings.adventure || {}), enabled };
         settings.huntbot2 = { ...(settings.huntbot2 || {}), enabled };
         settings.monsterCatcher = { ...(settings.monsterCatcher || {}), enabled };
+        settings.daily = { ...(settings.daily || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
         // Command tetap (lb/lh) ikut hidup/mati bersama fitur Lucy lainnya (satu unit).
@@ -243,6 +247,9 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             if (adventureManager) {
                 adventureManager.start({ restart: true }).catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
             }
+            // Daily Lucy: jadwalkan ulang 00:00 WIB bila fitur aktif.
+            try { dailyManager?.start?.(); }
+            catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Daily gagal dimulai: ${error.message}`); }
             log.success(`${accountPrefix(state)}▶️ Lucy start via Discord control.`);
             telegramService?.send?.(`▶️ <b>Lucy Started</b> via Discord command`);
         } else {
@@ -253,6 +260,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             gemsManager?.stop?.();
             huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
+            dailyManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
         }

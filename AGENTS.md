@@ -61,6 +61,19 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
   - Mon Catcher manager must only handle DM messages from Lucy; dedupe uses a bounded `Set` of processed message ids (`state.monsterCatcher.processedMessageIds`).
   - Dashboard: `/api/monster-catcher-status` route in `src/dashboard/routes.js`; live status chip in the Monster Catcher settings tab polled by `src/dashboard/ui/scripts.js` (`refreshMonsterCatcher`).
 
+## Huntbot2 startup routine & "siap berburu" trigger
+
+- `Huntbot2.start({ delayMs })` runs the new-bot startup routine: it sends `lhb <duration>` to the configured huntbot2 channel on every client `ready` (connect/login/restart). It uses `commandSender.send(..., { allowWhilePaused: true })`, so it fires even when the account is paused.
+- If Lucy replies with "ini passwordmu" the manager OCRs the image and re-sends `lhb <duration> <password>`. After the captcha is verified Lucy sends a message containing "siap berburu"; that trigger (`READY_TRIGGER_TEXT`) starts an `lhb` cycle via `scheduleHunt(1500, duration)` (e.g. `lhb 1D`).
+- `Huntbot2.start`/`stop` are wired in `src/core/client.js` (on ready) and `src/core/accountRuntime.js` (feature timers). `start()` is a no-op unless the feature is enabled and a channel is configured.
+
+## Lucy Daily (Daily category)
+
+- Manager: `src/managers/daily.js`. Settings `config.settings.daily` = `{ enabled, channelId, command }` (default command `lucy daily`), normalized by `normalizeDailySettings`.
+- Scheduler: `dailyManager.start()` arms a timer to the next 00:00 WIB (`msUntilNextMidnightWib`, UTC+7) and `runDaily()` sends the command through `commandSender.send(cmd, 'Daily', channelId)`. Empty `channelId` falls back to `state.lastLucyCommandChannelId` (the active command channel). It refuses to run while the account is paused/stopped.
+- Reply parsing: `dailyManager.handle(msg)` only accepts messages from `CONSTANTS.LUCY_BOT_ID` in the target channel; `parseDailyResponse` extracts the server name and the `streak harianmu <n> hari!` count (invisible chars stripped). If Lucy includes a claim button, `findDailyButton` clicks it.
+- Wired through `src/core/accountRuntime.js` (`dailyManager`, `getDailySettings`, start/stop/config-change), `src/core/client.js` (start on ready), `src/managers/message.js` (handle + Lucy control toggle), and dashboard (`configManager.applySave` fields `dailyEnabled`/`dailyChannelId`/`dailyCommand`, `/api/daily-status` route, "Daily → 🗓️ Lucy Daily" tab).
+
 ## Channels (Active Channels removed)
 
 - The "Active Channels" dashboard card, `config.channels`, `state.activeChannelId`, and `src/managers/channel.js` were removed. There is no global channel list or `channelManager` anymore.

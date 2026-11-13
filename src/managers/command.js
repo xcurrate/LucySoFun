@@ -56,7 +56,7 @@ module.exports = (state, emergencyHandler) => ({
         if (type === 'Other Command 4' || type === 'Other Command 5') {
             return this.runLucyAction(sendAction, { skipRetry: true });
         }
-        if (/^(Adventure|Gems)/i.test(String(type))) return this.runLucyAction(sendAction);
+        if (/^(Adventure|Gems|Daily)/i.test(String(type))) return this.runLucyAction(sendAction);
         return sendAction();
     },
 

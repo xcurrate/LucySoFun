@@ -526,6 +526,29 @@ ${renderRestSettings(config.settings?.rest)}
                             <label>Gain untuk upgrade</label>
                             <input type="text" name="hb2UpgradeGain" value="${escapeHtml(config.settings?.huntbot2?.upgradeGain || '')}" placeholder="Contoh: 1D">
                             <div class="input-hint">Jika upgrade aktif: setelah klik konfirmasi sacrifice tunggu 2 detik, kirim <code>lucy upgrade GAIN all</code>, tunggu 2 detik lagi, lalu kirim <code>lhb 1D</code>. Jika gambar password gagal diunduh atau tidak dikenali, Huntbot2 mencoba lagi dengan <code>lhb 1D</code> setelah 10 menit.</div>
+                            <div class="input-hint">Setiap bot baru startup/login, Huntbot2 mengirim <code>lhb</code> ke channel ini. Jika Lucy meminta captcha, kode dibaca otomatis dari gambar; setelah captcha terverifikasi Lucy mengirim "siap berburu" dan siklus <code>lhb</code> diulang.</div>
+                        </div>
+                    </div>
+
+                    <div id="tab-daily" class="tab-content">
+                        <div class="category-heading">
+                            <div>
+                                <span class="section-label">Daily</span>
+                                <h3>🗓️ Lucy Daily</h3>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <label>🗓️ LUCY DAILY</label>
+                            <div class="input-hint">Setiap pukul <strong>00:00 WIB</strong> bot mengirim command daily ke channel commands aktif, lalu menangkap balasan Lucy yang memuat nama server dan "streak harianmu xx hari!". Channel kosong = pakai channel command terakhir (channel aktif).</div>
+                            <div class="toggle-row">
+                                <span>Aktifkan Lucy Daily</span>
+                                <input type="checkbox" name="dailyEnabled" ${config.settings?.daily?.enabled ? 'checked' : ''}>
+                            </div>
+                            <div class="input-hint daily-status-line"><span data-daily-status>Memuat status...</span></div>
+                            <label>Command Daily</label>
+                            <input type="text" name="dailyCommand" value="${escapeHtml(config.settings?.daily?.command || 'lucy daily')}" placeholder="lucy daily">
+                            <label>Channel Commands (kosong = channel command terakhir)</label>
+                            <input type="text" name="dailyChannelId" value="${escapeHtml(config.settings?.daily?.channelId || '')}" placeholder="Discord Channel ID">
                         </div>
                     </div>
 
@@ -648,6 +671,9 @@ ${commandsMenuGroup}
                             <button type="button" class="settings-menu-item" data-menu-label="Monster Catcher" onclick="switchTab(event, 'tab-lucy-monster-catcher')">🐾 Monster Catcher <span class="badge">NEW</span></button>
                             <button type="button" class="settings-menu-item" data-menu-label="Voice Channel" onclick="switchTab(event, 'tab-lucy-voice')">🔊 Voice Channel</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Kontrol Lucy" onclick="switchTab(event, 'tab-lucy-control')">🎮 Kontrol Lucy</button>
+                        </div>
+                        <div class="settings-menu-group"><span>Daily</span>
+                            <button type="button" class="settings-menu-item" data-menu-label="Lucy Daily" onclick="switchTab(event, 'tab-daily')">🗓️ Lucy Daily${badge(onBadge(context?.config?.settings?.daily))}</button>
                         </div>
                         <div class="settings-menu-group"><span>Sistem</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>

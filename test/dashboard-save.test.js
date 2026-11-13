@@ -410,6 +410,37 @@ test('POST /save persists Auto Use Gems settings and the dashboard renders them'
     });
 });
 
+test('POST /save persists Lucy Daily settings and the dashboard renders the tab', async () => {
+    await withDashboard(async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                action: 'save',
+                dailyEnabled: 'on',
+                dailyChannelId: 'daily-chan',
+                dailyCommand: 'lucy daily'
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        const daily = savedConfig.settings.daily;
+        assert.equal(daily.enabled, true);
+        assert.equal(daily.channelId, 'daily-chan');
+        assert.equal(daily.command, 'lucy daily');
+
+        const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
+        assert.match(page, /LUCY DAILY/);
+        assert.match(page, /name="dailyChannelId" value="daily-chan"/);
+    });
+});
+
 test('POST /save stores empty Lucy send count as infinite and persists Istirahat settings', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
