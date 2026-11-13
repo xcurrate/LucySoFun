@@ -539,7 +539,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                         <div class="card">
                             <label>🗓️ LUCY DAILY</label>
-                            <div class="input-hint">Setiap pukul <strong>00:00 WIB</strong> bot mengirim command daily ke channel commands aktif, lalu menangkap balasan Lucy yang memuat nama server dan "streak harianmu xx hari!". Channel kosong = pakai channel command terakhir (channel aktif).</div>
+                            <div class="input-hint">Setiap pukul <strong>00:00 WIB</strong> bot mengirim command daily ke channel commands, lalu menangkap balasan Lucy yang memuat nama server dan "streak harianmu xx hari!". Channel kosong = pakai channel command terakhir.</div>
                             <div class="toggle-row">
                                 <span>Aktifkan Lucy Daily</span>
                                 <input type="checkbox" name="dailyEnabled" ${config.settings?.daily?.enabled ? 'checked' : ''}>
