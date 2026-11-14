@@ -155,18 +155,19 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Field `newToken` (form "➕ Buat" akun baru) DIKECUALIKAN dari savebar: `markDirty` di `page.js` langsung `return` untuk `fieldName === 'newToken'`, karena field itu punya tombol simpan sendiri dan token yang salah tidak boleh meninggalkan peringatan "belum tersimpan". Setelah sukses, halaman reload (hanya bila tidak ada perubahan lain yang belum disimpan) agar akun baru muncul di "Akun Tersimpan".
 - Batas slot akun: `multiAccount.maxAccounts` (0 = belum diatur → UI memakai batas absolut 4). `ABSOLUTE_MAX_ACCOUNTS = 4` di `src/core/multiAccount.js`; UI memakai `ABSOLUTE_MAX_SLOTS = 4` di `settingsTabs.js`. Menambah token baru lewat "➕ Buat" menaikkan `maxAccounts` otomatis mengikuti jumlah profil (`routes.js` `newProfile`), tetapi penambahan akun BARU tetap butuh izin pemilik (`createSlotPermissionGuard` di `slotPermissionRoutes.js`, `SLOT_OWNER_PASSWORD`/`slot-owner-password.txt`). Akun ke-5 dst ditolak 409 "Account slots are full".
 
-## Dashboard: kartu LOG per akun (halaman Profil Akun)
-- `src/dashboard/ui/logCard.js` menerima opsi `{ id, title, stamp, emptyText, hint }` (default kartu "🧾 Log Langsung" dengan `id="logBox"`) dan mengekspor `getLogDock` untuk dock mengambang.
-- Halaman **Profil Akun** (`page.js`) merender kartu kedua di dalam `tab-main` (di bawah kartu "Akun Aktif"): `id="logBoxProfile"`, judul "🧾 Log Akun Ini", berisi hint "Hanya menampilkan log milik akun <nama> (ID <id>)". Kartu ini memakai `profileQuery` yang sama, jadi endpoint `/logs?profileId=<id>` otomatis memfilter log per akun. Halaman Menu Utama TIDAK memakai kartu ini.
-- `scripts.js`: `renderLogs` mengisi SEMUA `[data-log-box]` (bukan hanya `#logBox`), dan listener scroll dipasang ke setiap kotak. Teks kosong diambil dari `data-empty` tiap kotak supaya pesan "Belum ada log untuk akun ini" tampil benar.
-- Test: `test/dashboard-profile-pin.test.js` ("halaman Profil Akun menampilkan kartu Log Akun Ini khusus akun tersebut").
+## Dashboard: log per akun → file .txt (halaman Profil Akun)
+- `src/dashboard/ui/logCard.js` menerima opsi `{ id, title, stamp, emptyText, hint, actions }` (default kartu "🧾 Log Langsung" dengan `id="logBox"`).
+- Halaman **Profil Akun** (`page.js`) merender kartu log di dalam `tab-main` (di bawah kartu "Akun Aktif"): `id="logBoxProfile"`, judul "🧾 Log Akun Ini", hint "Hanya menampilkan log milik akun <nama> (ID <id>)", plus tombol **⬇️ Unduh log (.txt)** → `GET /logs/download?profileId=<id>`. Kartu ini memakai `profileQuery` yang sama, jadi `/logs?profileId=<id>` otomatis memfilter log per akun.
+- **Menu Utama TIDAK menampilkan log** (baik kartu global "Log Langsung" di tab Ringkasan maupun kartu per-akun). `scripts.js` `refreshLogs` langsung `return` bila tidak ada `[data-log-box]`, jadi halaman tanpa log tidak ikut polling.
+- `scripts.js`: `renderLogs` mengisi SEMUA `[data-log-box]`; teks kosong diambil dari `data-empty`.
+- Test: `test/dashboard-profile-pin.test.js` ("halaman Profil Akun menampilkan kartu Log Akun Ini...").
 
-## Dashboard: dock log mengambang (terlihat di semua halaman/tab)
-- `getLogDock()` di `logCard.js` merender dock fixed (`#logDock` → tombol `#logDockToggle` + panel `#logDockPanel` berisi `#logDockBox[data-log-box]`). Karena `page.js` menaruhnya **di luar** `.settings-tabs` (setelah savebar), log tetap terlihat saat berpindah tab fitur mana pun.
-- Isi dock mengikuti scope halaman: di Menu Utama "🧾 Log Langsung" (log global), di halaman profil "🧾 Log Akun Ini" (log akun itu). Dock memakai `profileQuery` yang sama dengan kartu lain.
-- `toggleLogDock(force)` (`scripts.js`) buka/tutup dock, simpan status ke `localStorage('lucyLogDockOpen')`, dan saat dibuka auto-scroll ke bawah. `DOMContentLoaded` memulihkan status terakhir.
-- CSS `.log-dock*` di `styles.js`: fixed kanan-bawah, naik ke `bottom:96px` saat `body.has-savebar`, full-width di layar kecil.
-- Test: `test/dashboard-profile-pin.test.js` ("dock log mengambang tampil di semua halaman dan tidak terikat tab").
+## Logger: file log .txt per akun (bisa dilacak)
+- `logger.js` menulis setiap baris yang menyebut akun (pola `[account:<id>...]`) ke `logs/log_<accountId>.txt` (dir `LOG_FILE_DIR`, default `logs/`, relatif root aplikasi; sudah masuk `.gitignore`).
+- Batas baris per file = `logFileMaxLines` (config, default `LOG_FILE_MAX_LINES = 1000`). File dipangkas otomatis (ring buffer) agar hanya menyimpan baris terakhir; nilainya bisa diubah dari tab **Kontrol & Sistem** (`name="logFileMaxLines"`, 0 = default) dan langsung diterapkan ke logger (`logger.setLogFileMaxLines`, disinkronkan di `app.js` saat start dan di route `/save` setelah simpan).
+- API logger: `getAccountLog(accountId, limit)`, `getLogFilePath(accountId)`, `getLogDir()`, `getLogFileMaxLines()`, `setLogFileMaxLines(n)`.
+- Dashboard: `logService.getAccountLogLines({ accountId, limit })` + route `GET /logs/download?profileId=<id>` (butuh akses profil; `Content-Disposition: attachment`).
+- Test: `test/dashboard-profile-pin.test.js` ("log per akun ditulis ke file .txt dan bisa diunduh serta dipangkas").
 
 ## Dashboard: hapus slot akun (wajib password pemilik)
 - Tombol 🗑 di kartu "Akun Tersimpan" memakai `confirmDeleteAccount(button, label)` (`scripts.js`): konfirmasi → `prompt` password pemilik → menyuntik hidden input `ownerPassword` ke form utama. Prompt hanya untuk kenyamanan; server tetap memverifikasi ulang.

@@ -5,6 +5,9 @@ slot-owner-password.txt
 
 node_modules/
 
+# Log runtime per akun (logs/log_<accountId>.txt), jangan di-commit.
+logs/
+
 # Scratch/preview workspace for agents.
 .agent_tmp/
 

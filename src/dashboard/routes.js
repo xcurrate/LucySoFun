@@ -284,6 +284,22 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         }
     });
 
+    // Unduh file log .txt milik satu akun (isi lengkap sesuai batas baris file).
+    router.get('/logs/download', (req, res) => {
+        const accountId = String(req.query.profileId || req.query.accountId || '');
+        if (!accountId || !safeProfileId(accountId)) return res.status(404).send('Profile not found');
+        if (!requireProfileAccess(accountId, req, res)) return;
+        try {
+            const lines = logService.getAccountLogLines({ accountId });
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="log_${accountId}.txt"`);
+            res.send(lines.length ? lines.join('\n') + '\n' : '');
+        } catch {
+            res.status(500).send('Gagal membaca file log');
+        }
+    });
+
     router.get('/api/message-debug', (req, res) => {
         if (req.query.profileId && !requireProfileAccess(req.query.profileId, req, res)) return;
         const accountId = String(req.query.profileId || '');
@@ -654,6 +670,10 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             if (saved) dashboardLog('success', savedAccountId !== 'default' ? savedAccountId : '', `💾 Config dashboard disimpan (${saveTarget === 'main' ? 'main' : 'profile'}).`);
 
             if (saved) {
+                // Terapkan batas baris file log per akun bila diubah dari dashboard.
+                if (logger && typeof logger.setLogFileMaxLines === 'function' && config.logFileMaxLines) {
+                    logger.setLogFileMaxLines(config.logFileMaxLines);
+                }
                 const otherCommandAction = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(body.action || ''));
                 if (otherCommandAction) {
                     const index = Number(otherCommandAction[3]) - 1;

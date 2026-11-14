@@ -1,6 +1,6 @@
 const fs = require('fs');
 const fileService = require('../services/fileService');
-module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogDock, getLogRefreshScript, renderSettingsTabs }) {
+module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
     // Ringkasan selalu menampilkan SATU akun. Selector ini membuat cakupannya eksplisit
     // dan bisa dipindah tanpa kembali ke halaman Menu Utama.
     function renderScopeBar({ profileOptions = [], viewingProfileId = '' }) {
@@ -120,6 +120,7 @@ function renderPage(config) {
         const messageDebug = config.settings.messageDebug || {};
         const voice = config.settings.voice || {};
         const statsSnapshot = statsService.getSnapshot(config);
+        const logFileMaxLines = config.logFileMaxLines || 1000;
         const viewingProfileId = config.viewingProfileId || '';
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
@@ -169,15 +170,15 @@ function renderPage(config) {
         const topbarStatus = statusText || 'OFFLINE';
         const topbarStatusClass = statusClass === 'running' ? 'run' : '';
 
-        // Halaman Ringkasan: cakupan akun, statistik, dan log langsung.
+        // Halaman Ringkasan: cakupan akun dan statistik (tanpa log; log per akun
+        // tersedia sebagai file .txt di halaman Profil Akun).
         const ringkasanCards = `
                 ${profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
                 <div class="status-box ${statusClass}">
                     <span style="font-size: 16px;">${statusText}</span>
                     ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
                 </div>
-                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}
-                ${getLogCard()}`;
+                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}`;
 
         return `
         <!DOCTYPE html>
@@ -233,7 +234,11 @@ function renderPage(config) {
                                     title: '🧾 Log Akun Ini',
                                     stamp: 'live',
                                     emptyText: '✨ Belum ada log untuk akun ini...',
-                                    hint: `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`
+                                    hint: `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`,
+                                    actions: `<div class="log-download-row">
+                                        <a class="btn btn-ghost" href="/logs/download?profileId=${encodeURIComponent(viewingProfileId)}">⬇️ Unduh log (.txt)</a>
+                                        <span class="log-download-note">File per akun, maksimal ${logFileMaxLines} baris terakhir.</span>
+                                    </div>`
                                 })
                             : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),
                         ringkasanCards,
@@ -284,15 +289,6 @@ function renderPage(config) {
                     <button type="submit" class="btn btn-save" id="unsavedSave" form="configForm" name="action" value="save">💾 Simpan semua perubahan →</button>
                 </span>
             </div>
-
-            ${getLogDock({
-                id: 'logDockBox',
-                title: viewingProfileId ? '🧾 Log Akun Ini' : '🧾 Log Langsung',
-                emptyText: viewingProfileId ? '✨ Belum ada log untuk akun ini...' : '✨ Belum ada log...',
-                hint: viewingProfileId
-                    ? `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`
-                    : ''
-            })}
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
 

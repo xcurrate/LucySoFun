@@ -226,6 +226,9 @@ ${renderRestSettings(config.settings?.rest)}
                             <div class="divider"></div>
                             <label>Max Log Lines in Dashboard</label>
                             <input type="number" name="maxLogLines" value="${config.maxLogLines || 15}">
+                            <label style="margin-top:12px; display:block">Max Baris File Log per Akun (.txt)</label>
+                            <input type="number" name="logFileMaxLines" min="0" value="${config.logFileMaxLines || 1000}">
+                            <p class="input-hint">Setiap akun menulis log ke <code>logs/log_&lt;accountId&gt;.txt</code>. File dipangkas otomatis agar hanya menyimpan baris terakhir sebanyak angka ini (0 = pakai default).</p>
                         </div>
 
                     </div>

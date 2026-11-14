@@ -60,6 +60,10 @@ function createDashboardApp({ baseDir = resolveBaseDir() } = {}) {
     if (typeof expirySweepTimer.unref === 'function') expirySweepTimer.unref();
 
     const initialConfig = configManager.ensureShape(configManager.get());
+    // Samakan batas baris file log per akun dengan nilai tersimpan.
+    if (typeof logger.setLogFileMaxLines === 'function') {
+        logger.setLogFileMaxLines(initialConfig.logFileMaxLines);
+    }
     const port = process.env.SERVER_PORT || process.env.PORT || initialConfig.port || CONSTANTS.DEFAULT_PORT;
 
     console.log(`[DASHBOARD] Initial port check: PORT=${port}, initialConfig.port=${initialConfig.port}`);

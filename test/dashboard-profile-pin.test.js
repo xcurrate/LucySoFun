@@ -190,44 +190,65 @@ test('halaman Profil Akun menampilkan kartu Log Akun Ini khusus akun tersebut', 
             headers: { Authorization: authHeader() }
         })).text();
 
-        // Kartu log per-akun hadir, terpisah dari kartu log Ringkasan.
+        // Kartu log per-akun hadir dengan tautan unduh file .txt.
         assert.match(html, /id="logBoxProfile"/);
         assert.match(html, /Log Akun Ini/);
         assert.match(html, /data-empty="✨ Belum ada log untuk akun ini/);
         assert.match(html, /Hanya menampilkan log milik akun/);
+        assert.match(html, new RegExp(`/logs/download\\?profileId=${PROFILE_A}`));
+        assert.match(html, /Unduh log \(\.txt\)/);
 
-        // Kotak log generik memakai penanda data-log-box agar script mengisi semuanya.
-        assert.match(html, /id="logBox" data-log-box/);
+        // Kotak log memakai penanda data-log-box agar script mengisi semuanya.
+        assert.match(html, /id="logBoxProfile" data-log-box/);
         assert.match(html, /querySelectorAll\('\[data-log-box\]'\)/);
 
-        // Dock log mengambang tersedia di halaman profil dan memakai scope akun ini.
-        assert.match(html, /id="logDock"/);
-        assert.match(html, /id="logDockBox" data-log-box/);
-        assert.match(html, /data-empty="✨ Belum ada log untuk akun ini/);
-        assert.match(html, /function toggleLogDock/);
+        // Tidak ada log mengambang lagi.
+        assert.doesNotMatch(html, /id="logDock"/);
+        assert.doesNotMatch(html, /toggleLogDock/);
 
-        // Halaman Menu Utama tidak menampilkan kartu log per-akun.
+        // Halaman Menu Utama tidak menampilkan log sama sekali (tanpa kartu per-akun
+        // maupun kartu log global Ringkasan).
         const control = await (await fetch(`${url}/`, { headers: { Authorization: authHeader() } })).text();
         assert.doesNotMatch(control, /id="logBoxProfile"/);
+        assert.doesNotMatch(control, /id="logBox"/);
+        assert.doesNotMatch(control, /Log Langsung/);
+        assert.doesNotMatch(control, /id="logDock"/);
     });
 });
 
-test('dock log mengambang tampil di semua halaman dan tidak terikat tab', async () => {
+test('log per akun ditulis ke file .txt dan bisa diunduh serta dipangkas', async () => {
     await withDashboard(async (url) => {
-        const control = await (await fetch(`${url}/`, { headers: { Authorization: authHeader() } })).text();
-        assert.match(control, /id="logDock"/);
-        assert.match(control, /id="logDockBox" data-log-box/);
-        assert.match(control, /toggleLogDock/);
-        assert.doesNotMatch(control, /id="logDockProfile"/);
+        const logger = require('../logger');
+        const appLogFile = logger.getLogFilePath(PROFILE_A);
+        fs.rmSync(appLogFile, { force: true });
+        logger.setLogFileMaxLines(4);
+        for (let i = 0; i < 6; i += 1) {
+            logger.info(`[account:${PROFILE_A} user:tester] baris uji ${i}`);
+        }
 
-        // Dock dirender di luar wadah tab (.settings-tabs), jadi tetap terlihat
-        // saat berpindah tab fitur.
-        const tabsIndex = control.indexOf('class="settings-tabs"');
-        const dockIndex = control.indexOf('id="logDock"');
-        assert.ok(tabsIndex >= 0 && dockIndex > tabsIndex, 'dock should render after the tab container');
+        assert.ok(fs.existsSync(appLogFile), 'file log akun harus dibuat');
+        const content = fs.readFileSync(appLogFile, 'utf8').trim().split('\n');
+        assert.ok(content.length <= 4, 'file log harus dipangkas ke batas baris');
+        assert.match(content[content.length - 1], /baris uji 5/);
 
-        const profile = await (await fetch(`${url}/?profileId=${PROFILE_A}`, { headers: { Authorization: authHeader() } })).text();
-        assert.match(profile, /id="logDock"/);
-        assert.match(profile, /🧾 Log Akun Ini/);
+        const res = await fetch(`${url}/logs/download?profileId=${PROFILE_A}`, {
+            headers: { Authorization: authHeader() }
+        });
+        assert.equal(res.status, 200);
+        assert.match(res.headers.get('content-type') || '', /text\/plain/);
+        const body = await res.text();
+        assert.match(body, /baris uji 5/);
+
+        fs.rmSync(appLogFile, { force: true });
+        logger.setLogFileMaxLines(1000);
+    });
+});
+
+test('unduh log akun lain ditolak tanpa akses profil', async () => {
+    await withDashboard(async (url) => {
+        const res = await fetch(`${url}/logs/download?profileId=not-a-valid-id`, {
+            headers: { Authorization: authHeader() }
+        });
+        assert.equal(res.status, 404);
     });
 });

@@ -53,6 +53,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.port = config.port || CONSTANTS.DEFAULT_PORT;
         config.botStatus = config.botStatus || { running: false, paused: false };
         config.maxLogLines = config.maxLogLines || CONSTANTS.MAX_LOG_LINES;
+        config.logFileMaxLines = config.logFileMaxLines || CONSTANTS.LOG_FILE_MAX_LINES || 1000;
 
         config.settings = config.settings || {};
         config.safety = config.safety || { cctv: false };
@@ -139,6 +140,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.telegram.chatId = body.tgChat || '';
 
         config.maxLogLines = this.toInt(body.maxLogLines, 15);
+        config.logFileMaxLines = Math.max(0, this.toInt(body.logFileMaxLines, config.logFileMaxLines || CONSTANTS.LOG_FILE_MAX_LINES || 1000));
         config.settings.autoResume = this.toBool(body.autoResume);
 
         config.settings.lucyControl = {

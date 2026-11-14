@@ -351,26 +351,10 @@ function getStyles() {
             @media (max-width:1100px) { .grid.four { grid-template-columns:repeat(2,minmax(0,1fr)); } }
             @media (max-width:760px) { .grid.four, .grid.two { grid-template-columns:1fr; } .recent-item { grid-template-columns:1fr; gap:4px; } }
 
-            /* Dock log mengambang: terlihat di semua halaman/tab. */
-            .log-dock { position: fixed; right: 20px; bottom: 20px; z-index: 190; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-            .log-dock-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border: 1px solid #34435f; border-radius: 999px; background: rgba(19,25,38,.97); color: var(--text); font-weight: 800; font-size: 13px; cursor: pointer; box-shadow: 0 12px 30px rgba(0,0,0,.45); backdrop-filter: blur(12px); transition: transform .15s ease, border-color .15s ease; }
-            .log-dock-toggle:hover { transform: translateY(-1px); border-color: var(--accent-solid); }
-            .log-dock-toggle .ld-live { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--green); border: 1px solid #23543a; background: var(--green-soft); border-radius: 999px; padding: 2px 7px; }
-            .log-dock.open .log-dock-toggle .ld-live { display: none; }
-            .log-dock-panel { display: none; width: min(600px, calc(100vw - 32px)); max-height: min(70vh, 620px); padding: 14px; border: 1px solid #34435f; border-radius: 18px; background: rgba(14,21,35,.98); box-shadow: 0 22px 60px rgba(0,0,0,.6); backdrop-filter: blur(14px); }
-            .log-dock.open .log-dock-panel { display: block; }
-            .log-dock-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-            .log-dock-head h3 { font-size: 14px; font-weight: 850; letter-spacing: -.02em; }
-            .log-dock-close { border: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-size: 13px; line-height: 1; }
-            .log-dock-close:hover { color: var(--text); border-color: var(--accent-solid); }
-            .log-dock .log-box { height: 42vh; min-height: 220px; max-height: 48vh; }
-            .log-dock .log-empty { min-height: 220px; }
-            @media (max-width: 760px) {
-                .log-dock { right: 12px; bottom: 12px; left: 12px; align-items: stretch; }
-                .log-dock-panel { width: auto; }
-                .log-dock .log-box { height: 38vh; }
-            }
-            body.has-savebar .log-dock { bottom: 96px; }
+            /* Tombol unduh log per akun (file .txt). */
+            .log-download-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:10px; }
+            .log-download-row .btn { width:auto; min-width:auto; padding:9px 14px; font-size:12px; }
+            .log-download-note { font-size:11px; color:var(--muted); }
 
         </style>
         `;

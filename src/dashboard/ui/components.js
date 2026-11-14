@@ -1,6 +1,6 @@
 const getStyles = require('./styles');
 const createDashboardStatsCard = require('./dashboardStatsCard');
-const { getLogCard, getLogDock } = require('./logCard');
+const getLogCard = require('./logCard');
 const createScripts = require('./scripts');
 const createSavedResponse = require('./savedResponse');
 const createPageRenderer = require('./page');
@@ -20,7 +20,6 @@ module.exports = function createUiComponents({ CONSTANTS, serializeForScript, es
         getStyles,
         getDashboardStatsCard,
         getLogCard,
-        getLogDock,
         getLogRefreshScript,
         renderSettingsTabs: { renderSettingsTabs, renderLucyCommandCards, renderMultiAccountCard }
     });
