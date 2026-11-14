@@ -200,8 +200,34 @@ test('halaman Profil Akun menampilkan kartu Log Akun Ini khusus akun tersebut', 
         assert.match(html, /id="logBox" data-log-box/);
         assert.match(html, /querySelectorAll\('\[data-log-box\]'\)/);
 
+        // Dock log mengambang tersedia di halaman profil dan memakai scope akun ini.
+        assert.match(html, /id="logDock"/);
+        assert.match(html, /id="logDockBox" data-log-box/);
+        assert.match(html, /data-empty="✨ Belum ada log untuk akun ini/);
+        assert.match(html, /function toggleLogDock/);
+
         // Halaman Menu Utama tidak menampilkan kartu log per-akun.
         const control = await (await fetch(`${url}/`, { headers: { Authorization: authHeader() } })).text();
         assert.doesNotMatch(control, /id="logBoxProfile"/);
+    });
+});
+
+test('dock log mengambang tampil di semua halaman dan tidak terikat tab', async () => {
+    await withDashboard(async (url) => {
+        const control = await (await fetch(`${url}/`, { headers: { Authorization: authHeader() } })).text();
+        assert.match(control, /id="logDock"/);
+        assert.match(control, /id="logDockBox" data-log-box/);
+        assert.match(control, /toggleLogDock/);
+        assert.doesNotMatch(control, /id="logDockProfile"/);
+
+        // Dock dirender di luar wadah tab (.settings-tabs), jadi tetap terlihat
+        // saat berpindah tab fitur.
+        const tabsIndex = control.indexOf('class="settings-tabs"');
+        const dockIndex = control.indexOf('id="logDock"');
+        assert.ok(tabsIndex >= 0 && dockIndex > tabsIndex, 'dock should render after the tab container');
+
+        const profile = await (await fetch(`${url}/?profileId=${PROFILE_A}`, { headers: { Authorization: authHeader() } })).text();
+        assert.match(profile, /id="logDock"/);
+        assert.match(profile, /🧾 Log Akun Ini/);
     });
 });

@@ -285,6 +285,30 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 if (button) button.setAttribute('aria-expanded', 'false');
             }
 
+            // Dock log mengambang: bisa dibuka dari halaman/tab mana pun dan
+            // mengingat posisi terakhir lewat localStorage.
+            function toggleLogDock(force) {
+                const dock = document.getElementById('logDock');
+                const button = document.getElementById('logDockToggle');
+                if (!dock) return;
+                const open = typeof force === 'boolean' ? force : !dock.classList.contains('open');
+                dock.classList.toggle('open', open);
+                if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+                try { window.localStorage.setItem('lucyLogDockOpen', open ? '1' : '0'); } catch (_) {}
+                if (open) {
+                    const box = dock.querySelector('[data-log-box]');
+                    if (box) box.scrollTop = box.scrollHeight;
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // Default terbuka supaya log langsung terlihat di halaman mana pun;
+                // pilihan pengguna (buka/tutup) diingat lewat localStorage.
+                let saved = null;
+                try { saved = window.localStorage.getItem('lucyLogDockOpen'); } catch (_) {}
+                if (saved !== '0') toggleLogDock(true);
+            });
+
             // Hapus slot akun wajib password pemilik. Prompt di sini hanya untuk
             // kenyamanan; server tetap memverifikasi ulang (createSlotPermissionGuard).
             function confirmDeleteAccount(button, label) {

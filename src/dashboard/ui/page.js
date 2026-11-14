@@ -1,6 +1,6 @@
 const fs = require('fs');
 const fileService = require('../services/fileService');
-module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
+module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogDock, getLogRefreshScript, renderSettingsTabs }) {
     // Ringkasan selalu menampilkan SATU akun. Selector ini membuat cakupannya eksplisit
     // dan bisa dipindah tanpa kembali ke halaman Menu Utama.
     function renderScopeBar({ profileOptions = [], viewingProfileId = '' }) {
@@ -284,6 +284,15 @@ function renderPage(config) {
                     <button type="submit" class="btn btn-save" id="unsavedSave" form="configForm" name="action" value="save">💾 Simpan semua perubahan →</button>
                 </span>
             </div>
+
+            ${getLogDock({
+                id: 'logDockBox',
+                title: viewingProfileId ? '🧾 Log Akun Ini' : '🧾 Log Langsung',
+                emptyText: viewingProfileId ? '✨ Belum ada log untuk akun ini...' : '✨ Belum ada log...',
+                hint: viewingProfileId
+                    ? `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`
+                    : ''
+            })}
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
 

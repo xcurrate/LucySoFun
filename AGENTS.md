@@ -156,10 +156,17 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Batas slot akun: `multiAccount.maxAccounts` (0 = belum diatur → UI memakai batas absolut 4). `ABSOLUTE_MAX_ACCOUNTS = 4` di `src/core/multiAccount.js`; UI memakai `ABSOLUTE_MAX_SLOTS = 4` di `settingsTabs.js`. Menambah token baru lewat "➕ Buat" menaikkan `maxAccounts` otomatis mengikuti jumlah profil (`routes.js` `newProfile`), tetapi penambahan akun BARU tetap butuh izin pemilik (`createSlotPermissionGuard` di `slotPermissionRoutes.js`, `SLOT_OWNER_PASSWORD`/`slot-owner-password.txt`). Akun ke-5 dst ditolak 409 "Account slots are full".
 
 ## Dashboard: kartu LOG per akun (halaman Profil Akun)
-- `src/dashboard/ui/logCard.js` kini menerima opsi `{ id, title, stamp, emptyText, hint }` (default tetap kartu "🧾 Log Langsung" dengan `id="logBox"`).
+- `src/dashboard/ui/logCard.js` menerima opsi `{ id, title, stamp, emptyText, hint }` (default kartu "🧾 Log Langsung" dengan `id="logBox"`) dan mengekspor `getLogDock` untuk dock mengambang.
 - Halaman **Profil Akun** (`page.js`) merender kartu kedua di dalam `tab-main` (di bawah kartu "Akun Aktif"): `id="logBoxProfile"`, judul "🧾 Log Akun Ini", berisi hint "Hanya menampilkan log milik akun <nama> (ID <id>)". Kartu ini memakai `profileQuery` yang sama, jadi endpoint `/logs?profileId=<id>` otomatis memfilter log per akun. Halaman Menu Utama TIDAK memakai kartu ini.
 - `scripts.js`: `renderLogs` mengisi SEMUA `[data-log-box]` (bukan hanya `#logBox`), dan listener scroll dipasang ke setiap kotak. Teks kosong diambil dari `data-empty` tiap kotak supaya pesan "Belum ada log untuk akun ini" tampil benar.
 - Test: `test/dashboard-profile-pin.test.js` ("halaman Profil Akun menampilkan kartu Log Akun Ini khusus akun tersebut").
+
+## Dashboard: dock log mengambang (terlihat di semua halaman/tab)
+- `getLogDock()` di `logCard.js` merender dock fixed (`#logDock` → tombol `#logDockToggle` + panel `#logDockPanel` berisi `#logDockBox[data-log-box]`). Karena `page.js` menaruhnya **di luar** `.settings-tabs` (setelah savebar), log tetap terlihat saat berpindah tab fitur mana pun.
+- Isi dock mengikuti scope halaman: di Menu Utama "🧾 Log Langsung" (log global), di halaman profil "🧾 Log Akun Ini" (log akun itu). Dock memakai `profileQuery` yang sama dengan kartu lain.
+- `toggleLogDock(force)` (`scripts.js`) buka/tutup dock, simpan status ke `localStorage('lucyLogDockOpen')`, dan saat dibuka auto-scroll ke bawah. `DOMContentLoaded` memulihkan status terakhir.
+- CSS `.log-dock*` di `styles.js`: fixed kanan-bawah, naik ke `bottom:96px` saat `body.has-savebar`, full-width di layar kecil.
+- Test: `test/dashboard-profile-pin.test.js` ("dock log mengambang tampil di semua halaman dan tidak terikat tab").
 
 ## Dashboard: hapus slot akun (wajib password pemilik)
 - Tombol 🗑 di kartu "Akun Tersimpan" memakai `confirmDeleteAccount(button, label)` (`scripts.js`): konfirmasi → `prompt` password pemilik → menyuntik hidden input `ownerPassword` ke form utama. Prompt hanya untuk kenyamanan; server tetap memverifikasi ulang.
