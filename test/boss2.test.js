@@ -6,6 +6,7 @@ const { normalizeBoss2Settings, parseRaidMessage, parseTicketStatusMessage } = c
 
 const ENDS_AT = Math.floor(Date.now() / 1000) + 600;
 const NEXT_SPAWN = Math.floor(Date.now() / 1000) + 3600;
+const LUCY_ID = '1438615298012872817';
 
 const appearComponents = ({ disabled = false } = {}) => [{
     type: 17,
@@ -33,7 +34,10 @@ const defeatedComponents = () => [{
 }];
 
 function setup(settings = {}) {
-    const state = { config: { settings: { boss2: { enabled: true, delayMinMs: 0, delayMaxMs: 0, ...settings } } } };
+    const state = {
+        config: { settings: { boss2: { enabled: true, delayMinMs: 0, delayMaxMs: 0, ...settings } } },
+        client: { user: { id: 'self-account' } }
+    };
     const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
     return { state, manager };
 }
@@ -44,7 +48,7 @@ function createMessage(components, overrides = {}) {
         id: 'raid-msg-1',
         guildId: 'guild-1',
         channel: { id: 'channel-1' },
-        author: { id: 'boss-bot' },
+        author: { id: LUCY_ID },
         content: '',
         embeds: [],
         components,
@@ -93,7 +97,7 @@ test('Auto Boss2 defaults to 3 fights per boss with a 1 second delay', () => {
     assert.equal(settings.delayMaxMs, 1000);
 });
 
-test('Auto Boss2 fights when the boss appears and records the end time', async () => {
+test('Auto Boss2 fights when the boss appears and stops after the configured fights', async () => {
     const { manager, state } = setup();
     const { msg, clicks } = createMessage(appearComponents());
 
@@ -101,7 +105,6 @@ test('Auto Boss2 fights when the boss appears and records the end time', async (
     assert.deepEqual(clicks, ['raid:fight', 'raid:fight', 'raid:fight']);
     const raid = manager.getRaidState('guild-1');
     assert.equal(raid.status, 'active');
-    assert.equal(raid.endsAt, ENDS_AT * 1000);
 
     await manager.handle(msg);
     assert.equal(clicks.length, 3);
@@ -130,9 +133,9 @@ test('Auto Boss2 stops on defeat and records the next boss timestamp', async () 
     assert.equal(raid.nextSpawnAt, NEXT_SPAWN * 1000);
 
     const nextAppear = createMessage(appearComponents(), { id: 'raid-msg-2' });
-    assert.equal(await manager.handle(nextAppear.msg), 'fought');
-    assert.equal(nextAppear.clicks.length, 3);
-    assert.equal(manager.getRaidState('guild-1').nextSpawnAt, null);
+    // Boss baru yang di-post ulang sebelum jam spawn di-skip (gate timestamp).
+    assert.equal(await manager.handle(nextAppear.msg), 'premature-skip');
+    assert.equal(nextAppear.clicks.length, 0);
     manager.stop();
 });
 
@@ -141,7 +144,7 @@ test('Auto Boss2 does not fight when disabled, filtered out, or button is disabl
     const a = createMessage(appearComponents());
     assert.equal(await disabled.manager.handle(a.msg), null);
 
-    const filtered = setup({ botIds: ['other-bot'] });
+    const filtered = setup({ allowedGuilds: ['other-guild'] });
     const b = createMessage(appearComponents());
     assert.equal(await filtered.manager.handle(b.msg), null);
 
@@ -153,7 +156,7 @@ test('Auto Boss2 does not fight when disabled, filtered out, or button is disabl
 });
 
 
-test('parseRaidMessage distinguishes Global Raid Boss and preserves its own lifecycle metadata', () => {
+test('parseRaidMessage ignores Global Raid Boss messages', () => {
     const components = [{
         type: 17,
         components: [
@@ -163,16 +166,12 @@ test('parseRaidMessage distinguishes Global Raid Boss and preserves its own life
         ]
     }];
     const info = parseRaidMessage({ content: '', embeds: [], components }, normalizeBoss2Settings({}));
-    assert.equal(info.kind, 'global');
-    assert.equal(info.isGlobalAppear, true);
-    assert.equal(info.isGuildAppear, false);
-    assert.equal(info.buttonActive, true);
-    assert.equal(info.endsAt, ENDS_AT * 1000);
-    assert.equal(info.fightsUsed, 2);
-    assert.equal(info.fightsMax, 3);
+    assert.equal(info.kind, null);
+    assert.equal(info.isAppear, false);
+    assert.equal(info.isDefeated, false);
 });
 
-test('parseTicketStatusMessage reads Guild and Global ticket balances independently', () => {
+test('parseTicketStatusMessage reads only the Guild ticket balance', () => {
     const status = parseTicketStatusMessage({
         content: '',
         components: [{
@@ -188,11 +187,10 @@ test('parseTicketStatusMessage reads Guild and Global ticket balances independen
     });
     assert.equal(status.guild.left, 2);
     assert.equal(status.guild.max, 3);
-    assert.equal(status.global.left, 1);
-    assert.equal(status.global.max, 3);
+    assert.equal(status.global, undefined);
 });
 
-test('Boss2 keeps Guild and Global boss state separate inside the same guild', async () => {
+test('Boss2 ignores Global Raid Boss messages and tracks only Guild state', async () => {
     const { manager } = setup();
     const guildDefeated = createMessage([{
         type: 17,
@@ -210,9 +208,91 @@ test('Boss2 keeps Guild and Global boss state separate inside the same guild', a
     }], { id: 'global-defeated', author: { id: '1438615298012872817' } });
 
     assert.equal(await manager.handle(guildDefeated.msg), 'ended');
-    assert.equal(await manager.handle(globalDefeated.msg), 'ended');
+    assert.equal(await manager.handle(globalDefeated.msg), null);
     assert.equal(manager.getRaidState('guild-1', 'guild').status, 'ended');
-    assert.equal(manager.getRaidState('guild-1', 'global').status, 'ended');
-    assert.notEqual(manager.getRaidState('guild-1', 'guild'), manager.getRaidState('guild-1', 'global'));
+    assert.equal(manager.getRaidState('guild-1', 'global'), null);
     manager.stop();
+});
+
+// Menjalankan satu siklus Fight sampai tiket diputuskan. `guildLeft`/`globalLeft`
+// adalah saldo yang dilaporkan channel privat; keputusan tiket harus memakai Guild.
+async function runTicketScenario({ guildLeft, globalLeft }) {
+    const state = {
+        config: {
+            settings: {
+                boss2: {
+                    enabled: true, delayMinMs: 0, delayMaxMs: 0,
+                    fightsPerBoss: 1, minTicketLeft: 1, ticketStatusChannelId: 'private-1'
+                }
+            }
+        },
+        client: { user: { id: 'self-account' } }
+    };
+    const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
+
+    state.client.channels = {
+        fetch: async () => ({
+            id: 'private-1',
+            send: async () => {
+                await manager.handle({
+                    id: 'status-1', channel: { id: 'private-1' }, author: { id: LUCY_ID }, createdTimestamp: Date.now(),
+                    components: [{
+                        type: 17,
+                        components: [
+                            { type: 10, content: '## 🎟 Ticket Boss Guild' },
+                            { type: 10, content: `**me**, kamu punya **${guildLeft}**/**3** boss ticket!` },
+                            { type: 14, divider: true },
+                            { type: 10, content: '## 🎟 Ticket Boss Global' },
+                            { type: 10, content: `**me**, kamu punya **${globalLeft}**/**3** boss ticket!` }
+                        ]
+                    }]
+                });
+            }
+        })
+    };
+
+    const fightClicks = [];
+    const ticketClicks = [];
+    let ticketSeq = 0;
+    const appear = {
+        id: 'raid-msg-1', guildId: 'guild-1', channel: { id: 'channel-1' }, author: { id: LUCY_ID },
+        components: appearComponents(),
+        clickButton: async (id) => {
+            fightClicks.push(id);
+            if (id !== 'raid:fight') return;
+            ticketSeq += 1;
+            await manager.handle({
+                id: `ticket-${ticketSeq}`, guildId: 'guild-1', channel: { id: 'channel-1' }, author: { id: LUCY_ID },
+                components: [{
+                    type: 17,
+                    components: [
+                        { type: 10, content: '**me**, kamu punya **1**/**3** boss ticket!' },
+                        { type: 1, components: [
+                            { type: 2, custom_id: 'raid:ticket:yes' },
+                            { type: 2, custom_id: 'raid:ticket:no' }
+                        ] }
+                    ]
+                }],
+                clickButton: async (ticketId) => ticketClicks.push(ticketId)
+            });
+        }
+    };
+
+    await manager.handle(appear);
+    manager.stop();
+    return { fightClicks, ticketClicks };
+}
+
+test('Boss2 accepts the ticket using the Guild balance and ignores the Global balance', async () => {
+    // Guild punya tiket, Global kosong: keputusan harus tetap Iya (pakai Guild).
+    const { ticketClicks } = await runTicketScenario({ guildLeft: 2, globalLeft: 0 });
+    assert.ok(ticketClicks.includes('raid:ticket:yes'), 'Guild 2/3 harus memilih Iya');
+    assert.ok(!ticketClicks.includes('raid:ticket:no'), 'Global 0/3 tidak boleh memengaruhi keputusan');
+});
+
+test('Boss2 rejects the ticket when only the Global balance has tickets', async () => {
+    // Guild kosong, Global penuh: keputusan harus Nggak (Global diabaikan).
+    const { ticketClicks } = await runTicketScenario({ guildLeft: 0, globalLeft: 2 });
+    assert.ok(ticketClicks.includes('raid:ticket:no'), 'Guild 0/3 harus memilih Nggak');
+    assert.ok(!ticketClicks.includes('raid:ticket:yes'), 'Global 2/3 tidak boleh dipakai untuk Iya');
 });

@@ -30,37 +30,43 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 }
 
                 function renderLogs(lines) {
-                    const logBox = document.getElementById('logBox');
-                    if (!logBox) return;
-                    if (isSelectingInside(logBox)) return;
+                    const boxes = document.querySelectorAll('[data-log-box]');
+                    if (!boxes.length) return;
 
-                    const previousScrollTop = logBox.scrollTop;
-                    const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
-                    const shouldStickToBottom = logBox.dataset.userScrolled !== 'true' || distanceFromBottom < 48;
+                    boxes.forEach(logBox => {
+                        if (isSelectingInside(logBox)) return;
 
-                    if (!lines || !lines.length) {
-                        logBox.innerHTML = '<div class="log-empty">✨ Belum ada log...</div>';
-                        return;
-                    }
-                    logBox.innerHTML = lines.map(line => {
-                        const item = parseLogLine(line);
-                        const levelClass = getLogLevelClass(item.level);
-                        return '<div class="log-line ' + levelClass + '">' +
-                            '<span class="log-time">' + escapeHtml(item.time) + '</span>' +
-                            '<span class="log-level">' + escapeHtml(item.level) + '</span>' +
-                            '<span class="log-message">' + escapeHtml(item.message) + '</span>' +
-                        '</div>';
-                    }).join('');
+                        const previousScrollTop = logBox.scrollTop;
+                        const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
+                        const shouldStickToBottom = logBox.dataset.userScrolled !== 'true' || distanceFromBottom < 48;
 
-                    if (shouldStickToBottom) {
-                        logBox.scrollTop = logBox.scrollHeight;
-                        logBox.dataset.userScrolled = 'false';
-                    } else {
-                        logBox.scrollTop = previousScrollTop;
-                    }
+                        if (!lines || !lines.length) {
+                            const emptyText = logBox.dataset.empty || '✨ Belum ada log...';
+                            logBox.innerHTML = '<div class="log-empty">' + escapeHtml(emptyText) + '</div>';
+                            return;
+                        }
+                        logBox.innerHTML = lines.map(line => {
+                            const item = parseLogLine(line);
+                            const levelClass = getLogLevelClass(item.level);
+                            return '<div class="log-line ' + levelClass + '">' +
+                                '<span class="t">' + escapeHtml(item.time) + '</span>' +
+                                '<span class="lv">' + escapeHtml(item.level) + '</span>' +
+                                '<span class="m">' + escapeHtml(item.message) + '</span>' +
+                            '</div>';
+                        }).join('');
+
+                        if (shouldStickToBottom) {
+                            logBox.scrollTop = logBox.scrollHeight;
+                            logBox.dataset.userScrolled = 'false';
+                        } else {
+                            logBox.scrollTop = previousScrollTop;
+                        }
+                    });
                 }
 
                 async function refreshLogs() {
+                    // Tidak ada kotak log (mis. halaman Menu Utama) → tidak perlu polling.
+                    if (!document.querySelector('[data-log-box]')) return;
                     try {
                         const res = await fetch('/logs' + profileQuery, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
                         if (!res.ok) throw new Error('HTTP Error');
@@ -73,9 +79,10 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     }
                 }
 
+                // Halaman Ringkasan dan kartu "Ringkasan Akun Ini" memakai
+                // data-stat yang sama, jadi semua kecocokan harus diperbarui.
                 function updateText(selector, text) {
-                    const el = document.querySelector(selector);
-                    if (el) el.textContent = text;
+                    document.querySelectorAll(selector).forEach(el => { el.textContent = text; });
                 }
 
                 function renderCommandTypes(byType) {
@@ -93,23 +100,22 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     const entries = (commands || []).slice(-5).reverse();
                     target.innerHTML = entries.length
                         ? entries.map(item => '<div class="recent-item">' +
-                            '<span class="recent-muted">' + escapeHtml(item.atFormatted || '-') + '</span>' +
-                            '<strong>' + escapeHtml(item.type || 'Command') + '</strong>' +
-                            '<span>' + escapeHtml(item.cmd || '-') + '</span>' +
+                            '<span class="tt">' + escapeHtml(item.atFormatted || '-') + '</span>' +
+                            '<span class="pill">' + escapeHtml(item.type || 'Command') + '</span>' +
+                            '<span class="m">' + escapeHtml(item.cmd || '-') + '</span>' +
                         '</div>').join('')
-                        : '<div class="recent-item"><span class="recent-muted">Belum ada command terkirim sejak bot berjalan.</span></div>';
+                        : '<div class="recent-item"><span class="m">Belum ada command terkirim sejak bot berjalan.</span></div>';
                 }
 
                 const viewingProfileId = ${viewingProfileIdJson};
                 const isControlPanel = ${isControlPanelJson};
                 const profileQuery = viewingProfileId ? '?profileId=' + encodeURIComponent(viewingProfileId) : '';
-                const logBox = document.getElementById('logBox');
-                if (logBox) {
+                document.querySelectorAll('[data-log-box]').forEach(logBox => {
                     logBox.addEventListener('scroll', () => {
                         const distanceFromBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight;
                         logBox.dataset.userScrolled = distanceFromBottom >= 48 ? 'true' : 'false';
                     }, { passive: true });
-                }
+                });
 
                 async function refreshStats() {
                     try {
@@ -119,17 +125,11 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         const lastCommand = data.commands.last ? data.commands.last.cmd + ' • ' + data.commands.last.type : 'Belum ada command terkirim';
                         updateText('[data-stat="commandTotal"]', data.commands.total);
                         updateText('[data-stat="lastCommand"]', lastCommand);
-                        updateText('[data-stat="captchaSolved"]', data.captcha.solved + '/' + data.captcha.detected);
-                        updateText('[data-stat="captchaStatus"]', data.captcha.active ? 'Aktif - butuh perhatian' : 'Aman, tidak aktif');
                         updateText('[data-stat="uptimeText"]', data.uptime.text);
                         updateText('[data-stat="startedAt"]', 'Start: ' + data.uptime.startedAt);
                         updateText('[data-stat="statusText"]', data.status.text);
-                        updateText('[data-stat="statusNote"]', 'Channel aktif: ' + data.status.activeChannelId);
-                        updateText('[data-stat="captchaSolvedOnly"]', data.captcha.solved);
-                        updateText('[data-stat="captchaDetectedOnly"]', data.captcha.detected);
-                        updateText('[data-stat="captchaLastSolved"]', 'Terakhir: ' + (data.captcha.lastSolvedAtFormatted || '-'));
-                        updateText('[data-stat="captchaLastDetected"]', 'Terakhir: ' + (data.captcha.lastDetectedAtFormatted || '-'));
-                        updateText('[data-stat="serviceFlags"]', 'Autosolver: ' + (data.status.autosolver ? 'ON' : 'OFF') + ' • Telegram: ' + (data.status.telegram ? 'ON' : 'OFF') + ' • Channel: ' + data.status.channelsTotal);
+                        updateText('[data-stat="statusNote"]', 'Akun: ' + (data.status.running ? 'AKTIF' : 'NONAKTIF'));
+                        updateText('[data-stat="serviceFlags"]', 'Telegram: ' + (data.status.telegram ? 'ON' : 'OFF'));
                         renderCommandTypes(data.commands.byType);
                         renderRecentCommands(data.commands.recent);
                     } catch (err) {
@@ -171,32 +171,62 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                     }
                 }
                 refreshMonsterCatcher(); setInterval(refreshMonsterCatcher, 2000);
+
+                // LUCY DAILY STATUS
+                async function refreshDaily() {
+                    const target = document.querySelector('[data-daily-status]');
+                    if (!target) return;
+                    try {
+                        const res = await fetch('/api/daily-status' + profileQuery, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+                        if (!res.ok) throw new Error('HTTP Error');
+                        const data = await res.json();
+                        const acc = (data.accounts || [])[0];
+                        if (!acc) { updateText('[data-daily-status]', '⚠️ Akun belum tersedia'); return; }
+                        const s = acc.status || {};
+                        const parts = [s.enabled ? '✅ Aktif' : '⛔ Nonaktif'];
+                        if (s.nextRunAt) {
+                            const when = new Date(s.nextRunAt);
+                            parts.push('berikutnya ' + when.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }) + ' WIB');
+                        }
+                        if (s.lastResult) {
+                            const who = s.lastResult.server ? s.lastResult.server + ' · ' : '';
+                            parts.push('terakhir ' + who + s.lastResult.days + ' hari');
+                        } else {
+                            parts.push('belum ada balasan daily');
+                        }
+                        updateText('[data-daily-status]', parts.join(' • '));
+                    } catch (err) {
+                        updateText('[data-daily-status]', 'Status tidak bisa dimuat');
+                    }
+                }
+                refreshDaily(); setInterval(refreshDaily, 5000);
+
+
                 
                 // AUTO FETCH PROFILE SCRIPT
                 async function fetchProfile() {
+                    const avatarEl = document.getElementById('userProfileAvatar');
+                    const nameEl = document.getElementById('userProfileName');
+                    const metaEl = document.getElementById('userProfileMeta');
+                    if (!avatarEl) return;
                     try {
                         const res = await fetch('/api/profile' + profileQuery);
                         const data = await res.json();
-                        const profileBox = document.getElementById('userProfileBox');
-                        
+
                         if (data.username) {
                             const name = data.global_name || data.username;
-                            const avatarUrl = data.avatar 
+                            const avatarUrl = data.avatar
                                 ? \`https://cdn.discordapp.com/avatars/\${data.id}/\${data.avatar}.png?size=64\`
                                 : \`https://cdn.discordapp.com/embed/avatars/0.png\`;
-                                
-                            profileBox.innerHTML = \`
-                                <img src="\${avatarUrl}" alt="Avatar">
-                                <div>
-                                    <div style="color: var(--text); font-weight: bold; font-size: 14px;">\${name}</div>
-                                    <div style="font-size: 11px; color: #8e9297;">@\${data.username} (\${data.id})</div>
-                                </div>
-                            \`;
-                        } else {
-                            profileBox.innerHTML = '❌ Gagal memuat data akun. (Cek token)';
+
+                            avatarEl.innerHTML = \`<img src="\${avatarUrl}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover">\`;
+                            if (nameEl) nameEl.textContent = name;
+                            if (metaEl) metaEl.textContent = \`@\${data.username} · ID \${data.id}\`;
+                        } else if (metaEl) {
+                            metaEl.textContent = 'Gagal memuat data akun. (Cek token)';
                         }
                     } catch (err) {
-                        document.getElementById('userProfileBox').innerHTML = '⚠️ Koneksi ke Discord API gagal.';
+                        if (metaEl) metaEl.textContent = 'Koneksi ke Discord API gagal.';
                     }
                 }
                 if (!isControlPanel) {
@@ -252,9 +282,35 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
 
             function closeSettingsMenu() {
                 const menu = document.getElementById('settingsMenu');
-                const button = document.querySelector('.hamburger-btn');
+                const button = document.querySelector('.tb-burger');
                 if (menu) menu.classList.remove('open');
                 if (button) button.setAttribute('aria-expanded', 'false');
+            }
+
+            // Hapus slot akun wajib password pemilik. Prompt di sini hanya untuk
+            // kenyamanan; server tetap memverifikasi ulang (createSlotPermissionGuard).
+            function confirmDeleteAccount(button, label) {
+                const name = label ? ' "' + label + '"' : '';
+                if (!window.confirm('Hapus slot akun' + name + '? Slot akan berkurang 1 dan tidak bisa dibatalkan.')) {
+                    return false;
+                }
+                const password = window.prompt('Masukkan password pemilik untuk menghapus akun ini:');
+                if (password === null) return false;
+                if (!password.trim()) {
+                    window.alert('Password pemilik wajib diisi. Hapus akun dibatalkan.');
+                    return false;
+                }
+                const form = button.form;
+                if (!form) return false;
+                let field = form.querySelector('input[name="ownerPassword"]');
+                if (!field) {
+                    field = document.createElement('input');
+                    field.type = 'hidden';
+                    field.name = 'ownerPassword';
+                    form.appendChild(field);
+                }
+                field.value = password;
+                return true;
             }
 
             function switchTab(event, tabId) {
@@ -265,19 +321,26 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 document.querySelectorAll('.settings-menu-item').forEach(el => el.classList.remove('active'));
                 target.classList.add('active');
 
-                if (event && event.currentTarget) {
-                    event.currentTarget.classList.add('active');
-                    const label = event.currentTarget.getAttribute('data-menu-label') || event.currentTarget.textContent.trim();
-                    const currentLabel = document.getElementById('settingsCurrentLabel');
-                    if (currentLabel) currentLabel.textContent = label;
+                // Profile-only controls must never leak into feature pages.
+                const profilePinSection = document.getElementById('profilePinSection');
+                if (profilePinSection) {
+                    profilePinSection.style.display = tabId === 'tab-main' ? '' : 'none';
                 }
 
+                if (event && event.currentTarget) {
+                    const control = event.currentTarget;
+                    control.classList.add('active');
+                }
                 closeSettingsMenu();
             }
 
             document.addEventListener('click', function(event) {
-                const nav = document.querySelector('.settings-nav');
-                if (nav && !nav.contains(event.target)) closeSettingsMenu();
+                const menu = document.getElementById('settingsMenu');
+                if (!menu || !menu.classList.contains('open')) return;
+                // Klik pada tombol hamburger ditangani oleh toggle-nya sendiri,
+                // jangan sampai handler ini langsung menutup menu yang baru dibuka.
+                if (event.target.closest && event.target.closest('.tb-burger')) return;
+                if (!menu.contains(event.target)) closeSettingsMenu();
             });
         </script>
         `;

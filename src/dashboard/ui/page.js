@@ -1,20 +1,117 @@
 const fs = require('fs');
 const fileService = require('../services/fileService');
-module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
+module.exports = function createPageRenderer({ CONSTANTS, configManager, profileManager, statsService, escapeHtml, getStyles, getDashboardStatsCard, getLogCard, getLogRefreshScript, renderSettingsTabs }) {
+    // Ringkasan selalu menampilkan SATU akun. Selector ini membuat cakupannya eksplisit
+    // dan bisa dipindah tanpa kembali ke halaman Menu Utama.
+    function renderScopeBar({ profileOptions = [], viewingProfileId = '' }) {
+        const active = profileOptions.find(profile => profile.isViewing) || null;
+        const name = active ? active.displayName : (viewingProfileId || 'Belum ada akun');
+        const detail = active
+            ? `ID ${active.id} · ${active.statusText === 'START' ? 'sedang berjalan' : 'berhenti'}`
+            : 'Belum ada akun tersimpan. Tambahkan token akun di halaman Menu Utama.';
+        const options = profileOptions.map(profile => `
+            <a class="${profile.isViewing ? 'active' : ''}" href="/?profileId=${encodeURIComponent(profile.id)}">${escapeHtml(profile.displayName)}</a>
+        `).join('');
+
+        return `
+        <div class="scope-bar">
+            <div class="sb-text">
+                <strong>Menampilkan: ${escapeHtml(name)}</strong>
+                <small>${escapeHtml(detail)}</small>
+            </div>
+            ${options ? `<div class="scope-seg" role="tablist">${options}</div>` : ''}
+        </div>
+        `;
+    }
+
+    // Halaman Profil Akun mengikuti mockup: kartu Akun Aktif (avatar + meta +
+    // aksi), Ringkasan Akun Ini (statistik), PIN Profile, lalu pintasan ke
+    // Custom Commands. Statistik di sini memakai data-stat yang sama dengan
+    // tab Ringkasan, jadi refresh live tetap berlaku.
+    function renderProfileHomeCard({ profileOptions = [], viewingProfileId = '', snapshot = null, statsService = null }) {
+        const current = profileOptions.find(profile => profile.id === viewingProfileId) || null;
+        const others = profileOptions.filter(profile => profile.id !== viewingProfileId);
+        const running = current ? current.running : false;
+        const name = current ? current.displayName : viewingProfileId;
+        const hue = String(viewingProfileId).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+        const initial = escapeHtml((name || viewingProfileId).trim().charAt(0).toUpperCase() || '?');
+        const meta = current?.meta || null;
+        const metaLine = [`ID ${viewingProfileId}`, running ? 'command berjalan' : 'command dijeda'];
+        if (meta?.username) metaLine.push('@' + meta.username);
+        const stats = snapshot && statsService ? `
+            <div class="divider"></div>
+            <div class="card-head" style="margin-bottom:10px"><h3>📊 Ringkasan Akun Ini</h3><span class="pill">${escapeHtml(name)}</span></div>
+            <div class="grid four">
+                <div class="stat">
+                    <div class="lbl">Uptime</div>
+                    <div class="val" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
+                    <div class="note" data-stat="startedAt">Sejak ${escapeHtml(snapshot.uptime.startedAt)}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Command terkirim</div>
+                    <div class="val" data-stat="commandTotal">${snapshot.commands.total}</div>
+                    <div class="note" data-stat="lastCommand">${escapeHtml(snapshot.commands.last ? `${snapshot.commands.last.cmd} • ${snapshot.commands.last.type}` : 'Belum ada command terkirim')}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Status</div>
+                    <div class="val" style="font-size:18px" data-stat="statusText">${escapeHtml(snapshot.status.text)}</div>
+                    <div class="note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Notifikasi</div>
+                    <div class="val" style="font-size:18px" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
+                    <div class="note">Telegram opsional</div>
+                </div>
+            </div>` : '';
+        return `
+        <div class="card">
+            <div class="card-head">
+                <h3>👤 Akun Aktif</h3>
+                <span class="pill ${running ? 'pill-run' : ''}">${running ? '● RUNNING' : '⏸ PAUSED'}</span>
+            </div>
+            <div class="acct" style="margin-bottom:14px">
+                <div class="acct-av" id="userProfileAvatar" style="background:linear-gradient(135deg,hsl(${hue},72%,58%),hsl(${hue},72%,38%))">${initial}</div>
+                <div class="acct-body">
+                    <strong id="userProfileName">${escapeHtml(name)}</strong>
+                    <small id="userProfileMeta">${escapeHtml(metaLine.join(' · '))}</small>
+                </div>
+            </div>
+            <div class="action-row">
+                <button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 Connect / Login</button>
+                <button type="submit" name="action" value="startProfile" class="btn btn-start">▶ Start / Resume</button>
+                <button type="submit" name="action" value="pauseProfile" class="btn btn-pause">⏸ Pause</button>
+                <button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 Join Voice</button>
+                <button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 Logout</button>
+            </div>
+            <div class="callout">
+                <span class="co-ico">⚠️</span>
+                <p>Tombol di atas adalah aksi langsung dan tidak masuk savebar. Start/Resume memakai konfigurasi yang <strong>sudah tersimpan</strong> — kalau ada perubahan di layar, simpan dulu lewat savebar.</p>
+            </div>
+            ${stats}
+            <div class="divider"></div>
+            <div class="card-head" style="margin-bottom:10px">
+                <h3>➡️ Lanjut ke Commands</h3>
+            </div>
+            <p class="input-hint">Custom Commands dan Command Tetap lb+lh kini punya menu sendiri di sidebar, sejajar dengan fitur Lucy lain.</p>
+            <div class="action-row">
+                <button type="button" class="btn btn-primary" onclick="switchTab(event, 'tab-lucy-commands')">🧩 Custom Commands</button>
+                <button type="button" class="btn btn-ghost" onclick="switchTab(event, 'tab-lucy-fixed')">📌 Command Tetap lb+lh</button>
+            </div>
+            ${others.length ? `
+            <div class="divider"></div>
+            <div class="section-label">Ganti akun</div>
+            <div class="scope-seg">${others.map(profile => `<a href="/?profileId=${encodeURIComponent(profile.id)}">${escapeHtml(profile.displayName)}</a>`).join('')}</div>` : ''}
+        </div>
+        `;
+    }
+
 function renderPage(config) {
         console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
 
         const { statusText, statusClass } = configManager.computeStatus(config);
-        const channels = config.channels || [];
-        const custom1 = config.delays.custom1 || CONSTANTS.DEFAULT_DELAYS.custom1;
-        const custom2 = config.delays.custom2 || CONSTANTS.DEFAULT_DELAYS.custom2;
         const hasTelegram = config.settings?.telegram?.token && config.settings?.telegram?.chatId;
 
-        const huntbot = config.huntbot || {};
-        const control = config.settings.control || {};
         const lucyControl = config.settings.lucyControl || {};
-        const rotation = config.settings.channelRotation || {};
-        const boss = config.settings.boss || {};
         const boss2 = config.settings.boss2 || {};
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
@@ -23,12 +120,29 @@ function renderPage(config) {
         const messageDebug = config.settings.messageDebug || {};
         const voice = config.settings.voice || {};
         const statsSnapshot = statsService.getSnapshot(config);
+        const logFileMaxLines = config.logFileMaxLines || 1000;
         const viewingProfileId = config.viewingProfileId || '';
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
+        const viewingProfileName = viewingProfileId ? profileManager.getProfileDisplayName(viewingProfileId) : '';
+        // Di control panel statistik dibaca dari token global (akun utama), jadi labelnya
+        // diambil dari token itu, bukan dari profil yang sedang dibuka.
+        const statsScopeName = viewingProfileName
+            || (config.token ? profileManager.getProfileDisplayName(profileManager.getUserId(config.token)) : '');
+
+        const renderLucyCommandCards = renderSettingsTabs.renderLucyCommandCards || (() => '');
+        const renderMultiAccountCard = renderSettingsTabs.renderMultiAccountCard || (() => '');
+
+        // renderSettingsTabs sekarang objek berisi { renderSettingsTabs, renderLucyCommandCards }.
+        const pageSettingsTabs = renderSettingsTabs.renderSettingsTabs
+            ? renderSettingsTabs.renderSettingsTabs
+            : renderSettingsTabs;
 
         const profiles = profileManager.getSavedProfiles();
         const activeProfileId = profileManager.getUserId(config.token);
+        // Target tombol "HALAMAN PROFIL" di control panel: akun utama (token di
+        // config.json) bila profilnya tersimpan, jika tidak profil pertama.
+        const primaryProfileId = profiles.includes(activeProfileId) ? activeProfileId : (profiles[0] || '');
         const profileOptions = profiles.map(id => {
             const profilePath = profileManager.getProfilePath(id);
             const profileConfig = fs.existsSync(profilePath)
@@ -38,6 +152,7 @@ function renderPage(config) {
             const isRunning = !!profileStatus.running && !profileStatus.paused;
             return {
                 id,
+                hasConfig: !!profileConfig,
                 meta: (() => { const meta = profileManager.getProfileMeta(id); return meta ? { username: meta.username, globalName: meta.globalName, avatar: meta.avatar } : null; })(),
                 hasPin: !!profileManager.getProfileMeta(id)?.pin,
                 displayName: profileManager.getProfileDisplayName(id),
@@ -50,11 +165,20 @@ function renderPage(config) {
             };
         });
 
-        // Captcha config
-        const captchaConfig = config.captcha || {};
-        const nopechaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.NopechaSolver) || '';
-        const twoCaptchaKey = (captchaConfig.apiKeys && captchaConfig.apiKeys.TwoCaptchaSolver) || '';
-        const fallbackSolvers = captchaConfig.fallbackSolvers || [];
+        const topbarScopeName = statsScopeName || (isControlPanel ? 'Control Panel' : viewingProfileId);
+        const topbarInitial = (topbarScopeName || 'L').trim().charAt(0).toUpperCase() || 'L';
+        const topbarStatus = statusText || 'OFFLINE';
+        const topbarStatusClass = statusClass === 'running' ? 'run' : '';
+
+        // Halaman Ringkasan: cakupan akun dan statistik (tanpa log; log per akun
+        // tersedia sebagai file .txt di halaman Profil Akun).
+        const ringkasanCards = `
+                ${profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
+                <div class="status-box ${statusClass}">
+                    <span style="font-size: 16px;">${statusText}</span>
+                    ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
+                </div>
+                ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}`;
 
         return `
         <!DOCTYPE html>
@@ -62,41 +186,39 @@ function renderPage(config) {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>OWO FARMING</title>
+            <title>LucySoFun Dashboard</title>
             ${getStyles()}
         </head>
         <body>
-            <div class="container">
-                <h2>OWO Farming Dashboard</h2>
-                <div class="subtitle">${isControlPanel ? 'Control Panel utama untuk mengontrol semua akun dan slot paralel; halaman ini bukan akun default.' : `Sedang melihat akun: ${viewingProfileId}`}</div>
-
-                <div id="userProfileBox" class="profile-box profile-box-top" data-control-panel="${isControlPanel ? 'true' : 'false'}">
-                    ${isControlPanel ? '🧭 Control Panel — tidak ada akun default. Pilih akun tersimpan untuk melihat profil Discord.' : '⏳ Menghubungi Discord API...'}
+            <header class="topbar">
+                <button type="button" class="tb-burger" aria-label="Buka navigasi" aria-controls="settingsMenu" aria-expanded="false" onclick="toggleSettingsMenu(event)">☰</button>
+                <div class="tb-account">
+                    <span class="tb-avatar">${escapeHtml(topbarInitial)}</span>
+                    <div style="min-width:0">
+                        <div class="tb-name">${escapeHtml(topbarScopeName)}</div>
+                        <div class="tb-id">${isControlPanel ? 'Semua akun tersimpan' : 'ID ' + escapeHtml(viewingProfileId)}</div>
+                    </div>
                 </div>
-
+                <div class="tb-spacer"></div>
+                <span class="tb-pill ${topbarStatusClass}"><span class="dot"></span> ${escapeHtml(topbarStatus)}</span>
+                <div class="tb-actions">
+                    <button type="submit" form="configForm" name="action" value="${viewingProfileId ? 'startProfile' : 'start'}" class="tb-btn start">▶ START</button>
+                    <button type="submit" form="configForm" name="action" value="${viewingProfileId ? 'pauseProfile' : 'pause'}" class="tb-btn pause">⏸ PAUSE</button>
+                </div>
+            </header>
+            <div class="container">
                 <form id="configForm" action="/save" method="POST">
                     ${viewingProfileId ? `<input type="hidden" name="viewingProfileId" value="${viewingProfileId}">` : ''}
                     <div class="action-group">
                         ${viewingProfileId ? '<a href="/" class="btn btn-home">⌂ MENU UTAMA</a>' : ''}
                         ${!viewingProfileId ? '<a href="/owner/slots" class="btn btn-home">🔐 IZIN SLOT AKUN</a>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="connectProfile" class="btn btn-connect">🔌 CONNECT / LOGIN</button>' : ''}
-                        <button type="submit" name="action" value="${viewingProfileId ? 'startProfile' : 'start'}" class="btn btn-start">▶ ${viewingProfileId ? 'START / RESUME COMMANDS' : 'START ALL COMMANDS'}</button>
-                        <button type="submit" name="action" value="${viewingProfileId ? 'pauseProfile' : 'pause'}" class="btn btn-pause">⏸ ${viewingProfileId ? 'PAUSE COMMANDS' : 'PAUSE ALL COMMANDS'}</button>
-                        ${viewingProfileId ? '<button type="submit" name="action" value="joinVoice" class="btn btn-voice">🔊 JOIN VOICE</button>' : ''}
-                        ${viewingProfileId ? '<button type="submit" name="action" value="logoutProfile" class="btn btn-logout">🚪 LOGOUT</button>' : ''}
+                        ${!viewingProfileId && primaryProfileId ? `<a href="/?profileId=${encodeURIComponent(primaryProfileId)}" class="btn btn-home">👤 HALAMAN PROFIL</a>` : ''}
                     </div>
 
-                    ${renderSettingsTabs({
-                        config,
+                    ${pageSettingsTabs({
                         profileOptions,
-                        channels,
-                        custom1,
-                        custom2,
-                        huntbot,
-                        control,
+                        config,
                         lucyControl,
-                        rotation,
-                        boss,
                         boss2,
                         gems,
                         adventure,
@@ -104,54 +226,69 @@ function renderPage(config) {
                         msgFilter,
                         messageDebug,
                         voice,
-                        captchaConfig,
-                        nopechaKey,
-                        twoCaptchaKey,
-                        fallbackSolvers
+                        viewingProfileName,
+                        homePageCards: viewingProfileId
+                            ? renderProfileHomeCard({ profileOptions, viewingProfileId, snapshot: statsSnapshot, statsService })
+                                + getLogCard({
+                                    id: 'logBoxProfile',
+                                    title: '🧾 Log Akun Ini',
+                                    stamp: 'live',
+                                    emptyText: '✨ Belum ada log untuk akun ini...',
+                                    hint: `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`,
+                                    actions: `<div class="log-download-row">
+                                        <a class="btn btn-ghost" href="/logs/download?profileId=${encodeURIComponent(viewingProfileId)}">⬇️ Unduh log (.txt)</a>
+                                        <span class="log-download-note">File per akun, maksimal ${logFileMaxLines} baris terakhir.</span>
+                                    </div>`
+                                })
+                            : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),
+                        ringkasanCards,
                     })}
-                    <button type="submit" name="action" value="save" class="btn btn-save" style="margin-top: 10px;">💾 SAVE CONFIGURATION</button>
                 </form>
 
                 ${viewingProfileId ? `
-                <section class="card" style="margin-top:16px">
-                    <label>🔒 PIN PROFILE</label>
-                    <p style="font-size:13px;color:#aeb7c8">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional. Tanpa PIN, profile dapat dibuka langsung.'}</p>
+                <section id="profilePinSection" class="card profile-home-only" style="margin-top:16px">
+                    <div class="card-head">
+                        <h3>🔒 PIN Profile</h3>
+                        <span class="pill ${viewingProfileHasPin ? 'pill-run' : ''}">${viewingProfileHasPin ? '🔒 Aktif' : 'Tanpa PIN'}</span>
+                    </div>
+                    <p class="input-hint">${viewingProfileHasPin ? 'Profile ini dilindungi PIN.' : 'PIN opsional — tanpa PIN, profile dapat dibuka langsung.'}</p>
                     ${viewingProfileHasPin ? `
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin" style="margin-bottom:12px">
+                    <form class="pin-row" method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
                         <input type="hidden" name="pinAction" value="change">
                         <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
                         <input type="password" name="newPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="new-password" placeholder="PIN baru (4 digit)" required>
-                        <button class="btn btn-save" type="submit">Ganti PIN</button>
+                        <button class="btn btn-primary" type="submit">Ganti PIN</button>
                     </form>
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin" style="margin-bottom:12px">
-                        <input type="hidden" name="pinAction" value="delete">
-                        <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
-                        <button class="btn btn-pause" type="submit">Hapus PIN</button>
-                    </form>
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/lock">
-                        <button class="btn btn-home" type="submit">🔒 Kunci Profile</button>
-                    </form>
+                    <div class="pin-row">
+                        <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/lock">
+                            <button class="btn btn-ghost" type="submit">🔒 Kunci Profile</button>
+                        </form>
+                        <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
+                            <input type="hidden" name="pinAction" value="delete">
+                            <input type="password" name="oldPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="current-password" placeholder="PIN lama (4 digit)" required>
+                            <button class="btn btn-warn" type="submit">Hapus PIN</button>
+                        </form>
+                    </div>
                     ` : `
-                    <form method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
+                    <form class="pin-row" method="POST" action="/profile/${encodeURIComponent(viewingProfileId)}/pin">
                         <input type="hidden" name="pinAction" value="set">
                         <input type="password" name="newPin" inputmode="numeric" pattern="\\d{4}" maxlength="4" minlength="4" autocomplete="new-password" placeholder="PIN baru (4 digit)" required>
-                        <button class="btn btn-save" type="submit">Tambah PIN</button>
+                        <button class="btn btn-primary" type="submit">Tambah PIN</button>
                     </form>
                     `}
-                    <p style="font-size:12px;color:#aeb7c8">Lupa PIN? Pemilik server harus menghapus properti <code>profiles[${viewingProfileId}].pin</code> dari <code>profiles/meta.json</code>. Tidak ada reset PIN dari dashboard.</p>
+                    <p class="input-hint">Lupa PIN? Pemilik server harus menghapus properti <code>profiles[${viewingProfileId}].pin</code> dari <code>profiles/meta.json</code>. Tidak ada reset PIN dari dashboard.</p>
                 </section>
                 ` : ''}
-
-                <div class="status-box ${statusClass}">
-                    <span style="font-size: 16px;">${statusText}</span>
-
-                    ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
-                </div>
-
-                ${getDashboardStatsCard(statsSnapshot)}
-                ${getLogCard()}
             </div>
             <div id="saveToast" class="save-toast" role="status" aria-live="polite"></div>
+            <div id="unsavedBanner" class="unsaved-banner warning" style="display:none" role="status" aria-live="polite">
+                <span class="unsaved-dot"></span>
+                <span class="unsaved-text" id="unsavedText">Ada perubahan yang belum disimpan</span>
+                <span class="unsaved-actions">
+                    <button type="button" class="btn btn-secondary" id="unsavedCancel">Batalkan</button>
+                    <button type="submit" class="btn btn-save" id="unsavedSave" form="configForm" name="action" value="save">💾 Simpan semua perubahan →</button>
+                </span>
+            </div>
 
             ${getLogRefreshScript(profileOptions, viewingProfileId, isControlPanel)}
 
@@ -228,6 +365,71 @@ function renderPage(config) {
                 if (!form) return;
                 let toastTimeout;
 
+                const unsavedBanner = document.getElementById('unsavedBanner');
+                const unsavedText = document.getElementById('unsavedText');
+                const unsavedCancel = document.getElementById('unsavedCancel');
+                let isSaving = false;
+                let dirtyCount = 0;
+
+                function trackUnsaved() {
+                    let dirty = false;
+                    const dirtyFields = new Set();
+                    const showBanner = () => {
+                        if (!unsavedBanner) return;
+                        if (dirty && !isSaving) {
+                            unsavedBanner.style.display = 'flex';
+                            document.body.classList.add('has-savebar');
+                            if (unsavedText) {
+                                unsavedText.textContent = (dirtyCount > 1 ? dirtyCount + ' perubahan lokal belum disimpan.' : '1 perubahan lokal belum disimpan.');
+                            }
+                        } else {
+                            unsavedBanner.style.display = 'none';
+                            document.body.classList.remove('has-savebar');
+                        }
+                    };
+                    const markDirty = (event) => {
+                        const fieldName = event && event.target && event.target.name;
+                        // Token akun baru punya tombol simpan sendiri (➕ Buat), jadi
+                        // jangan pernah masuk hitungan savebar: kalau tokennya salah,
+                        // peringatan "belum tersimpan" tidak boleh tertinggal di layar.
+                        if (fieldName === 'newToken') return;
+                        dirty = true;
+                        // Hitung elemen berbeda yang berubah, bukan tiap ketikan.
+                        if (fieldName && !dirtyFields.has(fieldName)) {
+                            dirtyFields.add(fieldName);
+                        }
+                        dirtyCount = dirtyFields.size || 1;
+                        showBanner();
+                    };
+                    const markClean = () => {
+                        dirty = false;
+                        dirtyFields.clear();
+                        dirtyCount = 0;
+                        showBanner();
+                    };
+
+                    form.addEventListener('input', markDirty);
+                    form.addEventListener('change', markDirty);
+
+                    // Batalkan: kembalikan form ke kondisi terakhir tersimpan.
+                    unsavedCancel?.addEventListener('click', () => {
+                        form.reset();
+                        markClean();
+                    });
+
+                    window.addEventListener('beforeunload', (event) => {
+                        if (dirty && !isSaving) {
+                            event.preventDefault();
+                            event.returnValue = '';
+                            return '';
+                        }
+                    });
+
+                    return { markClean, isDirty: () => dirty, refresh: showBanner };
+                }
+
+                const unsaved = form ? trackUnsaved() : null;
+
                 function showToast(type, message) {
                     if (!toast) return;
                     clearTimeout(toastTimeout);
@@ -255,6 +457,7 @@ function renderPage(config) {
                     const originalText = submitter.textContent;
                     submitter.disabled = true;
                     submitter.textContent = '⏳ PROCESSING...';
+                    isSaving = true;
 
                     try {
                         const formData = new FormData(form);
@@ -303,6 +506,36 @@ function renderPage(config) {
 
                         submitter.textContent = '✓ BERHASIL';
                         showToast('success', 'Tersimpan');
+                        unsaved?.markClean();
+
+                        // "➕ Buat" menyimpan slot akun baru, jadi muat ulang supaya
+                        // daftar "Akun Tersimpan" langsung menampilkan akun baru.
+                        // Hapus akun juga reload supaya baris yang dihapus hilang
+                        // dari layar (sebelumnya server sudah hapus, tapi UI tetap
+                        // menampilkan barisnya sehingga terlihat "tidak terhapus").
+                        // Kalau ada perubahan lain yang belum disimpan, jangan reload
+                        // agar perubahan itu tidak hilang diam-diam.
+                        const isNewProfile = submitter.name === 'action' && submitter.value === 'newProfile';
+                        const isDeleteProfile = String(submitter.name || '') === 'profileAction'
+                            && String(submitter.value || '').startsWith('delete:');
+                        if (isNewProfile || isDeleteProfile) {
+                            if (isNewProfile) {
+                                const tokenInput = form.querySelector('input[name="newToken"]');
+                                if (tokenInput) tokenInput.value = '';
+                            }
+                            const ownerField = form.querySelector('input[name="ownerPassword"]');
+                            if (ownerField) ownerField.value = '';
+                            if (unsaved?.isDirty()) {
+                                showToast('success', 'Tersimpan. Simpan perubahan lain dulu, lalu muat ulang halaman.');
+                            } else {
+                                setTimeout(() => window.location.reload(), 600);
+                            }
+                            setTimeout(() => {
+                                submitter.disabled = false;
+                                submitter.textContent = originalText;
+                            }, 1000);
+                            return;
+                        }
 
                         setTimeout(() => {
                             submitter.disabled = false;
@@ -317,6 +550,14 @@ function renderPage(config) {
                         setTimeout(() => {
                             submitter.textContent = originalText;
                         }, 1500);
+                    } finally {
+                        isSaving = false;
+                        // Jika aksi gagal, tetap tampilkan indikator kalau masih ada perubahan.
+                        if (unsaved?.isDirty()) {
+                            unsaved.refresh();
+                        } else {
+                            unsaved?.markClean();
+                        }
                     }
                 });
             })();

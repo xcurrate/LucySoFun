@@ -1,4 +1,6 @@
 const chalk = require('chalk');
+const fs = require('fs');
+const path = require('path');
 const constants = require('./src/constants');
 
 // --- FUNGSI HELPER WIB ---
@@ -17,16 +19,18 @@ const formatWIB = () => {
 const INTERNAL_MAX_LINES = 800;
 const TERMINAL_MAX_LINES = constants.MAX_LOG_LINES || 20;
 const MAX_MESSAGE_LENGTH = 260;
+const LOG_FILE_DIR = constants.LOG_FILE_DIR || 'logs';
+const LOG_FILE_MAX_LINES = constants.LOG_FILE_MAX_LINES || 1000;
+const LOG_FILE_PREFIX = 'log_';
+const LOG_FILE_SUFFIX = '.txt';
 const ACCOUNT_PATTERN = /\[account:([^\]\s]+)(?:\s+user:([^\]]+))?\]/g;
 const IMPORTANT_KEYWORDS = [
     'login sukses',
     'token invalid',
     'tidak ada token',
     'bot started',
-    'captcha',
     'tiket habis',
     'tiket terupdate',
-    'daily reset',
     'config',
     'profil',
     'akun paralel',
@@ -82,6 +86,59 @@ function pushLogLine(entry) {
     while (entries.length > INTERNAL_MAX_LINES) entries.shift();
     while (logBuffer.length > TERMINAL_MAX_LINES) logBuffer.shift();
     while (plainLogBuffer.length > INTERNAL_MAX_LINES) plainLogBuffer.shift();
+
+    if (Array.isArray(entry.accountIds) && entry.accountIds.length) {
+        entry.accountIds.forEach(id => appendAccountLog(id, entry.plainLine));
+    }
+}
+
+// --- LOG FILE PER AKUN ---
+// Setiap baris yang menyebut sebuah akun juga ditulis ke logs/log_<accountId>.txt
+// supaya riwayat per akun bisa ditelusuri. Jumlah baris dibatasi (ring buffer)
+// agar file tidak tumbuh tanpa batas; nilainya bisa diubah dari dashboard.
+let logFileMaxLines = LOG_FILE_MAX_LINES;
+const LOG_DIR = path.isAbsolute(LOG_FILE_DIR) ? LOG_FILE_DIR : path.join(__dirname, LOG_FILE_DIR);
+const SAFE_ACCOUNT_ID = /^[A-Za-z0-9._-]+$/;
+
+function getLogFilePath(accountId) {
+    const id = String(accountId || '').trim();
+    if (!id || !SAFE_ACCOUNT_ID.test(id)) return null;
+    return path.join(LOG_DIR, `${LOG_FILE_PREFIX}${id}${LOG_FILE_SUFFIX}`);
+}
+
+function trimLogFile(filePath, keep) {
+    try {
+        const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(line => line.length > 0);
+        if (lines.length > keep) {
+            fs.writeFileSync(filePath, lines.slice(-keep).join('\n') + '\n', 'utf8');
+        }
+    } catch { /* file mungkin belum ada */ }
+}
+
+function appendAccountLog(accountId, plainLine) {
+    const filePath = getLogFilePath(accountId);
+    if (!filePath) return;
+    try {
+        fs.mkdirSync(LOG_DIR, { recursive: true });
+        let existing = 0;
+        try {
+            existing = fs.readFileSync(filePath, 'utf8').split('\n').filter(line => line.length > 0).length;
+        } catch { /* file baru */ }
+        fs.appendFileSync(filePath, plainLine + '\n', 'utf8');
+        if (existing + 1 > logFileMaxLines) trimLogFile(filePath, logFileMaxLines);
+    } catch { /* gagal tulis log file tidak boleh menghentikan bot */ }
+}
+
+function readAccountLog(accountId, limit) {
+    const filePath = getLogFilePath(accountId);
+    if (!filePath) return [];
+    try {
+        const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(line => line.length > 0);
+        const cap = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : undefined;
+        return cap ? lines.slice(-cap) : lines;
+    } catch {
+        return [];
+    }
 }
 
 // --- RENDER TERMINAL ---
@@ -144,7 +201,15 @@ module.exports = {
     warn: (msg) => write('[WARN]', chalk.yellow('[WARN]'), msg),
     error: (msg) => write('[ERR]', chalk.red('[ERR]'), msg),
     success: (msg) => write('[OK]', chalk.green('[OK]'), msg),
-    battle: (msg) => write('[BATTLE]', chalk.magenta('[BATTLE]'), msg),
-    captcha: (msg) => write('[CAPTCHA]', chalk.bgRed.white('[CAPTCHA]'), msg),
-    getRecent: (options = {}) => filterEntries(options).map(entry => entry.plainLine)
+    getRecent: (options = {}) => filterEntries(options).map(entry => entry.plainLine),
+    // Log file per akun (.txt) untuk ditelusuri/diunduh dari dashboard.
+    getAccountLog: (accountId, limit) => readAccountLog(accountId, limit),
+    getLogFilePath,
+    getLogDir: () => LOG_DIR,
+    getLogFileMaxLines: () => logFileMaxLines,
+    setLogFileMaxLines: (value) => {
+        const next = parseInt(value, 10);
+        if (Number.isFinite(next) && next > 0) logFileMaxLines = next;
+    },
+    LOG_FILE_SUFFIX
 };

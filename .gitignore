@@ -4,3 +4,17 @@ slot-permissions.json.tmp
 slot-owner-password.txt
 
 node_modules/
+
+# Log runtime per akun (logs/log_<accountId>.txt), jangan di-commit.
+logs/
+
+# Scratch/preview workspace for agents.
+.agent_tmp/
+
+# Screenshot/asset lokal, jangan di-commit.
+Screenshot_*.jpg
+Screenshot_*.png
+dashboard-mockup-v7.html
+
+# Referensi desain lokal (bukan source).
+LucySoFun Dashboard.html

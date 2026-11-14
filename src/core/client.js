@@ -1,71 +1,9 @@
-
 const { Client } = require('discord.js-selfbot-v13');
 const log = require('../../logger');
 const { accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const STARTUP_RESPONSE_GRACE_MS = 120000;
-
-function markStartupReadyRoutine(state, graceMs = STARTUP_RESPONSE_GRACE_MS) {
-    state.isStartupReadyRoutine = true;
-    state.startupReadyRoutineUntil = Math.max(
-        state.startupReadyRoutineUntil || 0,
-        Date.now() + graceMs
-    );
-}
-
-
-async function waitUntilCaptchaClear(state) {
-    while (state.hasActiveCaptcha) {
-        log.warn(`${accountPrefix(state)}⏸️ Startup command ditahan: CAPTCHA sedang aktif. Menunggu verifikasi...`);
-        await wait(1000);
-    }
-}
-
-async function sendStartupCommand(state, channel, cmd, huntbotManager) {
-    await waitUntilCaptchaClear(state);
-    if (!state.client?.isReady()) return false;
-
-    const wasStartupReadyRoutine = state.isStartupReadyRoutine === true;
-    const isPausedOrStopped = state.config.botStatus?.paused || !state.config.botStatus?.running;
-    markStartupReadyRoutine(state);
-
-    if (isPausedOrStopped) {
-        log.info(`${accountPrefix(state)}🚀 Startup command [${cmd}] tetap dikirim walau akun pause/stop.`);
-    }
-
-    try {
-        const sentMessage = await channel.send(cmd);
-        if (/^whb(?:\s|$)/i.test(cmd.trim()) && huntbotManager && typeof huntbotManager.trackOutgoingCommand === 'function') {
-            huntbotManager.trackOutgoingCommand(sentMessage, cmd);
-        }
-
-        if (/^wboss\s+t(?:icket)?$/i.test(cmd.trim())) {
-            state.lastTicketCheck = Date.now();
-            state.pendingBossTicketCheck = {
-                channelId: channel.id,
-                requestedAt: state.lastTicketCheck,
-                source: 'startup'
-            };
-            log.info(`${accountPrefix(state)}🎫 Startup ticket check ditandai sebagai request akun ini.`);
-        }
-    } finally {
-        state.isStartupReadyRoutine = wasStartupReadyRoutine;
-    }
-    log.info(`${accountPrefix(state)}🚀 [Startup Ready] Terkirim: ${cmd}`);
-
-    const startedWait = Date.now();
-    while (Date.now() - startedWait < 5000) {
-        await waitUntilCaptchaClear(state);
-        const remaining = 5000 - (Date.now() - startedWait);
-        if (remaining > 0) await wait(Math.min(1000, remaining));
-    }
-
-    return true;
-}
-
-module.exports = (state, configManager, channelManager, messageHandler, telegramService, huntbotManager, voiceManager) => ({
+module.exports = (state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager) => ({
     initialize() {
         if (state.client) {
             log.warn(`${accountPrefix(state)}🔄 Merestart sesi Discord...`);
@@ -73,12 +11,6 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
                 state.client.destroy();
             } catch (e) { }
             state.client = null;
-            
-            // PENTING: Saat ganti akun/restart sesi, pastikan state autoMode HuntBot di-reset
-            // agar tidak terkena guard clause (if (huntbotState.autoMode) return;)
-            if (huntbotManager && typeof huntbotManager.stop === 'function') {
-                huntbotManager.stop({ notify: false }); // Sesuaikan dengan fungsi stop/reset di huntbotManager-mu
-            }
         }
 
         state.client = new Client({ checkUpdate: false });
@@ -87,7 +19,6 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
             state.accountUsername = state.client.user.tag || state.client.user.username || '';
             log.success(`${accountPrefix(state)}✅ Login Sukses: ${state.client.user.tag}`);
             telegramService.send(`🤖 <b>Bot Started</b>\nUser: ${state.client.user.tag}`);
-            channelManager.updateActive();
 
             state.config.botStatus = state.config.botStatus || { running: false, paused: true };
             if (typeof state.config.botStatus.running !== 'boolean') state.config.botStatus.running = false;
@@ -99,41 +30,15 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
                 voiceManager.joinConfigured('restart').catch(err => log.error(`${accountPrefix(state)}❌ Auto Join VC gagal: ${err.message}`));
             }
 
-            markStartupReadyRoutine(state);
-
-            if (huntbotManager) {
-                // Startup ready sequence selalu mengirim whb sendiri setiap client ready/login,
-                // jadi initial check HuntBot otomatis dilewati agar tidak double-send.
-                huntbotManager.init({ skipInitialCheck: true });
+            // Rutinitas setiap bot baru startup: Huntbot2 mengirim lhb ke channel
+            // huntbot2 (captcha ditangani lewat pesan Lucy), lalu siklus lhb diulang
+            // saat Lucy mengirim "siap berburu". Daily hanya menjadwalkan 00:00 WIB.
+            if (huntbot2Manager && typeof huntbot2Manager.start === 'function') {
+                huntbot2Manager.start();
             }
-
-            // Startup command wajib dieksekusi setiap client ready/login, termasuk mode connect/prepare.
-            setTimeout(async () => {
-                try {
-                    const channelId = state.config.tiketandhb?.channelId;
-                    const channel = state.client.channels.cache.get(channelId);
-
-                    if (!channel) {
-                        log.warn(`${accountPrefix(state)}⚠️ Channel ${channelId} tidak ditemukan untuk mengirim command awal.`);
-                        return;
-                    }
-
-                    log.info(`${accountPrefix(state)}🚀 Menjalankan startup command setiap client ready/login...`);
-
-                    log.info(`${accountPrefix(state)}⚔️ Mengecek status World Boss untuk akun saat ini...`);
-                    await sendStartupCommand(state, channel, "wboss t", huntbotManager);
-
-                    await sendStartupCommand(state, channel, "whb 1d", huntbotManager);
-                    
-                    log.info(`${accountPrefix(state)}✅ Routine startup command selesai dieksekusi. Respons startup tetap dipantau selama ${STARTUP_RESPONSE_GRACE_MS / 1000} detik.`);
-                } catch (err) {
-                    log.error(`${accountPrefix(state)}❌ Gagal mengirim command: ${err.message}`);
-                } finally {
-                    state.isStartupReadyRoutine = false;
-                }
-            }, 2000);
-
-            
+            if (dailyManager && typeof dailyManager.start === 'function') {
+                dailyManager.start();
+            }
         });
 
         state.client.on('messageCreate', (msg) => messageHandler.handle(msg));
@@ -148,4 +53,3 @@ module.exports = (state, configManager, channelManager, messageHandler, telegram
         }
     }
 });
-                  

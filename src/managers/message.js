@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, bossManager, captchaHandler, loopManager, channelManager, telegramService, macrodroidService, huntbotManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -110,35 +110,19 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         }
         await this.handleControlCommands(msg);
 
-        if (bossManager && typeof bossManager.trackManualTicketCommand === 'function') {
-            bossManager.trackManualTicketCommand(msg);
-        }
-
-        if (huntbotManager && typeof huntbotManager.trackManualHuntbotCommand === 'function') {
-            huntbotManager.trackManualHuntbotCommand(msg);
-        }
-
         // ✅ FITUR BARU: Deteksi SEMUA pesan dari admin/orang lain di channel aktif
         await this.handleUserMessages(msg);
 
-        // Adventure adalah automasi mandiri; jangan letakkan di handleOwOMessage.
+        // Adventure adalah automasi mandiri.
         if (adventureManager) await adventureManager.handle(msg);
 
-        // Boss2 menjadi satu-satunya jalur deteksi, Fight, dan konfirmasi tiket Guild/Global.
+        // Boss2 menjadi satu-satunya jalur deteksi, Fight, dan konfirmasi tiket Guild.
         if (boss2Manager) await boss2Manager.handle(msg);
 
         if (gemsManager) await gemsManager.handle(msg);
 
-        if (CONSTANTS.OWO_IDS.includes(msg.author.id)) {
-            await this.handleOwOMessage(msg);
-        }
-
-        if (msg.channel.type === 'DM' && CONSTANTS.OWO_IDS.includes(msg.author.id)) {
-            if ((msg.content || '').toLowerCase().includes('verified')) {
-                captchaHandler.resume();
-                return;
-            }
-        }
+        // Daily Lucy: menangkap balasan "streak harianmu xx hari!" dari Lucy.
+        if (dailyManager && typeof dailyManager.handle === 'function') await dailyManager.handle(msg);
     },
 
     captureMessageDebug(msg) {
@@ -181,7 +165,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
     },
 
     async handleControlCommands(msg) {
-        const { startCmd, pauseCmd, allowIds } = configManager.getControlCommands();
         const text = String(msg.content || '').trim().toLowerCase();
         const isSelf = !!state.client.user && msg.author.id === state.client.user.id;
 
@@ -192,34 +175,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
                 this.setLucyFeatures(text === lucy.startCmd);
                 return;
             }
-        }
-
-        // Keamanan: Hanya eksekusi jika pengirim adalah akun bot itu sendiri atau ID yang diizinkan
-        const isController = isSelf || allowIds.includes(msg.author.id);
-
-        if (!isController) return;
-
-        if (text === startCmd) {
-            state.activeChannelId = msg.channel.id;
-            state.config.botStatus.paused = false;
-            state.config.botStatus.running = true;
-            statsService.syncBotUptime(state);
-            configManager.save();
-            log.success(`${accountPrefix(state)}▶️ Start via Discord control.`);
-            loopManager.startAll();
-            telegramService.send(`▶️ <b>Bot Started</b> via Discord command`);
-            return;
-        }
-
-        if (text === pauseCmd) {
-            state.config.botStatus.paused = true;
-            state.config.botStatus.running = false;
-            statsService.syncBotUptime(state);
-            configManager.save();
-            log.warn(`${accountPrefix(state)}⏸️ Pause via Discord control.`);
-            loopManager.stopAll();
-            telegramService.send(`⏸️ <b>Bot Paused</b> via Discord command`);
-            return;
         }
 
         // --- 🔊 FITUR BARU: JOIN VC ---
@@ -264,32 +219,48 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
         }
     },
 
-    // Lucy (Boss2, Gems, Adventure, Custom Commands Lucy, Monster Catcher) berjalan terpisah dari loop OwO.
+    // Lucy (Boss2, Gems, Adventure, Custom Commands Lucy, Monster Catcher) berjalan via scheduler ini.
     setLucyFeatures(enabled) {
         const settings = state.config.settings = state.config.settings || {};
         settings.boss2 = { ...(settings.boss2 || {}), enabled };
         settings.gems = { ...(settings.gems || {}), enabled };
         settings.adventure = { ...(settings.adventure || {}), enabled };
+        settings.huntbot2 = { ...(settings.huntbot2 || {}), enabled };
         settings.monsterCatcher = { ...(settings.monsterCatcher || {}), enabled };
+        settings.daily = { ...(settings.daily || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
+        // Command tetap (lb/lh) ikut hidup/mati bersama fitur Lucy lainnya (satu unit).
+        if (state.config.fixedCommands) state.config.fixedCommands.enabled = enabled;
         configManager.save();
 
-        // Sama seperti route dashboard (multiAccountManager.start/stopAdventure & start/stopOtherCommand):
-        // flag saja tidak cukup karena timer/loop yang sudah terjadwal tidak dibatalkan/dimulai ulang.
         if (enabled) {
+            // Control Lucy start: lanjutkan akun yang terjeda emergency/timeout
+            // secara manual tanpa menunggu recovery linv otomatis.
+            // resume() sudah memulai ulang semua slot (startAll), jadi jangan
+            // memanggil startOtherCommand lagi agar command tidak terkirim ganda.
+            if (typeof emergencyHandler?.resume === 'function') {
+                emergencyHandler.resume();
+            } else {
+                loopManager?.startAll?.();
+            }
             if (adventureManager) {
                 adventureManager.start({ restart: true }).catch(error => log.error(`${accountPrefix(state)}❌ Auto Adventure gagal dimulai: ${error.message}`));
             }
-            otherCommands.forEach((_, index) => loopManager?.startOtherCommand?.(index));
+            // Daily Lucy: jadwalkan ulang 00:00 WIB bila fitur aktif.
+            try { dailyManager?.start?.(); }
+            catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Daily gagal dimulai: ${error.message}`); }
             log.success(`${accountPrefix(state)}▶️ Lucy start via Discord control.`);
             telegramService?.send?.(`▶️ <b>Lucy Started</b> via Discord command`);
         } else {
             adventureManager?.stop?.();
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
+            loopManager?.stopOtherCommand?.(3); // unit lb+lh (satu unit)
             boss2Manager?.stop?.();
             gemsManager?.stop?.();
+            huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
+            dailyManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
         }
@@ -303,10 +274,11 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
 
         if (msg.author.id === myId || msg.author.bot) return;
 
-        const isActiveChannel = (state.activeChannelId && msg.channel.id === state.activeChannelId) ||
-                                (state.config.channels && state.config.channels.includes(msg.channel.id));
-
-        if (!isActiveChannel) return;
+        const filter = state.config.settings?.messageFilter || {};
+        const channelIds = Array.isArray(filter.channelIds) ? filter.channelIds : [];
+        const guildIds = Array.isArray(filter.guildIds) ? filter.guildIds : [];
+        if (channelIds.length && !channelIds.includes(msg.channel.id)) return;
+        if (guildIds.length && !guildIds.includes(msg.guild?.id)) return;
 
         const isMentioned = msg.mentions?.users?.has(myId) || msg.content.includes(myId);
         const isReplyToMe = msg.type === 'REPLY' && msg.mentions?.repliedUser?.id === myId;
@@ -333,70 +305,6 @@ module.exports = (state, configManager, bossManager, captchaHandler, loopManager
 
         if (macrodroidService) {
             await macrodroidService.trigger("pesanbaru");
-        }
-    },
-
-    async handleOwOMessage(msg) {
-        const isForMe = this._isResponseForMe(msg);
-
-        if (state.responseTimeout && isForMe) {
-            commandSender.clearResponseTimeout();
-        }
-
-        if (captchaHandler.isCaptcha(msg.content)) {
-            const myId = state.client?.user?.id;
-            const isMentioned = myId ? (msg.mentions?.users?.has(myId) || msg.content.includes(myId)) : false;
-
-            if (isMentioned) {
-                captchaHandler.handle(msg);
-                return;
-            }
-        }
-
-        await bossManager.handle(msg);
-
-        if (msg.channel.id === state.config.tiketandhb.channelId) {
-            bossManager.processTicketMessage(msg);
-        }
-
-        if (huntbotManager && typeof huntbotManager.processHuntBotMessage === 'function') {
-            huntbotManager.processHuntBotMessage(msg);
-        }
-    },
-
-    _isResponseForMe(msg) {
-        try {
-            const myName = (msg.guild?.members?.me?.displayName || state.client.user.username).toLowerCase();
-
-            if (msg.embeds && msg.embeds.length > 0) {
-                const embed = msg.embeds[0];
-                const authorName = (embed.author?.name || "").toLowerCase();
-                const description = (embed.description || "").toLowerCase();
-
-                if (authorName.includes(myName) && authorName.includes("goes into battle")) {
-                    return true;
-                }
-
-                if (authorName.includes(myName) || description.includes(`**${myName}**`)) {
-                    return true;
-                }
-
-                const footerText = (embed.footer?.text || "").toLowerCase();
-                const fieldsText = embed.fields?.map(f => `${f.name} ${f.value}`.toLowerCase()).join(" ") || "";
-
-                if (footerText.includes(myName) || fieldsText.includes(myName)) {
-                    return true;
-                }
-            }
-
-            const content = (msg.content || "").toLowerCase();
-            if (content.includes(myName)) {
-                return true;
-            }
-
-            return false;
-        } catch (err) {
-            return false;
         }
     }
     });

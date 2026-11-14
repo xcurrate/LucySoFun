@@ -2,12 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const createAdventureManager = require('../src/managers/adventure');
+const CONSTANTS = require('../src/constants');
 
 const settings = {
     enabled: true,
     targetId: 'target-id',
-    channelId: 'channel-id',
-    guildId: 'guild-id'
+    channelId: 'channel-id'
 };
 
 const createManager = () => {
@@ -16,13 +16,16 @@ const createManager = () => {
     const manager = createAdventureManager(
         state,
         { getAdventureSettings: () => settings },
-        { send: async (...args) => { sent.push(args); return true; } }
+        {
+            send: async (...args) => { sent.push(args); return true; },
+            runLucyAction: async (action) => action()
+        }
     );
     return { state, sent, manager };
 };
 
 const targetMessage = (overrides = {}) => ({
-    author: { id: 'target-id' },
+    author: { id: CONSTANTS.LUCY_BOT_ID },
     channel: { id: 'channel-id' },
     guild: { id: 'guild-id' },
     content: 'Sylvaris',
@@ -30,13 +33,18 @@ const targetMessage = (overrides = {}) => ({
     ...overrides
 });
 
-test('Auto Adventure only handles the configured target, channel, and guild', async () => {
+test('Auto Adventure only handles the configured channel', async () => {
     const { manager, state } = createManager();
 
     const handled = await manager.handle(targetMessage({ channel: { id: 'different-channel' } }));
 
     assert.equal(handled, false);
     assert.equal(state.adventureTimer, undefined);
+
+    // Guild tidak lagi dipakai sebagai filter: channel yang cocok tetap diproses.
+    const sameChannelOtherGuild = await manager.handle(targetMessage({ guild: { id: 'another-guild' } }));
+    assert.equal(sameChannelOtherGuild, true);
+    manager.stop();
 });
 
 test('Auto Adventure explores Sylvaris and schedules the next Ladv command', async () => {
@@ -70,6 +78,6 @@ test('Auto Adventure starts by sending Ladv to its configured channel', async ()
     const started = await manager.start();
 
     assert.equal(started, true);
-    assert.deepEqual(sent, [['Ladv', 'Adventure', 'channel-id']]);
+    assert.deepEqual(sent, [['ladv', 'Adventure', 'channel-id']]);
     manager.stop();
 });

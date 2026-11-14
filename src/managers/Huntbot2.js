@@ -1,7 +1,7 @@
 const axios = require('axios');
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
-const { accountPrefix, randomInt } = require('../utils');
+const { accountPrefix, randomInt, sleep } = require('../utils');
 const TooEz = require('./TooEz');
 
 const DEFAULTS = { enabled: false, channelId: '', duration: '1D', sellAnimals: false, upgradeEnabled: false, upgradeGain: '' };
@@ -9,6 +9,15 @@ const DURATION_PATTERN = /^\d+[MHD]$/i;
 const GAIN_PATTERN = /^[A-Za-z0-9_-]+$/;
 const RETURN_TIME_PATTERN = /AKU AKAN KEMBALI DALAM\s+(.+?)\s+DENGAN\b/i;
 const DM_DONE_TEXT = 'huntbot sudah selesai berburu hewan silahkan gunakan command lucy autohunt untuk mengambil hasilnya!';
+// Lucy memberi tahu huntbot siap berburu; saat itu bot memulai siklus lhb.
+const READY_TRIGGER_TEXT = 'siap berburu';
+// Jeda setelah login sebelum rutinitas startup dikirim, agar cache channel siap.
+const STARTUP_DELAY_MS = 3000;
+// Rutinitas startup lhb menunggu antrian aksi Lucy diam selama ini sebelum
+// masuk antrian, supaya command utama (Custom Command, Adventure, Gems, ...)
+// selalu didahulukan. Batas tunggu mencegah startup tertahan selamanya.
+const STARTUP_QUEUE_IDLE_MS = 1200;
+const STARTUP_QUEUE_MAX_WAIT_MS = 90000;
 
 function normalizeSettings(raw = {}) {
     const inputDuration = String(raw.duration || DEFAULTS.duration).trim().toUpperCase();
@@ -79,7 +88,26 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
         if (!id || !state.client?.isReady()) return null;
         return state.client.channels.cache.get(id) || await state.client.channels.fetch(id).catch(() => null);
     };
-    const sendCommand = async command => {
+    const sendCommand = async (command, options = {}) => {
+        const channelId = String(settings().channelId || '').trim();
+        if (!channelId) {
+            log.error(prefix() + 'Channel ID belum diatur.');
+            return false;
+        }
+        // Rutinitas startup tetap dikirim walau akun pause/stop (mirip whb/wboss dulu),
+        // jadi pakai jalur commandSender yang mendukung allowWhilePaused.
+        if (options.allowWhilePaused && commandSender?.send) {
+            const sendOptions = { allowWhilePaused: true };
+            if (options.idleOnly) {
+                sendOptions.idleOnly = true;
+                sendOptions.idleMs = options.idleMs;
+                sendOptions.maxWaitMs = options.maxWaitMs;
+            }
+            const sent = await commandSender.send(command, 'Huntbot2', channelId, sendOptions);
+            if (sent) log.info(prefix() + 'Terkirim: ' + command);
+            else log.error(prefix() + 'Gagal mengirim "' + command + '".');
+            return sent;
+        }
         const channel = await getChannel();
         if (!channel || typeof channel.send !== 'function') {
             log.error(prefix() + 'Channel ID belum diatur atau channel tidak dapat diakses.');
@@ -87,6 +115,26 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
         }
         try { await runLucyAction(() => channel.send(command)); log.info(prefix() + 'Terkirim: ' + command); return true; }
         catch (error) { log.error(prefix() + 'Gagal mengirim "' + command + '": ' + (error.message || error)); return false; }
+    };
+
+    // Rutinitas setiap bot baru startup: kirim lhb ke channel huntbot2. Bila Lucy
+    // meminta captcha, cabang captcha di handle() yang menanganinya; setelah
+    // captcha terverifikasi Lucy mengirim "siap berburu" dan siklus lhb diulang.
+    const runStartupRoutine = async () => {
+        const cfg = settings();
+        if (!cfg.enabled || !cfg.channelId) {
+            log.info(prefix() + 'Rutinitas startup dilewati: fitur nonaktif atau channel belum diatur.');
+            return false;
+        }
+        log.info(prefix() + 'Rutinitas startup: mengirim lhb ' + cfg.duration + ' (menunggu command utama selesai).');
+        // idleOnly: tunggu antrian aksi Lucy diam dulu agar command utama
+        // (Custom Command, Adventure, Gems, ...) didahulukan, lalu kirim berurutan.
+        return sendCommand('lhb ' + cfg.duration, {
+            allowWhilePaused: true,
+            idleOnly: true,
+            idleMs: STARTUP_QUEUE_IDLE_MS,
+            maxWaitMs: STARTUP_QUEUE_MAX_WAIT_MS
+        });
     };
     const schedule = (delayMs, callback) => {
         const timer = setTimeout(async () => {
@@ -169,6 +217,7 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
                         return false;
                     }
                     log.success(prefix() + 'Password gambar berhasil dibaca.');
+                    await sleep(1000);
                     await sendCommand('lhb ' + settings().duration + ' ' + password);
                     return true;
                 } catch (error) {
@@ -204,6 +253,13 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
                 log.info(prefix() + 'Waktu kembali: ' + (parseReturnTime(text) || 'tidak terdeteksi'));
                 return true;
             }
+            if (lower.includes(READY_TRIGGER_TEXT)) {
+                if (markHandled(msg)) return false;
+                // Trigger "siap berburu": mulai siklus lhb (mis. lhb 1D).
+                log.success(prefix() + 'Trigger "' + READY_TRIGGER_TEXT + '" terdeteksi; memulai siklus lhb.');
+                scheduleHunt(1500, settings().duration);
+                return true;
+            }
             if (lower.includes(myName) && lower.includes('huntbot') && lower.includes('saya akan berburu untukmu tuan')) {
                 if (markHandled(msg)) return false;
                 log.info(prefix() + 'Lucy Huntbot siap berburu.');
@@ -217,6 +273,17 @@ module.exports = function createHuntbot2Manager(state, commandSender) {
             return false;
         },
         stop() { for (const timer of timers) clearTimeout(timer); timers.clear(); handled.clear(); pendingAction = null; },
+        // Rutinitas startup dipanggil setiap client ready (connect/login/restart).
+        start({ delayMs = STARTUP_DELAY_MS } = {}) {
+            const cfg = settings();
+            if (!cfg.enabled || !cfg.channelId) return false;
+            const timer = setTimeout(() => {
+                timers.delete(timer);
+                runStartupRoutine().catch(error => log.error(prefix() + 'Rutinitas startup gagal: ' + (error.message || error)));
+            }, Math.max(0, Number(delayMs) || 0));
+            timers.add(timer);
+            return true;
+        },
         getStatus() { return { settings: settings(), pendingAction, scheduledActions: timers.size }; }
     };
 };

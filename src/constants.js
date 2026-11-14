@@ -1,16 +1,12 @@
-// --- CONSTANTS & CONFIGURATION ---
 module.exports = {
 
-    TICKET_CHANNEL_ID: '1499159557132390470',
-    OWO_IDS: ['408785106942164992','1343111797057654856'], // OwO Main & Beta
     LUCY_BOT_ID: '1438615298012872817',
-    BOSS_COOLDOWN_MS: 295000, // 4m 55s
     BOSS2_DEFAULTS: {
         enabled: false,
         allowedGuilds: [],
         channelIds: [],
-        appearText: 'Boss Telah Muncul',
-        defeatedText: 'Boss Telah Dikalahkan',
+        appearText: 'Guild Boss Telah Muncul',
+        defeatedText: 'Guild Boss Telah Dikalahkan',
         buttonId: 'raid:fight',
         fightsPerBoss: 3,
         maxFightsPerBoss: 3,
@@ -21,9 +17,7 @@ ticketNoId:  'raid:ticket:no',
 limitText:   'limit fight',
 minTicketLeft: 1,
         ticketStatusChannelId: '',
-        ticketStatusCommand: 'lboss t',
-        globalAppearText: 'Global Raid Boss Telah Muncul',
-        globalDefeatedText: 'Global Raid Boss Telah Dikalahkan'
+        ticketStatusCommand: 'lboss t'
     },
     GEMS_TIERS: {
         F: { main: ['57', '71', '78'], special: '85' },
@@ -57,52 +51,13 @@ minTicketLeft: 1,
         maxLootboxOpens: 3,
         inventoryTimeoutMs: 60000
     },
-    RESPONSE_TIMEOUT_MS: 40000,
-    TICKET_CHECK_DELAY_MS: 15000,
-    CAPTCHA_KEYWORDS: [
-        'are you a real human',
-        'verify that you are human',
-        'please complete your captcha'
-    ],
     MAX_LOG_LINES: 20,
-    
-    DAILY_RESET_HOUR: 0,
-    DAILY_RESET_MINUTE: 0,
+    LOG_FILE_DIR: 'logs',
+    LOG_FILE_MAX_LINES: 1000,
+    RESPONSE_TIMEOUT_MS: 40000,
     MAX_SET_SIZE: 500,
     MIN_TYPING_DELAY: 290,
     MAX_TYPING_DELAY: 300,
-    POLLING_INTERVAL_MS: 3000,
     RESET_CHECK_INTERVAL_MS: 60000,
-    INVISIBLE_CHARS_REGEX: /[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/g,
-// --- CONSTANTS & CONFIGURATION ---
-    HUNTBOT: {
-        COMMANDS: {
-            CHECK: "whb",
-            SELL: "wsell all",
-            SACRIFICE: "wsc all",
-            UPGRADE: "wupg",
-            AUTO_HUNT: "owo autohunt"
-        },
-        UPGRADE_TYPES: ["duration", "efficiency", "cost", "gain", "experience", "radar"],
-        DEFAULT_UPGRADE: "duration",
-        DEFAULT_DURATION: "1D",
-        // REGEX untuk embed
-        PROGRESS_REGEX: {
-            PERCENTAGE: /(\d+\.?\d*)%\s*DONE/i,
-            ANIMALS: /(\d+)\s*ANIMALS\s*CAPTURED/i,
-            PROGRESS_BAR: /(\[■+□+\])/,
-            TIME: /I WILL BE BACK IN ([\dH ]+M?)/i
-        },
-        UPGRADE_REGEX: {
-            DURATION: /`([\d.]+H)`/i,
-            LEVEL: /Lvl (\d+)/i,
-            PROGRESS: /\[(\d+)\/(\d+)\]/,
-            ESSENCE: /([\d,]+)\s*Animal Essence/i
-        },
-        RESPONSE_TIMEOUT: 30000
-    }
-
-   
-    
-
+    INVISIBLE_CHARS_REGEX: /[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/g
 };

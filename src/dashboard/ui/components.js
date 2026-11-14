@@ -10,17 +10,18 @@ module.exports = function createUiComponents({ CONSTANTS, serializeForScript, es
     const getDashboardStatsCard = createDashboardStatsCard({ escapeHtml, statsService });
     const { getLogRefreshScript } = createScripts({ CONSTANTS, serializeForScript });
     const getSavedResponse = createSavedResponse({ CONSTANTS });
-    const { renderSettingsTabs } = createSettingsTabs({ escapeHtml });
+    const { renderSettingsTabs, renderLucyCommandCards, renderMultiAccountCard } = createSettingsTabs({ escapeHtml });
     const renderPage = createPageRenderer({
         CONSTANTS,
         configManager,
         profileManager,
         statsService,
+        escapeHtml,
         getStyles,
         getDashboardStatsCard,
         getLogCard,
         getLogRefreshScript,
-        renderSettingsTabs
+        renderSettingsTabs: { renderSettingsTabs, renderLucyCommandCards, renderMultiAccountCard }
     });
 
     return {

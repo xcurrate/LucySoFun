@@ -1,10 +1,7 @@
 const startDashboard = require('./dashboard');
 const state = require('./src/state');
-const { CookieJar } = require('tough-cookie');
 const createConfigManager = require('./src/services/config');
 const createMultiAccountManager = require('./src/core/multiAccount');
-
-state.cookieJar = new CookieJar();
 
 const configManager = createConfigManager(state);
 const multiAccountManager = createMultiAccountManager({ rootState: state, configManager });

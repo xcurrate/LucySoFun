@@ -284,6 +284,22 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         }
     });
 
+    // Unduh file log .txt milik satu akun (isi lengkap sesuai batas baris file).
+    router.get('/logs/download', (req, res) => {
+        const accountId = String(req.query.profileId || req.query.accountId || '');
+        if (!accountId || !safeProfileId(accountId)) return res.status(404).send('Profile not found');
+        if (!requireProfileAccess(accountId, req, res)) return;
+        try {
+            const lines = logService.getAccountLogLines({ accountId });
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="log_${accountId}.txt"`);
+            res.send(lines.length ? lines.join('\n') + '\n' : '');
+        } catch {
+            res.status(500).send('Gagal membaca file log');
+        }
+    });
+
     router.get('/api/message-debug', (req, res) => {
         if (req.query.profileId && !requireProfileAccess(req.query.profileId, req, res)) return;
         const accountId = String(req.query.profileId || '');
@@ -328,6 +344,22 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                 accountId: runtime.accountId,
                 name: typeof runtime.getDisplayName === 'function' ? runtime.getDisplayName() : runtime.accountId,
                 status: runtime.monsterCatcherManager.getStatus()
+            }));
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ accounts });
+    });
+
+    router.get('/api/daily-status', (req, res) => {
+        if (req.query.profileId && !requireProfileAccess(req.query.profileId, req, res)) return;
+        const accountId = String(req.query.profileId || '');
+        const runtimes = Array.from(state?.accountRuntimes?.values?.() || []);
+        const accounts = runtimes
+            .filter(runtime => !accountId || String(runtime.accountId) === accountId)
+            .filter(runtime => typeof runtime?.dailyManager?.getStatus === 'function')
+            .map(runtime => ({
+                accountId: runtime.accountId,
+                name: typeof runtime.getDisplayName === 'function' ? runtime.getDisplayName() : runtime.accountId,
+                status: runtime.dailyManager.getStatus()
             }));
         res.setHeader('Cache-Control', 'no-store');
         res.json({ accounts });
@@ -381,8 +413,6 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                 }
             }
             const snapshot = statsService.getSnapshot(config);
-            snapshot.captcha.lastDetectedAtFormatted = statsService.formatTime(snapshot.captcha.lastDetectedAt);
-            snapshot.captcha.lastSolvedAtFormatted = statsService.formatTime(snapshot.captcha.lastSolvedAt);
             snapshot.commands.recent = (snapshot.commands.recent || []).map(item => ({
                 ...item,
                 atFormatted: statsService.formatTime(item.at)
@@ -399,7 +429,7 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             const config = configManager.ensureShape(configManager.get());
             const activeId = profileManager.getUserId(config.token);
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `owo-config-${activeId}-${timestamp}.json`;
+            const filename = `lucy-config-${activeId}-${timestamp}.json`;
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -519,24 +549,30 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                         return res.status(404).json({ success: false, message: 'Account not found' });
                     }
 
-                    target.config = configManager.applySave(target.config, body);
-                    const saved = saveAccountConfig(target, target.config);
-                    if (!saved) {
-                        return res.status(500).json({ success: false, message: 'Failed to save account configuration' });
-                    }
-
+                    // Chip actions submit the entire control-panel form. Only the
+                    // account status may change here: applying the panel fields
+                    // (token/settings/commands) to the target profile would reset
+                    // that profile's own configuration.
                     const completed = action === 'connect'
                         ? connectAccount(accountId)
                         : setAccountStatus(accountId, action === 'start');
                     if (!completed) return respondError(500, 'Account action could not be completed');
-                    return respondSuccess('Account configuration saved and action completed');
+                    return respondSuccess('Account action completed');
                 }
                 if (accountId && action === 'logout') {
                     if (!logoutAccount(accountId)) return respondError(404, 'Account runtime not found');
                     return respondSuccess('Account logged out');
                 }
                 if (accountId && action === 'delete') {
-                    logoutAccount(accountId);
+                    // Pakai forgetAccount: menandai config sudah dihapus lalu destroy,
+                    // sehingga pause()/destroy() tidak menulis ulang file profil.
+                    // logoutAccount() akan membuat kembali config_<id>.json.
+                    const manager = state?.multiAccountManager;
+                    if (manager && typeof manager.forgetAccount === 'function') {
+                        manager.forgetAccount(accountId);
+                    } else {
+                        logoutAccount(accountId);
+                    }
                     const removed = profileManager.deleteProfile(accountId);
                     const remainingProfiles = profileManager.getSavedProfiles();
                     const mainConfig = configManager.ensureShape(configManager.get());
@@ -547,7 +583,6 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
                     dashboardLog(removed ? 'success' : 'warn', accountId, removed
                         ? `🗑 Slot akun dihapus. Slot aktif sekarang ${mainConfig.multiAccount.maxAccounts}/4, tersisa ${4 - mainConfig.multiAccount.maxAccounts} slot.`
                         : '⚠️ Hapus slot gagal: profil akun tidak ditemukan.');
-                    const manager = state?.multiAccountManager;
                     if (manager && typeof manager.reconcile === 'function') manager.reconcile();
                     return removed
                         ? respondSuccess('Account profile deleted')
@@ -635,26 +670,36 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             if (saved) dashboardLog('success', savedAccountId !== 'default' ? savedAccountId : '', `💾 Config dashboard disimpan (${saveTarget === 'main' ? 'main' : 'profile'}).`);
 
             if (saved) {
-                const otherCommandAction = /^other(Command)?(Start|Stop)([1-3])$/.exec(String(body.action || ''));
+                // Terapkan batas baris file log per akun bila diubah dari dashboard.
+                if (logger && typeof logger.setLogFileMaxLines === 'function' && config.logFileMaxLines) {
+                    logger.setLogFileMaxLines(config.logFileMaxLines);
+                }
+                const otherCommandAction = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(body.action || ''));
                 if (otherCommandAction) {
                     const index = Number(otherCommandAction[3]) - 1;
                     const manager = state?.multiAccountManager;
                     if (manager) {
-                        const actionMethod = otherCommandAction[2] === 'Start' ? 'startOtherCommand' : 'stopOtherCommand';
+                        const isStart = otherCommandAction[2] === 'Start';
+                        const actionMethod = isStart ? 'startOtherCommand' : 'stopOtherCommand';
                         const acted = typeof manager[actionMethod] === 'function' && manager[actionMethod](savedAccountId, index);
                         dashboardLog(acted ? 'info' : 'warn', savedAccountId !== 'default' ? savedAccountId : '', acted
-                            ? `🧩 Other Command ${index + 1} ${otherCommandAction[2] === 'Start' ? 'dimulai' : 'dihentikan'} tanpa memengaruhi START Global.`
-                            : `⚠️ Other Command ${index + 1} tidak dapat ${otherCommandAction[2] === 'Start' ? 'dimulai' : 'dihentikan'}: runtime akun belum tersedia.`);
+                            ? `🧩 Other Command ${index + 1} ${isStart ? 'dimulai' : 'dihentikan'} tanpa memengaruhi START Global.`
+                            : isStart
+                                ? `⚠️ Other Command ${index + 1} ditandai aktif, tetapi runtime akun belum siap. Command akan otomatis dimulai saat akun terhubung (cek token/akun di Menu Utama).`
+                                : `⚠️ Other Command ${index + 1} tidak dapat dihentikan: runtime akun belum tersedia.`);
                     }
                 }
                 const adventureAction = /^adventure(Start|Stop)$/.exec(String(body.action || ''));
                 if (adventureAction) {
                     const manager = state?.multiAccountManager;
-                    const actionMethod = adventureAction[1] === 'Start' ? 'startAdventure' : 'stopAdventure';
+                    const isStart = adventureAction[1] === 'Start';
+                    const actionMethod = isStart ? 'startAdventure' : 'stopAdventure';
                     const acted = typeof manager?.[actionMethod] === 'function' && manager[actionMethod](savedAccountId);
                     dashboardLog(acted ? 'info' : 'warn', savedAccountId !== 'default' ? savedAccountId : '', acted
-                        ? `🗺️ Auto Adventure ${adventureAction[1] === 'Start' ? 'diaktifkan' : 'dinonaktifkan'}.`
-                        : `⚠️ Auto Adventure tidak dapat ${adventureAction[1] === 'Start' ? 'diaktifkan' : 'dinonaktifkan'}: runtime akun belum tersedia.`);
+                        ? `🗺️ Auto Adventure ${isStart ? 'diaktifkan' : 'dinonaktifkan'}.`
+                        : isStart
+                            ? `⚠️ Auto Adventure ditandai aktif, tetapi runtime akun belum siap. Akan berjalan otomatis saat akun terhubung.`
+                            : `⚠️ Auto Adventure tidak dapat dinonaktifkan: runtime akun belum tersedia.`);
                 }
                 if (saveTarget === 'main') {
                     const activeId = profileManager.getUserId(config.token);

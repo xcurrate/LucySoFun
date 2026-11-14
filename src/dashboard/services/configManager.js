@@ -3,7 +3,9 @@ const { normalizeGemsSettings } = require('../../managers/gems');
 const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
 const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
+const { normalizeDailySettings } = require('../../managers/daily');
 const { normalizeSendCount } = require('../../utils');
+const { normalizeOtherCommands, normalizeFixedCommands, setSlotEnabled } = require('../../managers/commandSlots');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
     return {
     get() {
@@ -14,141 +16,138 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         return fileService.writeJson(configPath, config);
     },
 
+    // Menghapus properti khusus OwO tanpa merusak properti Lucy.
+    dropOwOConfig(config) {
+        const settings = config.settings || {};
+        delete config.tiketandhb;
+        delete config.huntbot;
+        delete config.captcha;
+        delete config.autosolver;
+        delete config.macrodroidId;
+        delete config.channels;
+        delete settings.twoCaptchaKey;
+        delete settings.control;
+        delete settings.boss;
+        delete settings.huntbot;
+        delete settings.channelRotation;
+        delete settings.battle;
+        delete settings.hunt;
+        delete settings.pray;
+        delete settings.custom;
+        delete settings.text1;
+        delete settings.text2;
+        if (settings.messageFilter) delete settings.messageFilter.debugOnlyOwO;
+        delete config.delays;
+        if (Array.isArray(config.otherCommands)) {
+            config.otherCommands = config.otherCommands.map(command => {
+                if (!command) return command;
+                const cleaned = { ...command };
+                delete cleaned.captchaEnabled;
+                return cleaned;
+            });
+        }
+        return config;
+    },
+
     ensureShape(config) {
         config.port = config.port || CONSTANTS.DEFAULT_PORT;
         config.botStatus = config.botStatus || { running: false, paused: false };
-        config.channels = Array.isArray(config.channels) ? config.channels : [];
-        config.macrodroidId = config.macrodroidId || "";
-        config.autosolver = config.autosolver || false;
         config.maxLogLines = config.maxLogLines || CONSTANTS.MAX_LOG_LINES;
-        
+        config.logFileMaxLines = config.logFileMaxLines || CONSTANTS.LOG_FILE_MAX_LINES || 1000;
+
         config.settings = config.settings || {};
-        config.delays = config.delays || {};
         config.safety = config.safety || { cctv: false };
-        config.tiketandhb = config.tiketandhb || { channelId: "" };
-        config.huntbot = config.huntbot || { enabled: true, autoMode: true, defaultUpgrade: 'duration', defaultDuration: '1D', notifyProgress: true, sellAllAfterReturn: false };
-        config.huntbot.sellAllAfterReturn = config.huntbot.sellAllAfterReturn === true;
         config.multiAccount = config.multiAccount || { enabled: true, maxAccounts: 0 };
         config.multiAccount.enabled = config.multiAccount.enabled !== false;
         config.multiAccount.maxAccounts = Math.max(0, Math.min(4, parseInt(config.multiAccount.maxAccounts, 10) || 0));
 
-        config.settings.twoCaptchaKey = config.settings.twoCaptchaKey || "";
-        config.settings.control = config.settings.control || { start: 'wcash', pause: 'wbuy 1', allowIds: [] };
         config.settings.lucyControl = config.settings.lucyControl || { start: 'lucy start', pause: 'lucy pause', allowIds: [] };
-        config.settings.channelRotation = config.settings.channelRotation || { enabled: false, minMs: 180000, maxMs: 360000 };
-        config.settings.boss = config.settings.boss || { enabled: true, allowedGuilds: [] };
         config.settings.boss2 = normalizeBoss2Settings(config.settings.boss2);
         config.settings.gems = normalizeGemsSettings(config.settings.gems);
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
         config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
+        config.settings.daily = normalizeDailySettings(config.settings.daily);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
-        config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '', guildId: '' };
+        config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
+        delete config.settings.adventure.guildId;
         delete config.settings.adventure.targetId;
-        config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false, debugOnlyOwO: false };
+        config.settings.messageFilter = config.settings.messageFilter || { enabled: true, channelIds: [], guildIds: [], debug: false };
+        delete config.settings.messageFilter.debugOnlyOwO;
         config.settings.messageDebug = config.settings.messageDebug || { enabled: false, targetId: '', channelId: '', guildId: '' };
         config.settings.debug2 = config.settings.debug2 === true;
         config.settings.telegram = config.settings.telegram || { token: "", chatId: "" };
         config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
-        config.otherCommands = Array.isArray(config.otherCommands) ? config.otherCommands : [];
-        config.otherCommands = [0, 1, 2].map(index => {
-            const command = config.otherCommands[index] || {};
-            return {
-                text: String(command.text || ''),
-                delayMs: Math.max(0, this.toInt(command.delayMs, 5000)),
-                count: normalizeSendCount(command.count),
-                channelId: String(command.channelId || ''),
-                captchaEnabled: command.captchaEnabled === true,
-                enabled: command.enabled === true
-            };
-        });
+        config.otherCommands = normalizeOtherCommands(config.otherCommands);
+        config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
 
-        // Ensure captcha config shape
-        config.captcha = config.captcha || {};
-        config.captcha.enabled = config.captcha.enabled !== false;
-        config.captcha.primarySolver = config.captcha.primarySolver || 'NopechaSolver';
-        config.captcha.fallbackSolvers = Array.isArray(config.captcha.fallbackSolvers) ? config.captcha.fallbackSolvers : [];
-        config.captcha.maxTotalTimeMs = config.captcha.maxTotalTimeMs || 600000;
-        config.captcha.retryPerSolver = config.captcha.retryPerSolver || 2;
-        config.captcha.apiKeys = config.captcha.apiKeys || { NopechaSolver: '', TwoCaptchaSolver: '' };
-
-        Object.keys(CONSTANTS.DEFAULT_DELAYS).forEach(key => {
-            config.delays[key] = {
-                ...CONSTANTS.DEFAULT_DELAYS[key],
-                ...(config.delays[key] || {})
-            };
-        });
+        // Bersihkan properti OwO yang masih tersisa dari profile lama.
+        this.dropOwOConfig(config);
 
         return config;
     },
 
     applySave(config, body) {
-        config.token = body.token || config.token; 
         config.port = this.toInt(body.port, config.port);
-        config.macrodroidId = body.macrodroidId || '';
-        config.autosolver = this.toBool(body.autosolver);
         config.multiAccount = config.multiAccount || {};
         config.multiAccount.enabled = true;
         config.multiAccount.maxAccounts = Math.max(0, Math.min(4, this.toInt(body.maxAccounts, config.multiAccount.maxAccounts || 0)));
 
-        const channels = [body.chan1, body.chan2, body.chan3]
-            .filter(ch => ch && String(ch).trim() !== '')
-            .map(ch => String(ch).trim());
-        config.channels = channels;
+        const readSeconds = (value, fallbackMs) => {
+            const fallbackSec = Math.max(0, Math.floor((Number(fallbackMs) || 0) / 1000));
+            return Math.max(0, this.toInt(value, fallbackSec)) * 1000;
+        };
 
-        config.settings.battle = this.toBool(body.battle);
-        config.settings.hunt = this.toBool(body.hunt);
-        config.settings.pray = this.toBool(body.pray);
-        config.settings.custom = this.toBool(body.custom);
-        config.settings.twoCaptchaKey = body.twoCaptchaKey || '';
-
-        config.settings.text1 = body.text1 || '';
-        config.settings.text2 = body.text2 || '';
+        // Form control panel tidak merender input command sama sekali, jadi body
+        // hanya membawa `action`. Field yang tidak dikirim harus dipertahankan,
+        // bukan dikosongkan, supaya START ALL / kontrol Lucy tidak menghapus teks
+        // dan channel command yang sudah diatur di halaman profil.
+        const hasField = (key) => Object.prototype.hasOwnProperty.call(body, key);
 
         config.otherCommands = [0, 1, 2].map(index => {
             const current = config.otherCommands[index] || {};
+            const slot = index + 1;
+            const minMs = readSeconds(body[`other${slot}DelayMin`] ?? body[`other${slot}Delay`], current.delayMinMs ?? current.delayMs);
+            const maxMs = readSeconds(body[`other${slot}DelayMax`] ?? body[`other${slot}Delay`], current.delayMaxMs ?? current.delayMinMs ?? current.delayMs);
             return {
-                text: String(body[`other${index + 1}Text`] || '').trim(),
-                delayMs: Math.max(0, this.toInt(body[`other${index + 1}Delay`], Math.floor((current.delayMs || 5000) / 1000))) * 1000,
-                count: normalizeSendCount(body[`other${index + 1}Count`], normalizeSendCount(current.count)),
-                channelId: String(body[`other${index + 1}Channel`] || '').trim(),
-                captchaEnabled: this.toBool(body[`other${index + 1}CaptchaEnabled`]),
+                text: hasField(`other${slot}Text`) ? String(body[`other${slot}Text`] || '').trim() : (current.text ?? ''),
+                delayMs: Math.min(minMs, maxMs),
+                delayMinMs: Math.min(minMs, maxMs),
+                delayMaxMs: Math.max(minMs, maxMs),
+                count: normalizeSendCount(body[`other${slot}Count`], normalizeSendCount(current.count)),
+                channelId: hasField(`other${slot}Channel`) ? String(body[`other${slot}Channel`] || '').trim() : (current.channelId ?? ''),
                 enabled: current.enabled === true
             };
         });
 
-        config.delays.hunt.min = this.toInt(body.huntMin, config.delays.hunt.min);
-        config.delays.hunt.max = this.toInt(body.huntMax, config.delays.hunt.max);
-        config.delays.battle.min = this.toInt(body.battleMin, config.delays.battle.min);
-        config.delays.battle.max = this.toInt(body.battleMax, config.delays.battle.max);
-        config.delays.pray.min = this.toInt(body.prayMin, config.delays.pray.min);
-        config.delays.pray.max = this.toInt(body.prayMax, config.delays.pray.max);
-        config.delays.custom1.min = this.toInt(body.c1Min, config.delays.custom1.min);
-        config.delays.custom1.max = this.toInt(body.c1Max, config.delays.custom1.max);
-        config.delays.custom2.min = this.toInt(body.c2Min, config.delays.custom2.min);
-        config.delays.custom2.max = this.toInt(body.c2Max, config.delays.custom2.max);
+        // Command Tetap (lb & lh) adalah SATU UNIT: teks terkunci; channel, delay,
+        // count, dan enabled diatur satu set untuk unitnya.
+        const previousFixed = config.fixedCommands || {};
+        const configCount = normalizeSendCount(body.other4Count, normalizeSendCount(previousFixed.count));
+        const min4 = readSeconds(body.other4DelayMin ?? body.other4Delay, previousFixed.delayMinMs ?? previousFixed.delayMs);
+        const max4 = readSeconds(body.other4DelayMax ?? body.other4Delay, previousFixed.delayMaxMs ?? previousFixed.delayMinMs ?? previousFixed.delayMs);
+        config.fixedCommands = {
+            delayMs: Math.min(min4, max4),
+            delayMinMs: Math.min(min4, max4),
+            delayMaxMs: Math.max(min4, max4),
+            count: configCount,
+            channelId: hasField('other4Channel')
+                ? String(body.other4Channel || '').trim()
+                : String(previousFixed.channelId || ''),
+            enabled: previousFixed.enabled === true
+        };
 
         config.settings.telegram.token = body.tgToken || '';
         config.settings.telegram.chatId = body.tgChat || '';
 
         config.maxLogLines = this.toInt(body.maxLogLines, 15);
+        config.logFileMaxLines = Math.max(0, this.toInt(body.logFileMaxLines, config.logFileMaxLines || CONSTANTS.LOG_FILE_MAX_LINES || 1000));
         config.settings.autoResume = this.toBool(body.autoResume);
-        
-        config.settings.control.start = body.ctrlStart || 'wcash';
-        config.settings.control.pause = body.ctrlPause || 'wbuy 1';
-        config.settings.control.allowIds = this.toArray(body.ctrlAllowIds);
 
         config.settings.lucyControl = {
             start: String(body.lucyCtrlStart || '').trim() || 'lucy start',
             pause: String(body.lucyCtrlPause || '').trim() || 'lucy pause',
             allowIds: this.toArray(body.lucyCtrlAllowIds)
         };
-
-        config.settings.channelRotation.enabled = this.toBool(body.crEnabled);
-        config.settings.channelRotation.minMs = this.toInt(body.crMin, 180000);
-        config.settings.channelRotation.maxMs = this.toInt(body.crMax, 360000);
-
-        config.settings.boss.enabled = this.toBool(body.bossEnabled);
-        config.settings.boss.allowedGuilds = this.toArray(body.bossGuilds);
 
         config.settings.boss2 = normalizeBoss2Settings({
             enabled: this.toBool(body.boss2Enabled),
@@ -202,13 +201,11 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         });
 
         config.settings.adventure.channelId = String(body.adventureChannelId || '').trim();
-        config.settings.adventure.guildId = String(body.adventureGuildId || '').trim();
 
         config.settings.messageFilter.enabled = this.toBool(body.mfEnabled);
         config.settings.messageFilter.channelIds = this.toArray(body.mfChannelIds);
         config.settings.messageFilter.guildIds = this.toArray(body.mfGuildIds);
         config.settings.messageFilter.debug = this.toBool(body.mfDebug);
-        config.settings.messageFilter.debugOnlyOwO = this.toBool(body.mfDebugOnlyOwO);
 
         config.settings.messageDebug.enabled = this.toBool(body.messageDebugEnabled);
         config.settings.messageDebug.targetId = String(body.messageDebugTargetId || '').trim();
@@ -219,12 +216,6 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.voice.enabled = this.toBool(body.voiceEnabled);
         config.settings.voice.channelId = body.voiceChannelId || '';
 
-        config.huntbot.enabled = this.toBool(body.hbEnabled);
-        config.huntbot.autoMode = this.toBool(body.hbAutoMode);
-        config.huntbot.notifyProgress = this.toBool(body.hbNotify);
-        config.huntbot.sellAllAfterReturn = this.toBool(body.hbSellAllAfterReturn);
-        config.huntbot.defaultUpgrade = body.hbUpgrade || 'duration';
-        config.huntbot.defaultDuration = body.hbDuration || '1D';
         config.settings.huntbot2 = normalizeHuntbot2Settings({
             ...config.settings.huntbot2,
             enabled: this.toBool(body.hb2Enabled),
@@ -242,24 +233,15 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             maxRetries: Math.max(0, this.toInt(body.mcMaxRetries, 5)),
             dmChannelId: String(body.mcDmChannelId || '').trim()
         });
-        config.tiketandhb.channelId = body.tiketandhbChannel || '';
-        
+
+        config.settings.daily = normalizeDailySettings({
+            ...config.settings.daily,
+            enabled: this.toBool(body.dailyEnabled),
+            channelId: String(body.dailyChannelId || '').trim(),
+            command: String(body.dailyCommand || '').trim() || 'lucy daily'
+        });
+
         config.safety.cctv = this.toBool(body.cctvEnabled);
-
-        // === CAPTCHA SETTINGS (Full Fallback Support) ===
-        config.captcha = config.captcha || {};
-        config.captcha.enabled = this.toBool(body.captchaEnabled);
-        config.captcha.primarySolver = body.captchaPrimary || 'NopechaSolver';
-        
-        // Fallback solvers (dari checkbox)
-        const fallbackList = [];
-        if (body.fallbackNopecha) fallbackList.push('NopechaSolver');
-        if (body.fallbackTwoCaptcha) fallbackList.push('TwoCaptchaSolver');
-        config.captcha.fallbackSolvers = fallbackList;
-
-        config.captcha.apiKeys = config.captcha.apiKeys || {};
-        config.captcha.apiKeys.NopechaSolver = body.nopechaApiKey || '';
-        config.captcha.apiKeys.TwoCaptchaSolver = body.twoCaptchaApiKey || '';
 
         return config;
     },
@@ -281,12 +263,9 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
                 config.botStatus.running = false;
                 break;
             default: {
-                const match = /^other(Command)?(Start|Stop)([1-3])$/.exec(String(action || ''));
+                const match = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(action || ''));
                 if (match) {
-                    const index = Number(match[3]) - 1;
-                    config.otherCommands = config.otherCommands || [];
-                    config.otherCommands[index] = config.otherCommands[index] || {};
-                    config.otherCommands[index].enabled = match[2] === 'Start';
+                    setSlotEnabled(config, Number(match[3]) - 1, match[2] === 'Start');
                 }
             }
         }

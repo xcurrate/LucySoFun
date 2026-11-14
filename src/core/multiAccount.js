@@ -5,6 +5,7 @@ const statsService = require('../services/stats');
 const log = require('../../logger');
 
 const CONSTANTS = require('../constants');
+const { resolveBaseDir } = require('../appPaths');
 
 const DEFAULT_MAX_ACCOUNTS = 0;
 const ABSOLUTE_MAX_ACCOUNTS = 4;
@@ -24,7 +25,7 @@ const writeJson = (filePath, value) => {
 
 const getAccountIdFromToken = createAccountRuntime.getAccountIdFromToken;
 
-module.exports = function createMultiAccountManager({ rootState, baseDir = process.cwd(), configManager }) {
+module.exports = function createMultiAccountManager({ rootState, baseDir = resolveBaseDir(), configManager }) {
     const configPath = path.join(baseDir, 'config.json');
     const profilesDir = path.join(baseDir, 'profiles');
     const runtimes = new Map();
@@ -124,8 +125,6 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
         const selected = firstReady || Array.from(runtimes.values())[0];
         if (!selected) return;
 
-        rootState.activeChannelId = selected.state.activeChannelId;
-        rootState.hasActiveCaptcha = Array.from(runtimes.values()).some(runtime => runtime.state.hasActiveCaptcha);
         rootState.client = selected.state.client;
     }
 
@@ -149,11 +148,6 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
             reconcile();
             setInterval(reconcile, 2000);
             setInterval(syncDashboardState, 1000);
-            setInterval(() => {
-                for (const runtime of runtimes.values()) {
-                    if (typeof runtime.checkDailyReset === 'function') runtime.checkDailyReset();
-                }
-            }, CONSTANTS.RESET_CHECK_INTERVAL_MS);
         },
         getRuntimes() {
             return runtimes;
@@ -213,6 +207,18 @@ module.exports = function createMultiAccountManager({ rootState, baseDir = proce
             runtime.destroy();
             syncDashboardState();
             return true;
+        },
+        // Hapus permanen: tandai config sudah dihapus SEBELUM destroy, supaya
+        // pause()/destroy() tidak menulis ulang file config_<id>.json.
+        forgetAccount(accountId) {
+            const runtime = getRuntime(accountId);
+            if (runtime) {
+                if (typeof runtime.markConfigDeleted === 'function') runtime.markConfigDeleted();
+                runtime.destroy();
+                runtimes.delete(accountId);
+                syncDashboardState();
+            }
+            return !!runtime;
         },
         joinVoiceAccount(accountId) {
             const runtime = getRuntime(accountId);
