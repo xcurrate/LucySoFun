@@ -4,6 +4,7 @@ const { normalizeRestSettings } = require('../../managers/rest');
 const { normalizeSettings: normalizeHuntbot2Settings } = require('../../managers/Huntbot2');
 const { normalizeMonsterCatcherSettings } = require('../../managers/monsterCatcher');
 const { normalizeDailySettings } = require('../../managers/daily');
+const { normalizeCookieSettings } = require('../../managers/cookie');
 const { normalizeSendCount } = require('../../utils');
 const { normalizeOtherCommands, normalizeFixedCommands, setSlotEnabled } = require('../../managers/commandSlots');
 module.exports = function createConfigManager({ configPath, fileService, CONSTANTS }) {
@@ -67,6 +68,7 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.huntbot2 = normalizeHuntbot2Settings(config.settings.huntbot2);
         config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
         config.settings.daily = normalizeDailySettings(config.settings.daily);
+        config.settings.cookie = normalizeCookieSettings(config.settings.cookie);
         config.settings.rest = normalizeRestSettings(config.settings.rest);
         config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
         delete config.settings.adventure.guildId;
@@ -237,8 +239,19 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.daily = normalizeDailySettings({
             ...config.settings.daily,
             enabled: this.toBool(body.dailyEnabled),
-            channelId: String(body.dailyChannelId || '').trim(),
             command: String(body.dailyCommand || '').trim() || 'lucy daily'
+        });
+
+        // Send Cookie: `lucy rep` ke target terpilih (ping/no ping). Channel
+        // mengikuti channel command utama, jadi tidak ada input channel.
+        // Mode radio: 'ping' | 'noping' (default no ping).
+        const cookiePingMode = String(body.cookiePingMode || '').trim().toLowerCase();
+        config.settings.cookie = normalizeCookieSettings({
+            ...config.settings.cookie,
+            enabled: this.toBool(body.cookieEnabled),
+            targetId: String(body.cookieTargetId || '').trim(),
+            ping: cookiePingMode ? cookiePingMode === 'ping' : config.settings.cookie?.ping === true,
+            command: String(body.cookieCommand || '').trim() || 'lucy rep'
         });
 
         config.safety.cctv = this.toBool(body.cctvEnabled);

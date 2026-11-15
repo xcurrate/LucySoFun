@@ -68,12 +68,17 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - If Lucy replies with "ini passwordmu" the manager OCRs the image and re-sends `lhb <duration> <password>`. After the captcha is verified Lucy sends a message containing "siap berburu"; that trigger (`READY_TRIGGER_TEXT`) starts an `lhb` cycle via `scheduleHunt(1500, duration)` (e.g. `lhb 1D`).
 - `Huntbot2.start`/`stop` are wired in `src/core/client.js` (on ready) and `src/core/accountRuntime.js` (feature timers). `start()` is a no-op unless the feature is enabled and a channel is configured.
 
-## Lucy Daily (Daily category)
+## Lucy Daily & Send Cookie (Daily category)
 
-- Manager: `src/managers/daily.js`. Settings `config.settings.daily` = `{ enabled, channelId, command }` (default command `lucy daily`), normalized by `normalizeDailySettings`.
-- Scheduler: `dailyManager.start()` arms a timer to the next 00:00 WIB (`msUntilNextMidnightWib`, UTC+7) and `runDaily()` sends the command through `commandSender.send(cmd, 'Daily', channelId)`. Empty `channelId` falls back to `state.lastLucyCommandChannelId` (the active command channel). It refuses to run while the account is paused/stopped.
-- Reply parsing: `dailyManager.handle(msg)` only accepts messages from `CONSTANTS.LUCY_BOT_ID` in the target channel; `parseDailyResponse` extracts the server name and the `streak harianmu <n> hari!` count (invisible chars stripped). If Lucy includes a claim button, `findDailyButton` clicks it.
-- Wired through `src/core/accountRuntime.js` (`dailyManager`, `getDailySettings`, start/stop/config-change), `src/core/client.js` (start on ready), `src/managers/message.js` (handle + Lucy control toggle), and dashboard (`configManager.applySave` fields `dailyEnabled`/`dailyChannelId`/`dailyCommand`, `/api/daily-status` route, "Daily → 🗓️ Lucy Daily" tab).
+- Manager: `src/managers/daily.js` (`createDailyManager`). Settings `config.settings.daily` = `{ enabled, command, lastRunDate }` (default command `lucy daily`), normalized by `normalizeDailySettings`. **There is no channel slot** — the channel is the *primary command channel*.
+- Manager: `src/managers/cookie.js` (`createCookieManager`). Settings `config.settings.cookie` = `{ enabled, targetId, ping, command, lastRunDate }` (default command `lucy rep`), normalized by `normalizeCookieSettings`.
+- Primary command channel: `getPrimaryCommandChannelId(config)` in `src/managers/commandSlots.js` resolves in order — enabled Custom Command with a channel → any Custom Command with a channel → fixed `lb`/`lh` (`config.fixedCommands`) channel. Fallback last resort is `state.lastLucyCommandChannelId`.
+- Schedule: both features are **startup routines**. On every client ready (`markClientReady()` resets a per-session flag) the manager sends the command once, then arms a shared 00:00 WIB timer (`scheduleDaily` in `src/managers/dailySchedule.js`, `msUntilNextMidnightWib` UTC+7). The timer skips firing if `lastRunDate` already equals today's WIB date (`wibDateKey`), so a restart cannot double-send. Refuses to run while paused/stopped or when no channel resolves.
+- Send Cookie command format (`buildCookieCommand`): empty target → `lucy rep`; no ping → `lucy rep <id>`; ping → `lucy rep <@id>`.
+- Reply parsing: `dailyManager.handle(msg)` only accepts messages from `CONSTANTS.LUCY_BOT_ID` in the resolved channel; `parseDailyResponse` extracts the server name and the `streak harianmu <n> hari!` count (invisible chars stripped). If Lucy includes a claim button, `findDailyButton` clicks it.
+- Ordering: `command.js` `send()` routes `Daily`/`Cookie` (and Adventure/Gems) through `runLucyAction`, so they share the Lucy action queue.
+- Wired through `src/core/accountRuntime.js` (`dailyManager`/`cookieManager`, `getDailySettings`/`getCookieSettings`, start/stop/config-change, `stopFeatureTimers`), `src/core/client.js` (markClientReady + start on ready), `src/managers/message.js` (handle + Lucy control toggle), and dashboard (`configManager.applySave` fields `dailyEnabled`/`dailyCommand`/`cookieEnabled`/`cookieCommand`/`cookieTargetId`/`cookiePingMode`, `/api/daily-status` & `/api/cookie-status` routes, "Daily → 🗓️ Lucy Daily" and "Daily → 🍪 Send Cookie" menu entries in one `tab-daily`).
+- Lucy start/stop control (`message.js`) toggles `settings.daily.enabled` and `settings.cookie.enabled` along with the other Lucy features.
 
 ## Channels (Active Channels removed)
 

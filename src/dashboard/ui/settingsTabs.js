@@ -542,7 +542,7 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                         <div class="card">
                             <label>🗓️ LUCY DAILY</label>
-                            <div class="input-hint">Setiap pukul <strong>00:00 WIB</strong> bot mengirim command daily ke channel commands, lalu menangkap balasan Lucy yang memuat nama server dan "streak harianmu xx hari!". Channel kosong = pakai channel command terakhir.</div>
+                            <div class="input-hint">Setiap kali <strong>startup</strong> bot mengirim command daily sekali, lalu otomatis mengulang tiap <strong>00:00 WIB</strong> selama tidak restart. Channel mengikuti <strong>channel command utama</strong> (Custom Commands / Command Tetap), jadi tidak perlu diisi di sini. Balasan Lucy yang memuat nama server dan "streak harianmu xx hari!" ditangkap otomatis.</div>
                             <div class="toggle-row">
                                 <span>Aktifkan Lucy Daily</span>
                                 <input type="checkbox" name="dailyEnabled" ${config.settings?.daily?.enabled ? 'checked' : ''}>
@@ -550,8 +550,31 @@ ${renderRestSettings(config.settings?.rest)}
                             <div class="input-hint daily-status-line"><span data-daily-status>Memuat status...</span></div>
                             <label>Command Daily</label>
                             <input type="text" name="dailyCommand" value="${escapeHtml(config.settings?.daily?.command || 'lucy daily')}" placeholder="lucy daily">
-                            <label>Channel Commands (kosong = channel command terakhir)</label>
-                            <input type="text" name="dailyChannelId" value="${escapeHtml(config.settings?.daily?.channelId || '')}" placeholder="Discord Channel ID">
+                        </div>
+
+                        <div class="category-heading" style="margin-top:24px">
+                            <div>
+                                <span class="section-label">Daily</span>
+                                <h3>🍪 Send Cookie</h3>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <label>🍪 SEND COOKIE</label>
+                            <div class="input-hint">Setiap kali <strong>startup</strong> bot mengirim <code>lucy rep</code> ke target terpilih, lalu otomatis mengulang tiap <strong>00:00 WIB</strong>. Channel mengikuti <strong>channel command utama</strong>. Target kosong = kirim <code>lucy rep</code> saja.</div>
+                            <div class="toggle-row">
+                                <span>Aktifkan Send Cookie</span>
+                                <input type="checkbox" name="cookieEnabled" ${config.settings?.cookie?.enabled ? 'checked' : ''}>
+                            </div>
+                            <div class="input-hint daily-status-line"><span data-cookie-status>Memuat status...</span></div>
+                            <label>Command</label>
+                            <input type="text" name="cookieCommand" value="${escapeHtml(config.settings?.cookie?.command || 'lucy rep')}" placeholder="lucy rep">
+                            <label>Target User ID (kosong = tanpa target)</label>
+                            <input type="text" name="cookieTargetId" value="${escapeHtml(config.settings?.cookie?.targetId || '')}" placeholder="1587263872638888">
+                            <label>Mode Ping</label>
+                            <div style="margin:8px 0;">
+                                <label style="display:inline-flex;align-items:center;gap:8px;margin-right:16px;"><input type="radio" name="cookiePingMode" value="ping" ${config.settings?.cookie?.ping ? 'checked' : ''}><span>Ping — <code>lucy rep &lt;@ID&gt;</code></span></label>
+                                <label style="display:inline-flex;align-items:center;gap:8px;"><input type="radio" name="cookiePingMode" value="noping" ${config.settings?.cookie?.ping ? '' : 'checked'}><span>No ping — <code>lucy rep ID</code></span></label>
+                            </div>
                         </div>
                     </div>
 
@@ -677,6 +700,7 @@ ${commandsMenuGroup}
                         </div>
                         <div class="settings-menu-group"><span>Daily</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Lucy Daily" onclick="switchTab(event, 'tab-daily')">🗓️ Lucy Daily${badge(onBadge(context?.config?.settings?.daily))}</button>
+                            <button type="button" class="settings-menu-item" data-menu-label="Send Cookie" onclick="switchTab(event, 'tab-daily')">🍪 Send Cookie${badge(onBadge(context?.config?.settings?.cookie))}</button>
                         </div>
                         <div class="settings-menu-group"><span>Sistem</span>
                             <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>

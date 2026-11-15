@@ -201,6 +201,31 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                 }
                 refreshDaily(); setInterval(refreshDaily, 5000);
 
+                // SEND COOKIE STATUS
+                async function refreshCookie() {
+                    const target = document.querySelector('[data-cookie-status]');
+                    if (!target) return;
+                    try {
+                        const res = await fetch('/api/cookie-status' + profileQuery, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+                        if (!res.ok) throw new Error('HTTP Error');
+                        const data = await res.json();
+                        const acc = (data.accounts || [])[0];
+                        if (!acc) { updateText('[data-cookie-status]', '⚠️ Akun belum tersedia'); return; }
+                        const s = acc.status || {};
+                        const parts = [s.enabled ? '✅ Aktif' : '⛔ Nonaktif'];
+                        parts.push('mode ' + (s.ping ? 'ping' : 'no ping'));
+                        if (s.targetId) parts.push('target ' + s.targetId);
+                        if (s.nextRunAt) {
+                            const when = new Date(s.nextRunAt);
+                            parts.push('berikutnya ' + when.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }) + ' WIB');
+                        }
+                        updateText('[data-cookie-status]', parts.join(' • '));
+                    } catch (err) {
+                        updateText('[data-cookie-status]', 'Status tidak bisa dimuat');
+                    }
+                }
+                refreshCookie(); setInterval(refreshCookie, 5000);
+
 
                 
                 // AUTO FETCH PROFILE SCRIPT

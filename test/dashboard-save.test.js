@@ -410,7 +410,7 @@ test('POST /save persists Auto Use Gems settings and the dashboard renders them'
     });
 });
 
-test('POST /save persists Lucy Daily settings and the dashboard renders the tab', async () => {
+test('POST /save persists Lucy Daily + Send Cookie settings and renders the tab', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
             method: 'POST',
@@ -423,8 +423,11 @@ test('POST /save persists Lucy Daily settings and the dashboard renders the tab'
             body: new URLSearchParams({
                 action: 'save',
                 dailyEnabled: 'on',
-                dailyChannelId: 'daily-chan',
-                dailyCommand: 'lucy daily'
+                dailyCommand: 'lucy daily',
+                cookieEnabled: 'on',
+                cookieCommand: 'lucy rep',
+                cookieTargetId: '1587263872638888',
+                cookiePingMode: 'ping'
             })
         });
 
@@ -432,12 +435,20 @@ test('POST /save persists Lucy Daily settings and the dashboard renders the tab'
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         const daily = savedConfig.settings.daily;
         assert.equal(daily.enabled, true);
-        assert.equal(daily.channelId, 'daily-chan');
         assert.equal(daily.command, 'lucy daily');
+        assert.equal('channelId' in daily, false, 'daily tidak lagi punya slot channel sendiri');
+
+        const cookie = savedConfig.settings.cookie;
+        assert.equal(cookie.enabled, true);
+        assert.equal(cookie.command, 'lucy rep');
+        assert.equal(cookie.targetId, '1587263872638888');
+        assert.equal(cookie.ping, true);
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /LUCY DAILY/);
-        assert.match(page, /name="dailyChannelId" value="daily-chan"/);
+        assert.match(page, /SEND COOKIE/);
+        assert.match(page, /name="cookieTargetId" value="1587263872638888"/);
+        assert.doesNotMatch(page, /name="dailyChannelId"/);
     });
 });
 

@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager, cookieManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -228,6 +228,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
         settings.huntbot2 = { ...(settings.huntbot2 || {}), enabled };
         settings.monsterCatcher = { ...(settings.monsterCatcher || {}), enabled };
         settings.daily = { ...(settings.daily || {}), enabled };
+        settings.cookie = { ...(settings.cookie || {}), enabled };
         const otherCommands = Array.isArray(state.config.otherCommands) ? state.config.otherCommands : [];
         otherCommands.forEach(command => { if (command) command.enabled = enabled; });
         // Command tetap (lb/lh) ikut hidup/mati bersama fitur Lucy lainnya (satu unit).
@@ -250,6 +251,8 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             // Daily Lucy: jadwalkan ulang 00:00 WIB bila fitur aktif.
             try { dailyManager?.start?.(); }
             catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Daily gagal dimulai: ${error.message}`); }
+            try { cookieManager?.start?.(); }
+            catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Cookie gagal dimulai: ${error.message}`); }
             log.success(`${accountPrefix(state)}▶️ Lucy start via Discord control.`);
             telegramService?.send?.(`▶️ <b>Lucy Started</b> via Discord command`);
         } else {
@@ -261,6 +264,7 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
             dailyManager?.stop?.();
+            cookieManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
             telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
         }

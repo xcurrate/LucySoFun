@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager) => ({
+module.exports = (state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager, cookieManager) => ({
     initialize() {
         if (state.client) {
             log.warn(`${accountPrefix(state)}🔄 Merestart sesi Discord...`);
@@ -32,12 +32,19 @@ module.exports = (state, configManager, messageHandler, telegramService, voiceMa
 
             // Rutinitas setiap bot baru startup: Huntbot2 mengirim lhb ke channel
             // huntbot2 (captcha ditangani lewat pesan Lucy), lalu siklus lhb diulang
-            // saat Lucy mengirim "siap berburu". Daily hanya menjadwalkan 00:00 WIB.
+            // saat Lucy mengirim "siap berburu". Daily & Cookie mengirim sekali saat
+            // startup lalu dijadwalkan ulang pukul 00:00 WIB.
             if (huntbot2Manager && typeof huntbot2Manager.start === 'function') {
                 huntbot2Manager.start();
             }
+            // Sesi baru: izinkan rutinitas startup Daily/Cookie terkirim lagi.
+            dailyManager?.markClientReady?.();
+            cookieManager?.markClientReady?.();
             if (dailyManager && typeof dailyManager.start === 'function') {
                 dailyManager.start();
+            }
+            if (cookieManager && typeof cookieManager.start === 'function') {
+                cookieManager.start();
             }
         });
 

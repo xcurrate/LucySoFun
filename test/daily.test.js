@@ -5,15 +5,18 @@ const createDailyManager = require('../src/managers/daily');
 const { normalizeDailySettings, msUntilNextMidnightWib, parseDailyResponse, DEFAULT_COMMAND } = createDailyManager;
 const LUCY_ID = require('../src/constants').LUCY_BOT_ID;
 
-function setup({ config = {}, running = true } = {}) {
+function setup({ config = {}, running = true, customCommands = null } = {}) {
     const state = {
         client: { isReady: () => true, user: { id: 'me' } },
         config: {
             botStatus: { running, paused: !running },
             settings: {
-                daily: normalizeDailySettings({ enabled: true, channelId: 'chan-1', ...config })
-            }
-        }
+                daily: normalizeDailySettings({ enabled: true, ...config })
+            },
+            // Channel mengikuti channel command utama.
+            otherCommands: customCommands || [{ text: 'lrep', channelId: 'chan-1', enabled: true }]
+        },
+        persistConfig: () => {}
     };
     const sent = [];
     const commandSender = {
@@ -25,8 +28,7 @@ function setup({ config = {}, running = true } = {}) {
     const manager = createDailyManager(
         state,
         { getDailySettings: () => normalizeDailySettings(state.config.settings.daily) },
-        commandSender,
-        { pollMs: 1000 }
+        commandSender
     );
     return { state, manager, sent };
 }
@@ -42,9 +44,9 @@ const dailyReply = (overrides = {}) => ({
 });
 
 test('normalizeDailySettings fills defaults and coerces values', () => {
-    assert.deepEqual(normalizeDailySettings(undefined), { enabled: false, channelId: '', command: DEFAULT_COMMAND });
-    assert.deepEqual(normalizeDailySettings({ enabled: true, channelId: '  42  ', command: '  lucy daily  ' }), {
-        enabled: true, channelId: '42', command: 'lucy daily'
+    assert.deepEqual(normalizeDailySettings(undefined), { enabled: false, command: DEFAULT_COMMAND, lastRunDate: '' });
+    assert.deepEqual(normalizeDailySettings({ enabled: true, command: '  lucy daily  ' }), {
+        enabled: true, command: 'lucy daily', lastRunDate: ''
     });
     assert.equal(normalizeDailySettings({ command: '   ' }).command, DEFAULT_COMMAND);
 });
@@ -100,7 +102,7 @@ test('findDailyButton skips disabled or unrelated buttons', () => {
     assert.equal(button.custom_id, 'daily_claim');
 });
 
-test('runNow sends the daily command to the configured channel', async () => {
+test('runNow sends the daily command to the primary command channel', async () => {
     const { manager, sent, state } = setup();
     assert.equal(await manager.runNow(), true);
     assert.deepEqual(sent, [{ cmd: 'lucy daily', type: 'Daily', channelId: 'chan-1' }]);
@@ -108,7 +110,8 @@ test('runNow sends the daily command to the configured channel', async () => {
 });
 
 test('runNow falls back to the last command channel and refuses when paused', async () => {
-    const { manager, sent, state } = setup({ config: { channelId: '' } });
+    // Tanpa Custom Command / Command Tetap ber-channel → pakai channel terakhir.
+    const { manager, sent, state } = setup({ customCommands: [] });
     state.lastLucyCommandChannelId = 'chan-last';
     assert.equal(await manager.runNow(), true);
     assert.equal(sent[0].channelId, 'chan-last');
@@ -117,17 +120,31 @@ test('runNow falls back to the last command channel and refuses when paused', as
     assert.equal(await paused.manager.runNow(), false);
 });
 
-test('start schedules the next run at 00:00 WIB and stop clears it', () => {
-    const { manager, state } = setup();
+test('start sends daily once at startup then schedules 00:00 WIB', async () => {
+    const { manager, sent, state } = setup();
     assert.equal(manager.start(), true);
     assert.ok(state.daily.timer);
     assert.ok(state.daily.nextRunAt > Date.now());
+    // Rutinitas startup terkirim (async) sekali saja.
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].type, 'Daily');
+    assert.equal(sent[0].channelId, 'chan-1');
+    // Start kedua tidak mengirim ulang (satu per sesi login).
+    manager.start();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(sent.length, 1);
+    // Sesi baru (login ulang) boleh mengirim lagi.
+    manager.markClientReady();
+    manager.start();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(sent.length, 2);
     manager.stop();
     assert.equal(state.daily.timer, null);
     assert.equal(state.daily.nextRunAt, 0);
 });
 
-test('start is a no-op when disabled or the account is not running', () => {
+test('start is a no-op when disabled, not running, or channel unknown', () => {
     const disabled = setup({ config: { enabled: false } });
     assert.equal(disabled.manager.start(), false);
     assert.equal(disabled.state.daily.timer, null);
@@ -135,4 +152,20 @@ test('start is a no-op when disabled or the account is not running', () => {
     const paused = setup({ running: false });
     assert.equal(paused.manager.start(), false);
     assert.equal(paused.state.daily.timer, null);
+
+    const noChannel = setup({ customCommands: [] });
+    assert.equal(noChannel.manager.start(), false);
+    assert.equal(noChannel.state.daily.timer, null);
+});
+
+test('scheduled run is skipped when the day already ran (lastRunDate)', async () => {
+    const { manager, state } = setup();
+    const { wibDateKey } = require('../src/managers/dailySchedule');
+    state.config.settings.daily = { ...state.config.settings.daily, lastRunDate: wibDateKey() };
+    // start() tetap mengirim startup (belum startupSent), lalu jadwal berikutnya
+    // tidak boleh dobel pada hari yang sama.
+    manager.start();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(state.daily.startupSent, true);
+    manager.stop();
 });

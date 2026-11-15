@@ -20,6 +20,8 @@ const createMonsterCatcherManager = require('../managers/monsterCatcher');
 const { normalizeMonsterCatcherSettings } = createMonsterCatcherManager;
 const createDailyManager = require('../managers/daily');
 const { normalizeDailySettings } = createDailyManager;
+const createCookieManager = require('../managers/cookie');
+const { normalizeCookieSettings } = createCookieManager;
 const createVoiceManager = require('../managers/voice');
 const createClientManager = require('./client');
 const log = require('../../logger');
@@ -78,6 +80,7 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.huntbot2 = createHuntbot2Manager.normalizeSettings(config.settings.huntbot2);
     config.settings.monsterCatcher = normalizeMonsterCatcherSettings(config.settings.monsterCatcher);
     config.settings.daily = normalizeDailySettings(config.settings.daily);
+    config.settings.cookie = normalizeCookieSettings(config.settings.cookie);
     config.settings.rest = normalizeRestSettings(config.settings.rest);
     config.settings.adventure = config.settings.adventure || { enabled: false, channelId: '' };
     delete config.settings.adventure.guildId;
@@ -166,6 +169,10 @@ const createRuntimeConfigManager = (state, filePath) => ({
         return normalizeDailySettings(state.config.settings?.daily);
     },
 
+    getCookieSettings() {
+        return normalizeCookieSettings(state.config.settings?.cookie);
+    },
+
     getAdventureSettings() {
         const adventure = state.config.settings?.adventure || {};
         return {
@@ -216,6 +223,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
     const huntbot2Manager = createHuntbot2Manager(state, commandSender);
     const monsterCatcherManager = createMonsterCatcherManager(state, configManager, loopManager, commandSender);
     const dailyManager = createDailyManager(state, configManager, commandSender);
+    const cookieManager = createCookieManager(state, configManager, commandSender);
     const messageHandler = createMessageHandler(
         state,
         configManager,
@@ -230,9 +238,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         gemsManager,
         huntbot2Manager,
         monsterCatcherManager,
-        dailyManager
+        dailyManager,
+        cookieManager
     );
-    const clientManager = createClientManager(state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager);
+    const clientManager = createClientManager(state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager, cookieManager);
 
     const otherCommandReadyWatchers = new Map();
     let runtimeRunning = false;
@@ -258,6 +267,8 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         // ulang), jadi aman dipanggil setiap kali runtime siap/mulai.
         try { dailyManager.start(); }
         catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Daily gagal dimulai: ${error.message}`); }
+        try { cookieManager.start(); }
+        catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Cookie gagal dimulai: ${error.message}`); }
         return true;
     };
 
@@ -325,6 +336,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         huntbot2Manager?.stop?.();
         monsterCatcherManager?.stop?.();
         dailyManager?.stop?.();
+        cookieManager?.stop?.();
     };
 
     restManager.start();
@@ -349,6 +361,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
         adventureManager,
         monsterCatcherManager,
         dailyManager,
+        cookieManager,
         getDisplayName() {
             return state.client?.user?.tag || accountId;
         },
@@ -469,6 +482,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             huntbot2Manager?.stop?.();
             monsterCatcherManager?.stop?.();
             dailyManager?.stop?.();
+            cookieManager?.stop?.();
             boss2Manager.stop();
             gemsManager.stop();
             adventureManager.stop();
@@ -484,6 +498,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const oldVoice = safeJsonStringify(oldConfig.settings?.voice || {});
             const oldAdventure = safeJsonStringify(oldConfig.settings?.adventure || {});
             const oldDaily = safeJsonStringify(oldConfig.settings?.daily || {});
+            const oldCookie = safeJsonStringify(oldConfig.settings?.cookie || {});
             const oldStatus = safeJsonStringify(oldConfig.botStatus || {});
 
             state.config = ensureRuntimeShape(dropOwOConfig(nextConfig || {}));
@@ -493,6 +508,7 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             const voiceChanged = oldVoice !== safeJsonStringify(state.config.settings?.voice || {});
             const adventureChanged = oldAdventure !== safeJsonStringify(state.config.settings?.adventure || {});
             const dailyChanged = oldDaily !== safeJsonStringify(state.config.settings?.daily || {});
+            const cookieChanged = oldCookie !== safeJsonStringify(state.config.settings?.cookie || {});
             const statusChanged = oldStatus !== safeJsonStringify(state.config.botStatus || {});
             const loopConfigChanged = oldLoopSignature !== getLoopConfigSignature(state.config);
 
@@ -510,6 +526,10 @@ module.exports = function createAccountRuntime({ config, filePath, sharedStats }
             if (dailyChanged) {
                 if (state.config.settings?.daily?.enabled === true) dailyManager.start();
                 else dailyManager.stop();
+            }
+            if (cookieChanged) {
+                if (state.config.settings?.cookie?.enabled === true) cookieManager.start();
+                else cookieManager.stop();
             }
 
             if (!runtimeRunning || !state.client?.isReady()) return;

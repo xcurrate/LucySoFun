@@ -1,25 +1,17 @@
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
-const { accountPrefix, removeInvisibleChars, sleep } = require('../utils');
+const { accountPrefix, removeInvisibleChars } = require('../utils');
+const { getPrimaryCommandChannelId } = require('./commandSlots');
+const { msUntilNextMidnightWib, wibDateKey, scheduleDaily } = require('./dailySchedule');
 
 const DEFAULT_COMMAND = 'lucy daily';
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 const STREAK_PATTERN = /streak harianmu\s+(\d+)\s+hari/i;
 
 const normalizeDailySettings = (raw = {}) => ({
     enabled: raw.enabled === true,
-    channelId: String(raw.channelId || '').trim(),
-    command: String(raw.command || DEFAULT_COMMAND).trim() || DEFAULT_COMMAND
+    command: String(raw.command || DEFAULT_COMMAND).trim() || DEFAULT_COMMAND,
+    lastRunDate: String(raw.lastRunDate || '').trim()
 });
-
-// Jarak (ms) menuju tengah malam berikutnya menurut WIB (UTC+7), terlepas
-// dari zona waktu mesin. 00:00 WIB = 17:00 UTC hari sebelumnya.
-const msUntilNextMidnightWib = (now = Date.now()) => {
-    const wibNow = now + WIB_OFFSET_MS;
-    const nextMidnight = (Math.floor(wibNow / DAY_MS) + 1) * DAY_MS;
-    return nextMidnight - wibNow;
-};
 
 const collectEmbedTexts = (msg) => (msg?.embeds || []).flatMap(embed => [
     embed?.author?.name,
@@ -63,25 +55,30 @@ const parseDailyResponse = (msg) => {
     return { server, days: parseInt(match[1], 10), text: text.trim() };
 };
 
-module.exports = function createDailyManager(state, configManager, commandSender, options = {}) {
-    const pollMs = Math.max(10, Number(options.pollMs) || 1000);
+module.exports = function createDailyManager(state, configManager, commandSender) {
     const settings = () => (configManager.getDailySettings
         ? configManager.getDailySettings()
         : normalizeDailySettings(state.config?.settings?.daily));
     const prefix = () => accountPrefix(state) + '🗓️ Daily: ';
+    // Channel mengikuti channel command utama (Custom Commands / Command Tetap),
+    // bukan slot tersendiri. Fallback terakhir: channel command terakhir.
+    const resolveChannelId = () => getPrimaryCommandChannelId(state.config)
+        || String(state.lastLucyCommandChannelId || '').trim();
 
     state.daily = state.daily || { lastRunAt: 0, lastResult: null, nextRunAt: 0, timer: null };
+    // Satu pengiriman startup per sesi login; di-reset oleh markClientReady().
+    if (typeof state.daily.startupSent !== 'boolean') state.daily.startupSent = false;
 
     const clearTimer = () => {
         if (state.daily.timer) clearTimeout(state.daily.timer);
         state.daily.timer = null;
     };
 
-    const runDaily = async () => {
+    const runDaily = async ({ reason = 'manual' } = {}) => {
         const cfg = settings();
-        const channelId = cfg.channelId || String(state.lastLucyCommandChannelId || '').trim();
+        const channelId = resolveChannelId();
         if (!cfg.enabled || !channelId) {
-            log.warn(prefix() + 'Aksi daily dilewati: fitur nonaktif atau channel belum diatur.');
+            log.warn(prefix() + 'Aksi daily dilewati: fitur nonaktif atau channel command belum diatur.');
             return false;
         }
         if (!state.client?.isReady()) {
@@ -97,7 +94,10 @@ module.exports = function createDailyManager(state, configManager, commandSender
         const sent = await commandSender.send(cfg.command, 'Daily', channelId);
         if (sent) {
             state.daily.lastRunAt = Date.now();
-            log.success(prefix() + `Perintah "${cfg.command}" dikirim ke channel ${channelId}.`);
+            // Tandai tanggal WIB supaya tidak dobel pada hari yang sama.
+            state.config.settings.daily = { ...(state.config.settings.daily || {}), lastRunDate: wibDateKey() };
+            if (typeof state.persistConfig === 'function') state.persistConfig();
+            log.success(prefix() + `Perintah "${cfg.command}" dikirim ke channel ${channelId} (${reason}).`);
         } else {
             log.warn(prefix() + `Gagal mengirim "${cfg.command}" ke channel ${channelId}.`);
         }
@@ -105,16 +105,17 @@ module.exports = function createDailyManager(state, configManager, commandSender
     };
 
     const scheduleNext = () => {
-        clearTimer();
-        const delay = msUntilNextMidnightWib();
-        state.daily.nextRunAt = Date.now() + delay;
-        state.daily.timer = setTimeout(async () => {
-            state.daily.timer = null;
-            try { await runDaily(); }
-            catch (error) { log.error(prefix() + 'Aksi daily gagal: ' + (error.message || error)); }
-            if (settings().enabled) scheduleNext();
-        }, delay);
-        if (typeof state.daily.timer.unref === 'function') state.daily.timer.unref();
+        const delay = scheduleDaily({
+            state,
+            key: 'daily',
+            isActive: () => settings().enabled,
+            onError: (error) => log.error(prefix() + 'Aksi daily gagal: ' + (error.message || error)),
+            onFire: async () => {
+                // Lewati bila hari ini sudah terkirim (mis. baru startup).
+                if (settings().lastRunDate === wibDateKey()) return;
+                await runDaily({ reason: 'jadwal 00:00 WIB' });
+            }
+        });
         log.info(prefix() + `Aksi daily dijadwalkan pukul 00:00 WIB (dalam ${Math.round(delay / 60000)} menit).`);
     };
 
@@ -125,7 +126,7 @@ module.exports = function createDailyManager(state, configManager, commandSender
             if (!cfg.enabled || !msg) return false;
             if (String(msg.author?.id || '') !== CONSTANTS.LUCY_BOT_ID) return false;
 
-            const channelId = cfg.channelId || String(state.lastLucyCommandChannelId || '').trim();
+            const channelId = resolveChannelId();
             if (channelId && String(msg.channel?.id || msg.channelId || '') !== channelId) return false;
 
             const parsed = parseDailyResponse(msg);
@@ -149,6 +150,8 @@ module.exports = function createDailyManager(state, configManager, commandSender
             return true;
         },
 
+        // Rutinitas startup: kirim sekali per sesi login, lalu pasang jadwal
+        // 00:00 WIB. Dipanggil setiap client ready maupun runtime start.
         start() {
             const cfg = settings();
             if (!cfg.enabled) {
@@ -161,12 +164,24 @@ module.exports = function createDailyManager(state, configManager, commandSender
                 log.info(prefix() + 'Akun belum berjalan; penjadwal daily ditunda.');
                 return false;
             }
-            if (!cfg.channelId && !state.lastLucyCommandChannelId) {
-                log.warn(prefix() + 'Channel commands belum diatur; penjadwal daily tidak dijalankan.');
+            const channelId = resolveChannelId();
+            if (!channelId) {
+                log.warn(prefix() + 'Channel command utama belum diatur; penjadwal daily tidak dijalankan.');
                 return false;
+            }
+
+            if (!state.daily.startupSent) {
+                state.daily.startupSent = true;
+                log.info(prefix() + 'Rutinitas startup: mengirim command daily ke channel ' + channelId + '.');
+                runDaily({ reason: 'startup' }).catch(error => log.error(prefix() + 'Aksi daily startup gagal: ' + (error.message || error)));
             }
             scheduleNext();
             return true;
+        },
+
+        // Panggil saat client baru login supaya rutinitas startup dijalankan ulang.
+        markClientReady() {
+            state.daily.startupSent = false;
         },
 
         stop() {
@@ -175,15 +190,16 @@ module.exports = function createDailyManager(state, configManager, commandSender
         },
 
         runNow() {
-            return runDaily();
+            return runDaily({ reason: 'manual' });
         },
 
         getStatus() {
             const cfg = settings();
             return {
                 enabled: cfg.enabled,
-                channelId: cfg.channelId,
+                channelId: resolveChannelId(),
                 command: cfg.command,
+                lastRunDate: cfg.lastRunDate,
                 nextRunAt: state.daily.nextRunAt,
                 lastRunAt: state.daily.lastRunAt,
                 lastResult: state.daily.lastResult

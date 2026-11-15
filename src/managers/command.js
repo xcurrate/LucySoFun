@@ -83,7 +83,7 @@ module.exports = (state, emergencyHandler) => ({
         if (type === 'Other Command 4' || type === 'Other Command 5') {
             return this.runLucyAction(sendAction, { skipRetry: true });
         }
-        if (/^(Adventure|Gems|Daily)/i.test(String(type))) return this.runLucyAction(sendAction);
+        if (/^(Adventure|Gems|Daily|Cookie)/i.test(String(type))) return this.runLucyAction(sendAction);
         // Huntbot2 berbagi antrian aksi Lucy yang sama. Rutinitas startup lhb
         // (idleOnly) menunggu antrian diam dulu agar command utama diprioritaskan,
         // lalu tetap berurutan; tanpa retry cooldown agar lhb tidak terkirim ganda.

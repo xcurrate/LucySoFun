@@ -141,6 +141,26 @@ const resolveDelayMs = (command = {}, fallbackMs = DEFAULT_DELAY_MS) => {
     return lo === hi ? lo : randomInt(lo, hi);
 };
 
+// Channel command utama: dipakai fitur harian (Lucy Daily / Send Cookie) yang
+// TIDAK punya slot channel sendiri. Urutan prioritas: Custom Command yang aktif
+// dan punya channel -> Custom Command mana pun yang punya channel -> Command
+// Tetap lb+lh (aktif dulu) -> ''. Fallback terakhir (channel command terakhir)
+// ditangani pemanggil.
+const getPrimaryCommandChannelId = (config = {}) => {
+    const channelOf = (command) => String(command?.channelId || '').trim();
+    const customs = Array.isArray(config.otherCommands) ? config.otherCommands : [];
+
+    const enabledCustom = customs.find(command => command?.enabled === true && channelOf(command));
+    if (enabledCustom) return channelOf(enabledCustom);
+
+    const anyCustom = customs.find(command => channelOf(command));
+    if (anyCustom) return channelOf(anyCustom);
+
+    const fixed = config.fixedCommands;
+    if (fixed?.enabled === true && channelOf(fixed)) return channelOf(fixed);
+    return channelOf(fixed);
+};
+
 module.exports = {
     CUSTOM_SLOT_COUNT,
     TOTAL_SLOT_COUNT,
@@ -152,6 +172,7 @@ module.exports = {
     normalizeFixedCommands,
     getCommandSlots,
     getCommandSlot,
+    getPrimaryCommandChannelId,
     setSlotEnabled,
     resolveDelayMs
 };
