@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Huntbot2 = require('../src/managers/Huntbot2');
 const LUCY_ID = require('../src/constants').LUCY_BOT_ID;
 
-function setup({ config = {}, ready = true, readyDelayMs } = {}) {
+function setup({ config = {}, ready = true, readyDelayMs, accountTier } = {}) {
     const sent = [];
     const channel = { send: async (cmd) => { sent.push({ cmd, via: 'channel' }); return {}; } };
     const state = {
@@ -13,6 +13,7 @@ function setup({ config = {}, ready = true, readyDelayMs } = {}) {
             channels: { cache: { get: () => channel }, fetch: async () => null }
         },
         config: {
+            accountTier,
             botStatus: { running: true, paused: false },
             settings: {
                 huntbot2: Huntbot2.normalizeSettings({ enabled: true, channelId: 'hb-chan', duration: '1D', ...config })
@@ -79,6 +80,18 @@ test('trigger "siap berburu" menunda 10 detik (default) sebelum siklus lhb', asy
 
     await new Promise(resolve => setTimeout(resolve, 40));
     assert.equal(sent.some(item => item.cmd === 'lhb 1D'), false, 'lhb belum dikirim sebelum jeda 10 detik');
+
+    manager.stop();
+});
+
+test('trigger "siap berburu" pada akun premium tidak menunda siklus lhb', async () => {
+    const { manager, sent } = setup({ config: { duration: '1D' }, accountTier: 'premium' });
+    const handled = await manager.handle(lucyMessage('Huntbot siap berburu, Tuan neozen!'));
+    assert.equal(handled, true);
+
+    // Tanpa jeda: lhb dijadwalkan dengan delay 0 sehingga terkirim hampir segera.
+    await new Promise(resolve => setTimeout(resolve, 40));
+    assert.ok(sent.some(item => item.cmd === 'lhb 1D'), 'expected lhb 1D to be sent without captcha delay');
 
     manager.stop();
 });

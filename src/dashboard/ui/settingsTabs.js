@@ -1,3 +1,5 @@
+const { fixedDelayRange } = require('../../tierPolicy');
+
 module.exports = function createSettingsTabs({ escapeHtml }) {
     // Batas slot sebenarnya ada di config.multiAccount.maxAccounts (0 = belum
     // diatur, artinya pakai batas absolut). Jangan hardcode 4 di tampilan.
@@ -369,6 +371,9 @@ ${renderRestSettings(config.settings?.rest)}
         const isInfinite = !(Number(command.count) > 0);
         const channel = command.channelId || '';
         const enabled = command.enabled === true;
+        const fixedRange = fixedDelayRange(config?.accountTier);
+        const fixedMinSec = Math.round(fixedRange.delayMinMs / 1000);
+        const fixedMaxSec = Math.round(fixedRange.delayMaxMs / 1000);
         return `
                     <div id="tab-lucy-fixed" class="tab-content">
                         <div class="category-heading">
@@ -377,16 +382,16 @@ ${renderRestSettings(config.settings?.rest)}
                                 <h3>📌 Command Tetap: lb + lh</h3>
                             </div>
                         </div>
-                        <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks dan delay sudah terkunci (17–20 detik) — cukup atur channel dan jumlah pengiriman (kosongkan = ∞).</div>
+                        <div class="input-hint">lh + lb adalah <strong>satu pasangan</strong>: selalu dikirim berurutan <strong>lb → "sedang mengetik" → lh</strong>, dan tidak dapat diaktifkan/dimatikan terpisah. Teks dan delay sudah terkunci (${fixedMinSec}–${fixedMaxSec} detik) — cukup atur channel dan jumlah pengiriman (kosongkan = ∞).</div>
                         <div class="card">
                             <label>Command Tetap: lb + lh <span class="input-hint">(pasangan selalu dikirim)</span></label>
                             <div class="row">
-                                <div class="col"><label>Delay Min (detik)</label><input type="number" value="17" disabled></div>
-                                <div class="col"><label>Delay Max (detik)</label><input type="number" value="20" disabled></div>
+                                <div class="col"><label>Delay Min (detik)</label><input type="number" value="${fixedMinSec}" disabled></div>
+                                <div class="col"><label>Delay Max (detik)</label><input type="number" value="${fixedMaxSec}" disabled></div>
                                 <div class="col"><label>Jumlah Pengiriman</label><input type="number" min="1" step="1" name="other4Count" value="${isInfinite ? '' : command.count}" placeholder="Kosong = ∞ Infinite"></div>
                             </div>
-                            <input type="hidden" name="other4DelayMin" value="17">
-                            <input type="hidden" name="other4DelayMax" value="20">
+                            <input type="hidden" name="other4DelayMin" value="${fixedMinSec}">
+                            <input type="hidden" name="other4DelayMax" value="${fixedMaxSec}">
                             <label>Target Channel</label>
                             <input type="text" name="other4Channel" value="${escapeHtml(channel)}" placeholder="Discord Channel ID">
                             <div class="action-group" style="margin-top: 12px;">

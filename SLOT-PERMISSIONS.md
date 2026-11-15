@@ -36,21 +36,27 @@ There is no quota. The owner decides how many slots to grant. The tier is set wh
 | Setting | Premium | Reguler |
 | --- | --- | --- |
 | Custom Commands delay (lower bound) | from 5 seconds | minimum 16 seconds |
-| Command Tetap (lb + lh) delay | locked 17–20 seconds | locked 17–20 seconds |
+| Command Tetap (lb + lh) delay | locked 15–16 seconds | locked 17–20 seconds |
+| Delay after captcha is verified | none (continues immediately) | waits 10 seconds |
 | Premium-only features (Auto Adventure, Lucy Daily, Send Cookie) | allowed | disabled |
 
 The main account is always Premium. Accounts without a grant record, or with legacy data, are treated as Premium so existing behaviour does not change.
 
-Command Tetap (lb + lh) is a single locked unit: the delay is always 17–20 seconds and cannot be customized by any tier. Only the target channel and the send count are editable.
+Command Tetap (lb + lh) is a single locked unit: the delay is locked per tier (Premium 15–16 seconds, Reguler 17–20 seconds) and cannot be customized. Only the target channel and the send count are editable.
 
 ## Fixed delays for all accounts
 
 These delays are the same for every account and tier:
 
-- **Monster Catcher**: waits 10 seconds after the captcha is confirmed before the loops continue.
-- **Huntbot2**: waits 10 seconds after the "siap berburu" trigger before starting the lhb cycle.
 - **Rest, Mode 1 (schedule)**: the rest duration is locked to 3 hours; pick the start time and the end time is computed automatically (end = start + 3 hours).
 - **Rest, Mode 2 (budget)**: the default total rest budget is 3 hours (180 minutes).
+
+## Delay after a captcha (per tier)
+
+After a captcha/password is verified, the resume delay follows the account's tier:
+
+- **Premium**: continues immediately, with no extra delay.
+- **Reguler**: waits 10 seconds before the loops continue. This applies to **Monster Catcher** (after the captcha is confirmed) and **Huntbot2** (after the "siap berburu" trigger).
 
 ## Duration and automatic removal
 

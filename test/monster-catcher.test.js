@@ -8,10 +8,11 @@ const TooEz2 = require('../src/managers/TooEz2');
 const { normalizeMonsterCatcherSettings, messageText, extractImageUrl, parseWaitTimeMs, CONSTANTS } = createMonsterCatcherManager;
 const LUCY_ID = CONSTANTS?.SENSOR_TRIGGER_TEXT ? '1438615298012872817' : require('../src/constants').LUCY_BOT_ID;
 
-function setup({ config = {}, decoder = () => 'ABC123', downloader = async () => Buffer.from('fake-png'), resumeDelayMs = 0 } = {}) {
+function setup({ config = {}, decoder = () => 'ABC123', downloader = async () => Buffer.from('fake-png'), resumeDelayMs, accountTier } = {}) {
     const state = {
         client: { isReady: () => true, user: { id: 'me' } },
         config: {
+            accountTier,
             settings: {
                 monsterCatcher: normalizeMonsterCatcherSettings({
                     enabled: true,
@@ -143,6 +144,26 @@ test('captcha resume memakai jeda aman 10 detik sebelum loop lanjut', async () =
 
     // Bersihkan timer agar proses test tidak menunggu 10 detik.
     manager.stop();
+});
+
+test('akun reguler memakai jeda aman, akun premium lanjut tanpa jeda', async () => {
+    // Reguler: default tanpa injeksi memakai CAPTCHA_RESUME_DELAY_MS (10 dtk).
+    const regular = setup({ decoder: () => 'ABC123', accountTier: 'regular' });
+    await regular.manager.handle(withImage());
+    await regular.manager.handle(sensorMessage({ content: '✅ Terima kasih, catch selesai', id: 'done-reg' }));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(regular.loopEpoch.resumed, false, 'reguler menunggu jeda aman');
+    assert.equal(regular.manager.getStatus().status, 'RESUMING');
+    regular.manager.stop();
+
+    // Premium: lanjut tanpa jeda, loop langsung dilanjutkan.
+    const premium = setup({ decoder: () => 'ABC123', accountTier: 'premium' });
+    await premium.manager.handle(withImage());
+    await premium.manager.handle(sensorMessage({ content: '✅ Terima kasih, catch selesai', id: 'done-prem' }));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(premium.loopEpoch.resumed, true, 'premium lanjut tanpa jeda');
+    assert.equal(premium.manager.getStatus().status, 'IDLE');
+    premium.manager.stop();
 });
 
 test('mismatch triggers "ulang", waits for refresh, and re-requests a new sensor', async () => {

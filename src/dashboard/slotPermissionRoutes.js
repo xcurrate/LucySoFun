@@ -72,7 +72,7 @@ function createSlotPermissionRoutes({ slotPermissionManager, configManager, prof
             '<label>Catatan (opsional) <input name="note" maxlength="120" placeholder="Nama penerima / referensi donasi"></label>' +
             '<label>Tier akun <select name="tier"><option value="premium" selected>⭐ Premium — bisa atur cooldown & fitur lengkap</option>' +
             '<option value="regular">🆓 Reguler — cooldown default, fitur terbatas</option></select></label>' +
-            '<div class="input-hint">Premium: jeda Custom Commands boleh dari 5 detik, Command Tetap 17–20 detik, dan semua fitur aktif. Reguler: jeda Custom Commands minimal 16 detik, Command Tetap dikunci 17–20 detik, dan Auto Adventure / Daily / Send Cookie dinonaktifkan.</div>' +
+            '<div class="input-hint">Premium: jeda Custom Commands boleh dari 5 detik, Command Tetap 15–16 detik, semua fitur aktif, dan lanjut tanpa jeda setelah captcha. Reguler: jeda Custom Commands minimal 16 detik, Command Tetap dikunci 17–20 detik, Auto Adventure / Daily / Send Cookie dinonaktifkan, dan jeda aman 10 detik setelah captcha.</div>' +
             '<label>Durasi izin (jam) <input type="number" name="durationHours" min="0" step="1" placeholder="Contoh: 24 — kosongkan untuk tanpa batas"></label>' +
             '<div class="input-hint">Isi 24 untuk izin 24 jam. Setelah akun ditambahkan, hitungan dimulai dan akun akan dihapus otomatis saat durasi habis. Kosong/0 = tanpa batas waktu.</div>' +
             '<label>Password khusus pemilik <input type="password" name="confirmPassword" minlength="12" required autocomplete="current-password"></label>' +

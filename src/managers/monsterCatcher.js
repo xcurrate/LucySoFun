@@ -1,5 +1,6 @@
 const axios = require('axios');
 const CONSTANTS = require('../constants');
+const { captchaResumeDelayMs } = require('../tierPolicy');
 const log = require('../../logger');
 const { removeInvisibleChars, accountPrefix, sleep } = require('../utils');
 
@@ -92,9 +93,14 @@ const parseWaitTimeMs = (text) => {
 
 module.exports = function createMonsterCatcherManager(state, configManager, loopManager, commandSender, options = {}) {
     const decoder = options.decoder || (buffer => TooEz2.decodeBuffer(buffer));
-    const resumeDelayMs = Number.isFinite(options.resumeDelayMs)
+    // Jeda resume dapat di-inject untuk pengujian. Bila tidak, jeda mengikuti
+    // tier akun (premium tanpa jeda, reguler memakai jeda aman).
+    const injectedResumeDelayMs = Number.isFinite(options.resumeDelayMs)
         ? Math.max(0, options.resumeDelayMs)
-        : CONSTANTS.CAPTCHA_RESUME_DELAY_MS;
+        : null;
+    const resumeDelayMs = () => (injectedResumeDelayMs !== null
+        ? injectedResumeDelayMs
+        : captchaResumeDelayMs(state.config?.accountTier));
     // `downloadImage` dideklarasikan dengan `const` di bawah; gunakan akses
     // lambat agar const di atas tidak mengevaluasi binding pada TDZ saat init.
     const getDownloader = () => options.downloader || downloadImage;
@@ -287,8 +293,8 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
         clearRetryTimer();
         mc.status = STATUS.RESUMING;
         recordHistory({ type: 'done', ...reason });
-        // Beri jeda 10 detik setelah captcha selesai sebelum loop dilanjutkan,
-        // supaya aksi Lucy sebelumnya benar-benar tuntas. Dijadwalkan (bukan
+        // Beri jeda mengikuti tier akun setelah captcha selesai sebelum loop
+        // dilanjutkan (premium tanpa jeda, reguler menunggu). Dijadwalkan (bukan
         // memblokir) agar pesan Discord lain tetap diproses.
         if (mc.resumeTimer) clearTimeout(mc.resumeTimer);
         mc.resumeTimer = setTimeout(() => {
@@ -297,7 +303,7 @@ module.exports = function createMonsterCatcherManager(state, configManager, loop
             mc.status = STATUS.IDLE;
             mc.phase = PHASE.IDLE;
             log.success(`${prefix()}Proses catch selesai; loop kembali normal.`);
-        }, resumeDelayMs);
+        }, resumeDelayMs());
         if (typeof mc.resumeTimer.unref === 'function') mc.resumeTimer.unref();
         mc.retryCount = 0;
         mc.lastCode = null;

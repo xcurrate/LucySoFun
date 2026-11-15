@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { COOLDOWN_POLICY, applyTierPolicy, normalizeTier, customDelayFloorMs } = require('../src/dashboard/services/tierPolicy');
+const { COOLDOWN_POLICY, applyTierPolicy, normalizeTier, customDelayFloorMs, fixedDelayRange, captchaResumeDelayMs } = require('../src/dashboard/services/tierPolicy');
 
 const makeConfig = (overrides = {}) => ({
     otherCommands: [{ text: '!c', channelId: 'c1', delayMinMs: 3000, delayMaxMs: 3000, count: 0, enabled: true }],
@@ -22,30 +22,36 @@ test('tier tak dikenal / data lama dianggap premium', () => {
     assert.equal(normalizeTier('regular'), 'regular');
 });
 
-test('premium: batas bawah Custom Commands 5 detik, Command Tetap tetap 17-20 detik', () => {
+test('premium: Custom Commands dari 5 detik, Command Tetap 15-16 detik, tanpa jeda captcha', () => {
     assert.equal(customDelayFloorMs('premium'), COOLDOWN_POLICY.customPremiumMinMs);
 
     const config = applyTierPolicy(makeConfig(), 'premium');
     assert.equal(config.otherCommands[0].delayMinMs, 5000);
     assert.equal(config.otherCommands[0].delayMaxMs, 5000);
     assert.equal(config.otherCommands[0].delayMs, 5000);
-    assert.equal(config.fixedCommands.delayMinMs, COOLDOWN_POLICY.fixedMinMs);
-    assert.equal(config.fixedCommands.delayMaxMs, COOLDOWN_POLICY.fixedMaxMs);
+    assert.deepEqual(fixedDelayRange('premium'), { delayMinMs: 15000, delayMaxMs: 16000 });
+    assert.equal(config.fixedCommands.delayMinMs, 15000);
+    assert.equal(config.fixedCommands.delayMaxMs, 16000);
+    // Premium lanjut tanpa jeda setelah captcha.
+    assert.equal(captchaResumeDelayMs('premium'), 0);
     // Premium boleh memakai fitur premium-only.
     assert.equal(config.settings.adventure.enabled, true);
     assert.equal(config.settings.daily.enabled, true);
     assert.equal(config.settings.cookie.enabled, true);
 });
 
-test('reguler: batas bawah Custom Commands 16 detik dan fitur premium dimatikan', () => {
+test('reguler: Custom Commands dari 16 detik, Command Tetap 17-20 detik, jeda captcha 10 detik', () => {
     assert.equal(customDelayFloorMs('regular'), COOLDOWN_POLICY.customRegularMinMs);
 
     const config = applyTierPolicy(makeConfig(), 'regular');
     assert.equal(config.otherCommands[0].delayMinMs, 16000);
     assert.equal(config.otherCommands[0].delayMaxMs, 16000);
-    // Command Tetap tidak berubah oleh tier.
-    assert.equal(config.fixedCommands.delayMinMs, COOLDOWN_POLICY.fixedMinMs);
-    assert.equal(config.fixedCommands.delayMaxMs, COOLDOWN_POLICY.fixedMaxMs);
+    // Command Tetap dikunci 17-20 detik untuk reguler.
+    assert.deepEqual(fixedDelayRange('regular'), { delayMinMs: 17000, delayMaxMs: 20000 });
+    assert.equal(config.fixedCommands.delayMinMs, 17000);
+    assert.equal(config.fixedCommands.delayMaxMs, 20000);
+    // Reguler memakai jeda aman setelah captcha.
+    assert.equal(captchaResumeDelayMs('regular'), 10000);
     // Fitur premium-only dimatikan untuk reguler.
     assert.equal(config.settings.adventure.enabled, false);
     assert.equal(config.settings.daily.enabled, false);

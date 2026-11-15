@@ -1,5 +1,6 @@
 const axios = require('axios');
 const CONSTANTS = require('../constants');
+const { captchaResumeDelayMs } = require('../tierPolicy');
 const log = require('../../logger');
 const { accountPrefix, randomInt, sleep } = require('../utils');
 const TooEz = require('./TooEz');
@@ -19,8 +20,7 @@ const STARTUP_DELAY_MS = 3000;
 const STARTUP_QUEUE_IDLE_MS = 1200;
 const STARTUP_QUEUE_MAX_WAIT_MS = 90000;
 // Jeda setelah captcha/password terverifikasi ("siap berburu") sebelum siklus lhb
-// diulang, supaya Lucy selesai memproses aksi sebelumnya.
-const READY_RESUME_DELAY_MS = CONSTANTS.CAPTCHA_RESUME_DELAY_MS;
+// diulang mengikuti tier akun (lihat `captchaResumeDelayMs`).
 
 function normalizeSettings(raw = {}) {
     const inputDuration = String(raw.duration || DEFAULTS.duration).trim().toUpperCase();
@@ -75,10 +75,14 @@ function parseReturnTime(text) { return cleanText(text).match(RETURN_TIME_PATTER
 
 module.exports = function createHuntbot2Manager(state, commandSender, options = {}) {
     const runLucyAction = (action) => commandSender?.runLucyAction ? commandSender.runLucyAction(action) : action();
-    // Jeda trigger "siap berburu" dapat di-inject untuk pengujian.
-    const readyResumeDelayMs = Number.isFinite(options.readyDelayMs)
+    // Jeda trigger "siap berburu" dapat di-inject untuk pengujian. Bila tidak,
+    // jeda mengikuti tier akun saat trigger terjadi (premium tanpa jeda).
+    const injectedReadyDelayMs = Number.isFinite(options.readyDelayMs)
         ? Math.max(0, options.readyDelayMs)
-        : READY_RESUME_DELAY_MS;
+        : null;
+    const readyResumeDelayMs = () => (injectedReadyDelayMs !== null
+        ? injectedReadyDelayMs
+        : captchaResumeDelayMs(state.config?.accountTier));
     const handled = new Set(), timers = new Set();
     let pendingAction = null;
     const prefix = () => accountPrefix(state) + '🤖 Huntbot2: ';
@@ -264,7 +268,7 @@ module.exports = function createHuntbot2Manager(state, commandSender, options = 
                 if (markHandled(msg)) return false;
                 // Trigger "siap berburu": mulai siklus lhb (mis. lhb 1D).
                 log.success(prefix() + 'Trigger "' + READY_TRIGGER_TEXT + '" terdeteksi; memulai siklus lhb.');
-                scheduleHunt(readyResumeDelayMs, settings().duration);
+                scheduleHunt(readyResumeDelayMs(), settings().duration);
                 return true;
             }
             if (lower.includes(myName) && lower.includes('huntbot') && lower.includes('saya akan berburu untukmu tuan')) {

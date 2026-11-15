@@ -92,8 +92,8 @@ const ensureRuntimeShape = (config = {}) => {
     config.settings.telegram = config.settings.telegram || { token: '', chatId: '' };
     config.otherCommands = normalizeOtherCommands(config.otherCommands);
     config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
-    // Command Tetap selalu dikunci 17-20 detik saat runtime dijalankan.
-    lockFixedDelay(config);
+    // Command Tetap dikunci mengikuti tier akun (premium 15-16 dtk, reguler 17-20 dtk).
+    lockFixedDelay(config, config.accountTier);
     config.botStatus = config.botStatus || { running: false, paused: true };
     config.safety = config.safety || { cctv: false };
     return dropOwOConfig(config);

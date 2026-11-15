@@ -81,8 +81,8 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.voice = config.settings.voice || { enabled: false, channelId: "" };
         config.otherCommands = normalizeOtherCommands(config.otherCommands);
         config.fixedCommands = normalizeFixedCommands(config.fixedCommands);
-        // Command Tetap selalu dikunci 17-20 detik (semua akun/tier).
-        lockFixedDelay(config);
+        // Command Tetap dikunci mengikuti tier akun (premium 15-16 dtk, reguler 17-20 dtk).
+        lockFixedDelay(config, config.accountTier);
 
         // Bersihkan properti OwO yang masih tersisa dari profile lama.
         this.dropOwOConfig(config);

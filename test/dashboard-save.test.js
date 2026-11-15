@@ -175,9 +175,9 @@ test('POST /save persists fixed lb/lh pair (single config synced to both slots) 
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
         assert.equal(savedConfig.fixedCommands.channelId, '222');
-        // Command Tetap dikunci 17-20 detik untuk semua akun/tier.
-        assert.equal(savedConfig.fixedCommands.delayMinMs, 17000);
-        assert.equal(savedConfig.fixedCommands.delayMaxMs, 20000);
+        // Akun utama = premium: Command Tetap dikunci 15-16 detik.
+        assert.equal(savedConfig.fixedCommands.delayMinMs, 15000);
+        assert.equal(savedConfig.fixedCommands.delayMaxMs, 16000);
         assert.equal(savedConfig.fixedCommands.count, 0);
         assert.equal(savedConfig.otherCommands[0].text, '!custom');
         assert.equal(savedConfig.otherCommands[0].channelId, '111');
@@ -862,7 +862,8 @@ test('deleting an account requires the correct owner password', async () => {
 });
 
 // Penegakan tier pada /save: Reguler mengunci Custom Commands minimal 16 dtk dan
-// mematikan fitur premium; Premium boleh dari 5 dtk. Command Tetap selalu 17-20 dtk.
+// mematikan fitur premium; Premium boleh dari 5 dtk. Command Tetap per tier:
+// premium 15-16 dtk, reguler 17-20 dtk.
 test('POST /save enforces slot tier cooldowns and premium-only features', async () => {
     const regularId = '100000000000000021';
     const premiumId = '100000000000000022';
@@ -910,7 +911,7 @@ test('POST /save enforces slot tier cooldowns and premium-only features', async 
         assert.equal(savedRegular.settings.adventure.enabled, false, 'Auto Adventure dipaksa mati untuk reguler');
         assert.equal(savedRegular.settings.daily.enabled, false, 'Lucy Daily dipaksa mati untuk reguler');
         assert.equal(savedRegular.settings.cookie.enabled, false, 'Send Cookie dipaksa mati untuk reguler');
-        // Command Tetap tetap dikunci 17-20 dtk.
+        // Command Tetap reguler dikunci 17-20 dtk.
         assert.equal(savedRegular.fixedCommands.delayMinMs, 17000);
         assert.equal(savedRegular.fixedCommands.delayMaxMs, 20000);
 
@@ -919,6 +920,9 @@ test('POST /save enforces slot tier cooldowns and premium-only features', async 
         assert.equal(premium.status, 200);
         const savedPremium = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${premiumId}.json`), 'utf8'));
         assert.equal(savedPremium.otherCommands[0].delayMinMs, 5000);
+        // Command Tetap premium dikunci 15-16 dtk.
+        assert.equal(savedPremium.fixedCommands.delayMinMs, 15000);
+        assert.equal(savedPremium.fixedCommands.delayMaxMs, 16000);
         assert.equal(savedPremium.settings.adventure.enabled, true);
         assert.equal(savedPremium.settings.daily.enabled, true);
         assert.equal(savedPremium.settings.cookie.enabled, true);
@@ -952,9 +956,15 @@ test('profile page disables premium-only features for a Reguler account', async 
         assert.match(regularHtml, /name="dailyEnabled"[^>]*disabled/, 'checkbox Lucy Daily dinonaktifkan');
         assert.match(regularHtml, /name="cookieEnabled"[^>]*disabled/, 'checkbox Send Cookie dinonaktifkan');
         assert.match(regularHtml, /value="adventureStart"[^>]*disabled/, 'tombol Auto Adventure ON dinonaktifkan');
+        // Command Tetap reguler terkunci 17-20 detik.
+        assert.match(regularHtml, /name="other4DelayMin" value="17"/, 'Reguler melihat Command Tetap 17-20 dtk');
+        assert.match(regularHtml, /name="other4DelayMax" value="20"/, 'Reguler melihat Command Tetap 17-20 dtk');
 
         const premiumHtml = await (await fetch(`${url}/?profileId=${premiumId}`, { headers: auth })).text();
         assert.doesNotMatch(premiumHtml, /Fitur ini hanya untuk tier Premium/, 'Premium tidak melihat keterangan terkunci');
         assert.doesNotMatch(premiumHtml, /name="dailyEnabled"[^>]*disabled/, 'Premium dapat mengaktifkan Lucy Daily');
+        // Command Tetap premium terkunci 15-16 detik.
+        assert.match(premiumHtml, /name="other4DelayMin" value="15"/, 'Premium melihat Command Tetap 15-16 dtk');
+        assert.match(premiumHtml, /name="other4DelayMax" value="16"/, 'Premium melihat Command Tetap 15-16 dtk');
     });
 });

@@ -1,5 +1,6 @@
 const { randomInt, normalizeSendCount } = require('../utils');
-const { COOLDOWN_POLICY } = require('../constants');
+const { COOLDOWN_POLICY, SLOT_TIER } = require('../constants');
+const { fixedDelayRange } = require('../tierPolicy');
 
 const CUSTOM_SLOT_COUNT = 3;
 // Command Tetap lb + lh = SATU UNIT (persis seperti wh/wb dulu): teks terkunci,
@@ -71,14 +72,15 @@ const normalizeFixedCommands = (fixedCommands = {}, fallbackMs = DEFAULT_DELAY_M
     };
 };
 
-// Command Tetap dikunci 17-20 detik untuk semua akun/tier (tidak bisa kustom).
-// Diterapkan saat config dimuat/dijalankan, bukan di normalizer, agar konfigurasi
-// internal (mis. pengujian loop) tetap bisa memakai jeda kecil.
-const lockFixedDelay = (config = {}) => {
+// Command Tetap dikunci per tier: premium 15-16 dtk, reguler 17-20 dtk (tidak
+// bisa kustom). Diterapkan saat config dimuat/dijalankan, bukan di normalizer,
+// agar konfigurasi internal (mis. pengujian loop) tetap bisa memakai jeda kecil.
+const lockFixedDelay = (config = {}, tier = SLOT_TIER.PREMIUM) => {
     if (config.fixedCommands) {
-        config.fixedCommands.delayMs = COOLDOWN_POLICY.fixedMinMs;
-        config.fixedCommands.delayMinMs = COOLDOWN_POLICY.fixedMinMs;
-        config.fixedCommands.delayMaxMs = COOLDOWN_POLICY.fixedMaxMs;
+        const range = fixedDelayRange(tier);
+        config.fixedCommands.delayMs = range.delayMinMs;
+        config.fixedCommands.delayMinMs = range.delayMinMs;
+        config.fixedCommands.delayMaxMs = range.delayMaxMs;
     }
     return config;
 };

@@ -81,8 +81,14 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         return slotPermissionManager.getTier(id);
     };
 
-    // Menegakkan kebijakan tier tepat sebelum config disimpan.
-    const enforceTierPolicy = (config, accountId) => applyTierPolicy(config, resolveAccountTier(accountId));
+    // Menegakkan kebijakan tier tepat sebelum config disimpan. Tier juga
+    // disimpan ke config agar runtime (Command Tetap & jeda captcha) memakai
+    // kebijakan yang sama saat akun dijalankan.
+    const enforceTierPolicy = (config, accountId) => {
+        const tier = resolveAccountTier(accountId);
+        config.accountTier = tier;
+        return applyTierPolicy(config, tier);
+    };
 
     const setAccountStatus = (accountId, shouldRun) => {
         const target = getProfileConfigByAccountId(accountId);
