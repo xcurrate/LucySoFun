@@ -560,12 +560,14 @@ ${renderRestSettings(config.settings?.rest)}
                         </div>
                         <div class="card">
                             <label>🍪 SEND COOKIE</label>
-                            <div class="input-hint">Setiap kali <strong>startup</strong> bot mengirim <code>lucy rep</code> ke target terpilih, lalu otomatis mengulang tiap <strong>00:00 WIB</strong>. Channel mengikuti <strong>channel command utama</strong>. Target kosong = kirim <code>lucy rep</code> saja.</div>
+                            <div class="input-hint">Setiap kali <strong>startup</strong> bot mengirim <code>lucy rep</code> ke target terpilih, lalu otomatis mengulang tiap <strong>00:00 WIB</strong>. Isi <strong>Channel ID</strong> untuk channel khusus cookie; jika dibiarkan kosong, cookie mengikuti <strong>channel command utama</strong>. Target kosong = kirim <code>lucy rep</code> saja.</div>
                             <div class="toggle-row">
                                 <span>Aktifkan Send Cookie</span>
                                 <input type="checkbox" name="cookieEnabled" ${config.settings?.cookie?.enabled ? 'checked' : ''}>
                             </div>
                             <div class="input-hint daily-status-line"><span data-cookie-status>Memuat status...</span></div>
+                            <label>Channel ID (kosong = channel command utama)</label>
+                            <input type="text" name="cookieChannelId" value="${escapeHtml(config.settings?.cookie?.channelId || '')}" placeholder="Discord Channel ID">
                             <label>Command</label>
                             <input type="text" name="cookieCommand" value="${escapeHtml(config.settings?.cookie?.command || 'lucy rep')}" placeholder="lucy rep">
                             <label>Target User ID (kosong = tanpa target)</label>

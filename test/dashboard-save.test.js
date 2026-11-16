@@ -425,6 +425,7 @@ test('POST /save persists Lucy Daily + Send Cookie settings and renders the tab'
                 dailyEnabled: 'on',
                 dailyCommand: 'lucy daily',
                 cookieEnabled: 'on',
+                cookieChannelId: '987654321098765432',
                 cookieCommand: 'lucy rep',
                 cookieTargetId: '1587263872638888',
                 cookiePingMode: 'ping'
@@ -440,6 +441,7 @@ test('POST /save persists Lucy Daily + Send Cookie settings and renders the tab'
 
         const cookie = savedConfig.settings.cookie;
         assert.equal(cookie.enabled, true);
+        assert.equal(cookie.channelId, '987654321098765432');
         assert.equal(cookie.command, 'lucy rep');
         assert.equal(cookie.targetId, '1587263872638888');
         assert.equal(cookie.ping, true);
@@ -447,6 +449,7 @@ test('POST /save persists Lucy Daily + Send Cookie settings and renders the tab'
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /LUCY DAILY/);
         assert.match(page, /SEND COOKIE/);
+        assert.match(page, /name="cookieChannelId" value="987654321098765432"/);
         assert.match(page, /name="cookieTargetId" value="1587263872638888"/);
         assert.doesNotMatch(page, /name="dailyChannelId"/);
     });

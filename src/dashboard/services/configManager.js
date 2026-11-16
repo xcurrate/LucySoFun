@@ -243,12 +243,16 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         });
 
         // Send Cookie: `lucy rep` ke target terpilih (ping/no ping). Channel
-        // mengikuti channel command utama, jadi tidak ada input channel.
+        // khusus cookie (`cookieChannelId`) opsional; bila kosong, cookie ikut
+        // channel command utama.
         // Mode radio: 'ping' | 'noping' (default no ping).
         const cookiePingMode = String(body.cookiePingMode || '').trim().toLowerCase();
         config.settings.cookie = normalizeCookieSettings({
             ...config.settings.cookie,
             enabled: this.toBool(body.cookieEnabled),
+            channelId: hasField('cookieChannelId')
+                ? String(body.cookieChannelId || '').trim()
+                : (config.settings.cookie?.channelId || ''),
             targetId: String(body.cookieTargetId || '').trim(),
             ping: cookiePingMode ? cookiePingMode === 'ping' : config.settings.cookie?.ping === true,
             command: String(body.cookieCommand || '').trim() || 'lucy rep'
