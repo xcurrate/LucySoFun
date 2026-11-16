@@ -506,7 +506,7 @@ test('MULTI ACCOUNT chip actions keep the target profile configuration intact', 
     const profileConfig = {
         token: makeToken(profileId),
         botStatus: { running: true, paused: false },
-        settings: { messageFilter: { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false } },
+        settings: { messageDebug: { enabled: true, targetId: 'u1', channelId: 'c1', guildId: 'g1' } },
         otherCommands: [{ text: '!profile', delayMs: 7000, count: 3, channelId: '555', enabled: true }]
     };
 
@@ -535,10 +535,7 @@ test('MULTI ACCOUNT chip actions keep the target profile configuration intact', 
                     other1Text: '!main',
                     other1Channel: '111',
                     other1Delay: '5',
-                    other1Count: '1',
-                    mfEnabled: 'on',
-                    mfChannelIds: '',
-                    mfGuildIds: ''
+                    other1Count: '1'
                 })
             });
 
@@ -546,7 +543,7 @@ test('MULTI ACCOUNT chip actions keep the target profile configuration intact', 
             assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
 
             const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
-            assert.deepEqual(savedProfile.settings.messageFilter, { enabled: true, channelIds: ['999'], guildIds: ['888'], debug: false }, `chip ${action} must not reset profile settings`);
+            assert.deepEqual(savedProfile.settings.messageDebug, { enabled: true, targetId: 'u1', channelId: 'c1', guildId: 'g1' }, `chip ${action} must not reset profile settings`);
             assert.equal(savedProfile.otherCommands[0].text, '!profile');
             assert.equal(savedProfile.otherCommands[0].channelId, '555');
             assert.equal(savedProfile.token, makeToken(profileId), `chip ${action} must preserve the profile token`);
@@ -563,7 +560,7 @@ test('MULTI ACCOUNT chip start for the main account keeps the main configuration
         token: makeToken(mainId),
         botStatus: { running: false, paused: true },
         multiAccount: { enabled: true, maxAccounts: 2 },
-        settings: { messageFilter: { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false } },
+        settings: { messageDebug: { enabled: true, targetId: 'u2', channelId: 'c2', guildId: 'g2' } },
         otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
     };
 
@@ -581,16 +578,13 @@ test('MULTI ACCOUNT chip start for the main account keeps the main configuration
                 other1Text: '',
                 other1Channel: '',
                 other1Delay: '',
-                other1Count: '',
-                mfEnabled: 'on',
-                mfChannelIds: '',
-                mfGuildIds: ''
+                other1Count: ''
             })
         });
 
         assert.equal(response.status, 200);
         const savedMain = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
-        assert.deepEqual(savedMain.settings.messageFilter, { enabled: true, channelIds: ['777'], guildIds: ['666'], debug: false }, 'main config settings must not be reset by its own chip');
+        assert.deepEqual(savedMain.settings.messageDebug, { enabled: true, targetId: 'u2', channelId: 'c2', guildId: 'g2' }, 'main config settings must not be reset by its own chip');
         assert.equal(savedMain.otherCommands[0].text, '!main');
         assert.deepEqual(savedMain.botStatus, { running: true, paused: false });
     });

@@ -27,7 +27,6 @@ function createHarness({ allowIds = [] } = {}) {
         startOtherCommand: (index) => calls.push(`startOther${index}`),
         stopOtherCommand: (index) => calls.push(`stopOther${index}`)
     };
-    const telegramService = { send: (text) => calls.push(`tg:${text}`) };
     const adventureManager = {
         start: async (opts) => { calls.push(`advStart:${opts?.restart}`); return true; },
         stop: () => calls.push('advStop')
@@ -44,8 +43,6 @@ function createHarness({ allowIds = [] } = {}) {
         configManager,
         emergencyHandler,
         loopManager,
-        telegramService,
-        null,
         {},
         null,
         adventureManager,
@@ -87,7 +84,6 @@ test('Lucy pause word disables every Lucy feature and stops timers', async () =>
     for (const call of ['save', 'advStop', 'stopOther0', 'stopOther1', 'stopOther2', 'boss2Stop', 'gemsStop']) {
         assert.ok(calls.includes(call), `expected ${call}`);
     }
-    assert.ok(calls.some(call => call.startsWith('tg:') && call.includes('Lucy Paused')));
     assert.ok(!calls.includes('schedulerStopAll'));
 });
 

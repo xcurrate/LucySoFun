@@ -99,78 +99,9 @@ module.exports = function createSettingsTabs({ escapeHtml }) {
         `;
     }
 
-    function renderAdvancedSettings({ config, msgFilter, messageDebug, voice }) {
+    function renderAdvancedSettings({ config, messageDebug }) {
         return `
-                    <div id="tab-notifications" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>📱 Notifikasi</h3>
-                            </div>
-
-                        </div>
-
-                        <div class="card">
-                            <label>📱 TELEGRAM NOTIFICATIONS</label>
-                            <input type="text" name="tgToken" value="${config.settings.telegram.token || ''}" placeholder="Bot Token">
-                            <input type="text" name="tgChat" value="${config.settings.telegram.chatId || ''}" placeholder="Chat ID">
-
-                        </div>
-                    </div>
-
-                    <div id="tab-integrations" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>🔌 Integrasi Sistem</h3>
-                            </div>
-
-                        </div>
-
-                        <div class="card">
-                            <label>🔌 SYSTEM INTEGRATIONS</label>
-                            <label>Dashboard Port</label>
-                            <input type="number" name="port" value="${config.port}">
-                            <label>MacroDroid ID</label>
-                            <input type="text" name="macrodroidId" value="${config.macrodroidId || ''}">
-                        </div>
-                    </div>
-
 ${renderRestSettings(config.settings?.rest)}
-
-                    <div id="tab-safety" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>🛡️ Safety & Filter</h3>
-                            </div>
-
-                        </div>
-
-                        <div class="card">
-                            <label>🛡️ SAFETY & FILTER</label>
-                            <div class="toggle-row">
-                                <span>Enable CCTV Monitoring</span>
-                                <input type="checkbox" name="cctvEnabled" ${config.safety?.cctv ? 'checked' : ''}>
-                            </div>
-                            
-                            <div class="divider"></div>
-                            
-                            <label>📨 Message Filter</label>
-                            <div class="toggle-row">
-                                <span>Enable Filter</span>
-                                <input type="checkbox" name="mfEnabled" ${msgFilter.enabled ? 'checked' : ''}>
-                            </div>
-                            <label>Channel IDs</label>
-                            <input type="text" name="mfChannelIds" value="${(msgFilter.channelIds || []).join(',')}" placeholder="Channel IDs">
-                            <label>Guild IDs</label>
-                            <input type="text" name="mfGuildIds" value="${(msgFilter.guildIds || []).join(',')}" placeholder="Guild IDs">
-                            <div class="toggle-row">
-                                <span>Debug Mode</span>
-                                <input type="checkbox" name="mfDebug" ${msgFilter.debug ? 'checked' : ''}>
-                            </div>
-                        </div>
-                    </div>
 
                     <div id="tab-message-debug" class="tab-content">
                         <div class="category-heading">
@@ -206,31 +137,6 @@ ${renderRestSettings(config.settings?.rest)}
                             </div>
                             <pre id="messageDebugOutput" class="debug-output" aria-live="polite">Memuat debug pesan...</pre>
                         </div>
-                    </div>
-
-                    <div id="tab-control" class="tab-content">
-                        <div class="category-heading">
-                            <div>
-                                <span class="section-label">Advanced / Add-ons</span>
-                                <h3>🎮 Kontrol & Sistem</h3>
-                            </div>
-
-                        </div>
-
-                        <div class="card">
-                            <label>🎮 CONTROL & SYSTEM</label>
-                            <div class="toggle-row">
-                                <span>Auto Resume</span>
-                                <input type="checkbox" name="autoResume" ${config.settings.autoResume ? 'checked' : ''}>
-                            </div>
-                            <div class="divider"></div>
-                            <label>Max Log Lines in Dashboard</label>
-                            <input type="number" name="maxLogLines" value="${config.maxLogLines || 15}">
-                            <label style="margin-top:12px; display:block">Max Baris File Log per Akun (.txt)</label>
-                            <input type="number" name="logFileMaxLines" min="0" value="${config.logFileMaxLines || 1000}">
-                            <p class="input-hint">Setiap akun menulis log ke <code>logs/log_&lt;accountId&gt;.txt</code>. File dipangkas otomatis agar hanya menyimpan baris terakhir sebanyak angka ini (0 = pakai default).</p>
-                        </div>
-
                     </div>
         `;
     }
@@ -705,12 +611,8 @@ ${commandsMenuGroup}
                             <button type="button" class="settings-menu-item" data-menu-label="Send Cookie" onclick="switchTab(event, 'tab-daily')">🍪 Send Cookie${badge(onBadge(context?.config?.settings?.cookie))}</button>
                         </div>
                         <div class="settings-menu-group"><span>Sistem</span>
-                            <button type="button" class="settings-menu-item" data-menu-label="Notifikasi" onclick="switchTab(event, 'tab-notifications')">📱 Notifikasi</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Integrasi Sistem" onclick="switchTab(event, 'tab-integrations')">🔌 Integrasi Sistem</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Safety & Filter" onclick="switchTab(event, 'tab-safety')">🛡️ Safety &amp; Filter</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Istirahat" onclick="switchTab(event, 'tab-rest')">😴 Istirahat</button>
                             <button type="button" class="settings-menu-item" data-menu-label="Debug Pesan" onclick="switchTab(event, 'tab-message-debug')">🔎 Debug Pesan</button>
-                            <button type="button" class="settings-menu-item" data-menu-label="Kontrol & Sistem" onclick="switchTab(event, 'tab-control')">🎮 Kontrol &amp; Sistem</button>
                         </div>
                     </aside>
                     <div class="settings-tabs">

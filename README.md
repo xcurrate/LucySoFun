@@ -16,7 +16,6 @@ LucySoFun adalah selfbot Discord yang dikhususkan sepenuhnya untuk **Lucy** — 
 - 🎮 **Lucy Control** — kata kunci start/pause via Discord untuk menghidupkan/mematikan seluruh fitur Lucy.
 - 😴 **Auto Rest** — jadwal istirahat (sleep schedule) dan budget istirahat harian.
 - 🔎 **Message Debug** — menangkap dan menampilkan pesan Discord untuk keperluan debugging.
-- 🛡️ **Safety / Message Filter** — filter pesan, mode CCTV (memantau mention/reply di channel yang diatur pada filter pesan), dan proteksi akun.
 - 📊 **Dashboard Web** — kontrol penuh melalui browser (lihat di bawah).
 
 ## Persyaratan
@@ -47,20 +46,16 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
 
 ```jsonc
 {
-  "port": 2028,
   "token": "TOKEN_AKUN_DISCORD",
   "botStatus": { "running": false, "paused": true },
-  "maxLogLines": 15,
   "settings": {
     "lucyControl": {
       "start": "lucy start",
       "pause": "lucy pause",
       "allowIds": []
     },
-    "adventure": { "enabled": false, "channelId": "", "guildId": "" },
-    "messageFilter": { "enabled": true, "channelIds": [], "guildIds": [], "debug": false },
+    "adventure": { "enabled": false, "channelId": "" },
     "messageDebug": { "enabled": false, "targetId": "", "channelId": "", "guildId": "" },
-    "telegram": { "token": "", "chatId": "" },
     "voice": { "enabled": false, "channelId": "" },
     "boss2": {},
     "gems": {},
@@ -68,7 +63,6 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
     "monsterCatcher": {},
     "rest": {}
   },
-  "safety": { "cctv": false },
   "multiAccount": { "enabled": true, "maxAccounts": 3 },
   "otherCommands": [
     { "text": "", "delayMs": 5000, "count": 1, "channelId": "", "enabled": false },
@@ -79,7 +73,7 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
 }
 ```
 
-Semua pengaturan diatur melalui dashboard pada tab masing-masing. Properti konfigurasi legacy dari bot OwO (mis. `macrodroidId`, `autosolver`, `twoCaptchaKey`, `settings.control`, `settings.channelRotation`, `delays`, `captcha`, `tiketandhb`, `huntbot`, `boss`) akan **dibersihkan otomatis** saat project dimuat dan tidak lagi dipakai.
+Semua pengaturan diatur melalui dashboard pada tab masing-masing. Properti konfigurasi legacy dari bot OwO (mis. `autosolver`, `twoCaptchaKey`, `settings.control`, `settings.channelRotation`, `delays`, `captcha`, `tiketandhb`, `huntbot`, `boss`) maupun properti dari tab dashboard yang sudah dihapus (`port`, `maxLogLines`, `logFileMaxLines`, `settings.telegram`, `settings.messageFilter`, `settings.autoResume`, `safety`) akan **dibersihkan otomatis** saat project dimuat dan tidak lagi dipakai.
 
 ### Lucy Control via Discord
 
@@ -101,7 +95,7 @@ Dashboard menyediakan:
 - **Tab pengaturan Lucy** — Auto Boss2, Auto Use Gems, Auto Adventure, Huntbot2, Monster Catcher, Voice Channel, Kontrol Lucy.
 - **Menu Utama (control panel)** — kartu Multi Account (daftar akun, indikator slot, dan form "MASUKKUN TOKEN AKUN BARU") + tombol **👤 HALAMAN PROFIL** menuju profil akun utama.
 - **Halaman Profil** (`?profileId=<id>`) — kartu Custom Commands (3 loop kustom) dan Command Tetap (pasangan `lb` + `lh` yang selalu dikirim berurutan `lb` → "sedang mengetik" → `lh` sebagai satu unit), dengan tombol **⌂ MENU UTAMA** untuk kembali.
-- **Tab umum** — Menu Utama/Profil Akun (sesuai halaman), Notifikasi (Telegram), Integrasi Sistem, Safety & Filter, Istirahat, Debug Pesan, Kontrol & Sistem.
+- **Tab umum** — Menu Utama/Profil Akun (sesuai halaman), Istirahat, Debug Pesan.
 - **Statistik, info bot, dan logs** tampil di bawah form dan selalu terlihat di kedua halaman.
 
 ### Autentikasi
@@ -139,7 +133,7 @@ src/
   core/                         # wrapper runtime (accountRuntime, multiAccount, client)
   managers/                     # logic fitur (boss2, gems, adventure, huntbot2, monsterCatcher,
                                 #   voice, rest, command, loop, message...) + OCR TooEz/TooEz2
-  services/                     # layanan pendukung (config, stats, telegram, dashboard services)
+  services/                     # layanan pendukung (config, stats, dashboard services)
   dashboard/                    # aplikasi web dashboard
 test/                           # unit tests
 ```

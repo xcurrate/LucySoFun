@@ -25,7 +25,7 @@ function getDashboardStatsCard(snapshot, { scopeName = '' } = {}) {
         // dari mockup tidak ditampilkan karena dashboard Lucy-only tidak
         // melacaknya — angka palsu lebih buruk daripada kolom yang absen.
         return `
-        <div class="grid four" id="statsGrid">
+        <div class="grid three" id="statsGrid">
             <div class="stat">
                 <div class="lbl">Uptime${who}</div>
                 <div class="val" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
@@ -40,11 +40,6 @@ function getDashboardStatsCard(snapshot, { scopeName = '' } = {}) {
                 <div class="lbl">Status${who}</div>
                 <div class="val" style="font-size:18px" data-stat="statusText">${escapeHtml(snapshot.status.text)}</div>
                 <div class="note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
-            </div>
-            <div class="stat">
-                <div class="lbl">Notifikasi${who}</div>
-                <div class="val" style="font-size:18px" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
-                <div class="note">Telegram opsional</div>
             </div>
         </div>
 

@@ -20,7 +20,7 @@ const toJsonValue = (value) => {
     }
 };
 
-module.exports = (state, configManager, emergencyHandler, loopManager, telegramService, macrodroidService, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager, cookieManager) => {
+module.exports = (state, configManager, emergencyHandler, loopManager, commandSender, voiceManager, adventureManager, boss2Manager, gemsManager, huntbot2Manager, monsterCatcherManager, dailyManager, cookieManager) => {
     let lucyTeamAwaiting = false;
     let lucyTeamTimeout = null;
     const clearLucyTeamAwaiting = () => {
@@ -109,9 +109,6 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             await huntbot2Manager.handle(msg);
         }
         await this.handleControlCommands(msg);
-
-        // ✅ FITUR BARU: Deteksi SEMUA pesan dari admin/orang lain di channel aktif
-        await this.handleUserMessages(msg);
 
         // Adventure adalah automasi mandiri.
         if (adventureManager) await adventureManager.handle(msg);
@@ -254,7 +251,6 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             try { cookieManager?.start?.(); }
             catch (error) { log.error(`${accountPrefix(state)}❌ Penjadwal Cookie gagal dimulai: ${error.message}`); }
             log.success(`${accountPrefix(state)}▶️ Lucy start via Discord control.`);
-            telegramService?.send?.(`▶️ <b>Lucy Started</b> via Discord command`);
         } else {
             adventureManager?.stop?.();
             otherCommands.forEach((_, index) => loopManager?.stopOtherCommand?.(index));
@@ -266,50 +262,8 @@ module.exports = (state, configManager, emergencyHandler, loopManager, telegramS
             dailyManager?.stop?.();
             cookieManager?.stop?.();
             log.warn(`${accountPrefix(state)}⏸️ Lucy pause via Discord control.`);
-            telegramService?.send?.(`⏸️ <b>Lucy Paused</b> via Discord command`);
         }
     },
 
-    // ✅ FITUR BARU: Fungsi pengawas CCTV (Semua pesan dari user lain)
-    async handleUserMessages(msg) {
-        const myId = state.client?.user?.id;
-
-        if (state.config.safety.cctv === false || !myId) return;
-
-        if (msg.author.id === myId || msg.author.bot) return;
-
-        const filter = state.config.settings?.messageFilter || {};
-        const channelIds = Array.isArray(filter.channelIds) ? filter.channelIds : [];
-        const guildIds = Array.isArray(filter.guildIds) ? filter.guildIds : [];
-        if (channelIds.length && !channelIds.includes(msg.channel.id)) return;
-        if (guildIds.length && !guildIds.includes(msg.guild?.id)) return;
-
-        const isMentioned = msg.mentions?.users?.has(myId) || msg.content.includes(myId);
-        const isReplyToMe = msg.type === 'REPLY' && msg.mentions?.repliedUser?.id === myId;
-
-        let alertType = "PESAN BARU";
-        if (isMentioned) alertType = "MENTION / TAG";
-        if (isReplyToMe) alertType = "REPLY MESSAGE";
-
-        log.warn(`${accountPrefix(state)}💬 ${alertType} terdeteksi dari ${msg.author.username}! Meneruskan ke Telegram...`);
-
-        const senderName = msg.author.username;
-        const channelName = msg.channel.name || 'DM/Unknown';
-        const content = msg.content || '[Hanya Attachment / Kosong]';
-        const serverId = msg.guild ? msg.guild.id : '@me';
-        const messageUrl = `https://discord.com/channels/${serverId}/${msg.channel.id}/${msg.id}`;
-
-        const tgMessage = `👀 <b>${alertType} DETECTED!</b>\n` +
-                          `👤 <b>Dari:</b> ${senderName}\n` +
-                          `🏠 <b>Channel:</b> #${channelName}\n` +
-                          `📝 <b>Pesan:</b> <i>${content}</i>\n\n` +
-                          `🔗 <a href="${messageUrl}">Klik untuk melihat pesan</a>`;
-
-        telegramService.send(tgMessage);
-
-        if (macrodroidService) {
-            await macrodroidService.trigger("pesanbaru");
-        }
-    }
     });
 };
