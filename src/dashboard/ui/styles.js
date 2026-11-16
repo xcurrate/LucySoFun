@@ -125,7 +125,6 @@ function getStyles() {
             .debug-output-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
             .debug-action-button { width: auto; padding: 9px 12px; font-size: 12px; }
             .debug-output { margin-top: 8px; padding: 12px; min-height: 220px; max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #0a0f16; border: 1px solid var(--border); border-radius: 10px; color: #c5d7ff; font: 12px/1.5 var(--mono); user-select: text; -webkit-user-select: text; }
-            .telegram-badge { background: var(--blue-soft); border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; font-size: 11px; color: var(--accent); display: inline-block; margin-top: 8px; }
             @media (max-width: 920px) { .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .info-grid { grid-template-columns: 1fr; } }
             @media (max-width: 760px) { body { padding: 12px; } .dashboard-grid, .info-grid { grid-template-columns: 1fr; } .row, .action-group, .card-title, .category-heading { flex-direction: column; align-items: stretch; } .category-heading p { text-align: left; } .log-line, .recent-item { grid-template-columns: 1fr; gap: 4px; } .stat-card { min-height: auto; } }
         
@@ -333,6 +332,7 @@ function getStyles() {
             .grid { display:grid; gap:16px; }
             .grid.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
             .grid.four { grid-template-columns:repeat(4,minmax(0,1fr)); }
+            .grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
             .stat { background:linear-gradient(145deg,#17243a,#101827); border:1px solid #2b3c59; border-radius:18px; padding:16px; min-height:110px; }
             .stat .lbl { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:9px; }
             .stat .lbl .who { color:var(--accent); font-size:10px; letter-spacing:0; text-transform:none; }
@@ -348,8 +348,8 @@ function getStyles() {
             .pin-row .btn { flex:0 0 auto; min-width:auto; }
             .pin-row form { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:0; }
             .btn-warn { background:transparent; border-color:#8a5d16; color:var(--yellow); }
-            @media (max-width:1100px) { .grid.four { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-            @media (max-width:760px) { .grid.four, .grid.two { grid-template-columns:1fr; } .recent-item { grid-template-columns:1fr; gap:4px; } }
+            @media (max-width:1100px) { .grid.four, .grid.three { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+            @media (max-width:760px) { .grid.four, .grid.three, .grid.two { grid-template-columns:1fr; } .recent-item { grid-template-columns:1fr; gap:4px; } }
 
             /* Tombol unduh log per akun (file .txt). */
             .log-download-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:10px; }

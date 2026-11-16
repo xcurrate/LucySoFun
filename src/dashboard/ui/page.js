@@ -41,7 +41,7 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
         const stats = snapshot && statsService ? `
             <div class="divider"></div>
             <div class="card-head" style="margin-bottom:10px"><h3>📊 Ringkasan Akun Ini</h3><span class="pill">${escapeHtml(name)}</span></div>
-            <div class="grid four">
+            <div class="grid three">
                 <div class="stat">
                     <div class="lbl">Uptime</div>
                     <div class="val" data-stat="uptimeText">${escapeHtml(snapshot.uptime.text)}</div>
@@ -56,11 +56,6 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
                     <div class="lbl">Status</div>
                     <div class="val" style="font-size:18px" data-stat="statusText">${escapeHtml(snapshot.status.text)}</div>
                     <div class="note" data-stat="statusNote">Akun: ${escapeHtml(snapshot.status.running ? 'AKTIF' : 'NONAKTIF')}</div>
-                </div>
-                <div class="stat">
-                    <div class="lbl">Notifikasi</div>
-                    <div class="val" style="font-size:18px" data-stat="serviceFlags">Telegram: ${snapshot.status.telegram ? 'ON' : 'OFF'}</div>
-                    <div class="note">Telegram opsional</div>
                 </div>
             </div>` : '';
         return `
@@ -106,21 +101,16 @@ module.exports = function createPageRenderer({ CONSTANTS, configManager, profile
     }
 
 function renderPage(config) {
-        console.log('[DASHBOARD] Rendering page with config:', { port: config.port, token: config.token ? '***' : 'MISSING' });
-
         const { statusText, statusClass } = configManager.computeStatus(config);
-        const hasTelegram = config.settings?.telegram?.token && config.settings?.telegram?.chatId;
 
         const lucyControl = config.settings.lucyControl || {};
         const boss2 = config.settings.boss2 || {};
         const gems = config.settings.gems || {};
         const adventure = config.settings.adventure || {};
         const monsterCatcher = config.settings.monsterCatcher || {};
-        const msgFilter = config.settings.messageFilter || {};
         const messageDebug = config.settings.messageDebug || {};
         const voice = config.settings.voice || {};
         const statsSnapshot = statsService.getSnapshot(config);
-        const logFileMaxLines = config.logFileMaxLines || 1000;
         const viewingProfileId = config.viewingProfileId || '';
         const isControlPanel = !viewingProfileId;
         const viewingProfileHasPin = !!profileManager.getProfileMeta(viewingProfileId)?.pin;
@@ -176,7 +166,6 @@ function renderPage(config) {
                 ${profileOptions.length ? renderScopeBar({ profileOptions, viewingProfileId }) : ''}
                 <div class="status-box ${statusClass}">
                     <span style="font-size: 16px;">${statusText}</span>
-                    ${hasTelegram ? '<div class="telegram-badge">📱 Telegram Active</div>' : ''}
                 </div>
                 ${getDashboardStatsCard(statsSnapshot, { scopeName: statsScopeName })}`;
 
@@ -223,7 +212,6 @@ function renderPage(config) {
                         gems,
                         adventure,
                         monsterCatcher,
-                        msgFilter,
                         messageDebug,
                         voice,
                         viewingProfileName,
@@ -237,7 +225,7 @@ function renderPage(config) {
                                     hint: `Hanya menampilkan log milik akun <strong>${escapeHtml(statsScopeName || viewingProfileId)}</strong> (ID ${escapeHtml(viewingProfileId)}).`,
                                     actions: `<div class="log-download-row">
                                         <a class="btn btn-ghost" href="/logs/download?profileId=${encodeURIComponent(viewingProfileId)}">⬇️ Unduh log (.txt)</a>
-                                        <span class="log-download-note">File per akun, maksimal ${logFileMaxLines} baris terakhir.</span>
+                                        <span class="log-download-note">File per akun.</span>
                                     </div>`
                                 })
                             : renderMultiAccountCard({ profileOptions, maxAccounts: config.multiAccount?.maxAccounts }),

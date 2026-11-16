@@ -5,7 +5,7 @@ const statsService = require('../services/stats');
 
 const RECOVERY_PROBE_INTERVAL_MS = 10 * 60 * 1000;
 
-module.exports = (state, configManager, loopManager, telegramService) => {
+module.exports = (state, configManager, loopManager) => {
     const clearRecoveryProbe = () => {
         if (state.emergencyRecoveryTimer) {
             clearInterval(state.emergencyRecoveryTimer);
@@ -46,7 +46,6 @@ module.exports = (state, configManager, loopManager, telegramService) => {
         configManager.save();
         log.success(`${accountPrefix(state)}✅ Respons linv Lucy cocok dengan username akun; melanjutkan sesi yang terkena emergency pause.`);
         if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
-        telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: respons <code>linv</code> Lucy berisi username akun ini.`);
     };
 
     const sendRecoveryProbe = async () => {
@@ -127,8 +126,6 @@ module.exports = (state, configManager, loopManager, telegramService) => {
                 }, RECOVERY_PROBE_INTERVAL_MS);
                 log.info(`${accountPrefix(state)}🕒 Recovery check linv dijadwalkan setiap 10 menit selama emergency pause.`);
             }
-
-            telegramService.send(`⛔ <b>Bot Paused</b>\nAlasan: ${reason}`);
         },
 
         // Dipakai Control Lucy: melanjutkan akun yang terjeda emergency/timeout
@@ -142,7 +139,6 @@ module.exports = (state, configManager, loopManager, telegramService) => {
             configManager.save();
             log.success(`${accountPrefix(state)}✅ Bot dilanjutkan manual melalui Control Lucy.`);
             if (loopManager && typeof loopManager.startAll === 'function') loopManager.startAll();
-            telegramService?.send?.(`✅ <b>Bot Resumed</b>\nAlasan: Control Lucy (start).`);
         },
 
         // Dipakai tombol START dashboard: hentikan pemantauan linv tanpa

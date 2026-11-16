@@ -129,7 +129,6 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         updateText('[data-stat="startedAt"]', 'Start: ' + data.uptime.startedAt);
                         updateText('[data-stat="statusText"]', data.status.text);
                         updateText('[data-stat="statusNote"]', 'Akun: ' + (data.status.running ? 'AKTIF' : 'NONAKTIF'));
-                        updateText('[data-stat="serviceFlags"]', 'Telegram: ' + (data.status.telegram ? 'ON' : 'OFF'));
                         renderCommandTypes(data.commands.byType);
                         renderRecentCommands(data.commands.recent);
                     } catch (err) {

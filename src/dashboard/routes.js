@@ -275,8 +275,7 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
         try {
             let accountId = req.query.accountId ? String(req.query.accountId) : '';
             if (!accountId && req.query.profileId) accountId = String(req.query.profileId);
-            const baseConfig = configManager.ensureShape(configManager.get());
-            const lines = logService.getRecentLines({ accountId, limit: baseConfig.maxLogLines || 20 });
+            const lines = logService.getRecentLines({ accountId });
             res.setHeader('Cache-Control', 'no-store');
             res.json({ lines, accountId: accountId || null, filterMode: accountId ? 'prefix-or-id' : 'all' });
         } catch {
@@ -686,10 +685,6 @@ function createDashboardRoutes({ configManager, fileService, profileManager, pro
             if (saved) dashboardLog('success', savedAccountId !== 'default' ? savedAccountId : '', `💾 Config dashboard disimpan (${saveTarget === 'main' ? 'main' : 'profile'}).`);
 
             if (saved) {
-                // Terapkan batas baris file log per akun bila diubah dari dashboard.
-                if (logger && typeof logger.setLogFileMaxLines === 'function' && config.logFileMaxLines) {
-                    logger.setLogFileMaxLines(config.logFileMaxLines);
-                }
                 const otherCommandAction = /^other(Command)?(Start|Stop)([1-5])$/.exec(String(body.action || ''));
                 if (otherCommandAction) {
                     const index = Number(otherCommandAction[3]) - 1;

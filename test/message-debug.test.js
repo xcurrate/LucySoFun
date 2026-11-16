@@ -6,13 +6,13 @@ const createMessageHandler = require('../src/managers/message');
 function createHandler(messageDebug) {
     const state = {
         client: { isReady: () => true, user: { id: 'self' } },
-        config: { settings: { messageDebug }, safety: {} },
+        config: { settings: { messageDebug } },
         messageDebugEntries: []
     };
     const handler = createMessageHandler(
         state,
         { getLucyControlCommands: () => ({ startCmd: 'lucy start', pauseCmd: 'lucy pause', allowIds: [] }) },
-        {}, {}, {}, {}, null, null, {}, {}, {}, {}
+        {}, {}, {}, {}, null, {}, {}, {}, {}, {}, {}
     );
     return { state, handler };
 }

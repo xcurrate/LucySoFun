@@ -3,7 +3,7 @@ const log = require('../../logger');
 const { accountPrefix } = require('../utils');
 const statsService = require('../services/stats');
 
-module.exports = (state, configManager, messageHandler, telegramService, voiceManager, huntbot2Manager, dailyManager, cookieManager) => ({
+module.exports = (state, configManager, messageHandler, voiceManager, huntbot2Manager, dailyManager, cookieManager) => ({
     initialize() {
         if (state.client) {
             log.warn(`${accountPrefix(state)}🔄 Merestart sesi Discord...`);
@@ -18,7 +18,6 @@ module.exports = (state, configManager, messageHandler, telegramService, voiceMa
         state.client.on('ready', () => {
             state.accountUsername = state.client.user.tag || state.client.user.username || '';
             log.success(`${accountPrefix(state)}✅ Login Sukses: ${state.client.user.tag}`);
-            telegramService.send(`🤖 <b>Bot Started</b>\nUser: ${state.client.user.tag}`);
 
             state.config.botStatus = state.config.botStatus || { running: false, paused: true };
             if (typeof state.config.botStatus.running !== 'boolean') state.config.botStatus.running = false;
