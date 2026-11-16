@@ -9,6 +9,8 @@ const DEFAULT_COMMAND = 'lucy rep';
 // apakah target di-tag (<@id>) atau hanya id mentah.
 const normalizeCookieSettings = (raw = {}) => ({
     enabled: raw.enabled === true,
+    // Slot channel sendiri; bila kosong, cookie memakai channel command utama.
+    channelId: String(raw.channelId || '').trim(),
     targetId: String(raw.targetId || '').replace(/[^0-9]/g, ''),
     ping: raw.ping === true,
     command: String(raw.command || DEFAULT_COMMAND).trim() || DEFAULT_COMMAND,
@@ -28,8 +30,10 @@ module.exports = function createCookieManager(state, configManager, commandSende
         ? configManager.getCookieSettings()
         : normalizeCookieSettings(state.config?.settings?.cookie));
     const prefix = () => accountPrefix(state) + '🍪 Cookie: ';
-    // Channel mengikuti channel command utama (Custom Commands / Command Tetap).
-    const resolveChannelId = () => getPrimaryCommandChannelId(state.config)
+    // Channel khusus cookie bila diisi; jika kosong, ikut channel command utama
+    // (Custom Commands / Command Tetap).
+    const resolveChannelId = () => settings().channelId
+        || getPrimaryCommandChannelId(state.config)
         || String(state.lastLucyCommandChannelId || '').trim();
 
     state.cookie = state.cookie || { lastRunAt: 0, nextRunAt: 0, timer: null };
@@ -130,6 +134,7 @@ module.exports = function createCookieManager(state, configManager, commandSende
             return {
                 enabled: cfg.enabled,
                 channelId: resolveChannelId(),
+                channelSlotId: cfg.channelId,
                 targetId: cfg.targetId,
                 ping: cfg.ping,
                 command: cfg.command,

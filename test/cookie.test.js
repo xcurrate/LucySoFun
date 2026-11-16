@@ -33,10 +33,10 @@ function setup({ config = {}, running = true, customCommands = null } = {}) {
 
 test('normalizeCookieSettings strips non-digits from target and defaults', () => {
     assert.deepEqual(normalizeCookieSettings(undefined), {
-        enabled: false, targetId: '', ping: false, command: DEFAULT_COMMAND, lastRunDate: ''
+        enabled: false, channelId: '', targetId: '', ping: false, command: DEFAULT_COMMAND, lastRunDate: ''
     });
-    assert.deepEqual(normalizeCookieSettings({ enabled: true, targetId: '<@1587263872638888>', ping: true }), {
-        enabled: true, targetId: '1587263872638888', ping: true, command: DEFAULT_COMMAND, lastRunDate: ''
+    assert.deepEqual(normalizeCookieSettings({ enabled: true, channelId: '  chan-9  ', targetId: '<@1587263872638888>', ping: true }), {
+        enabled: true, channelId: 'chan-9', targetId: '1587263872638888', ping: true, command: DEFAULT_COMMAND, lastRunDate: ''
     });
     assert.equal(normalizeCookieSettings({ command: '   ' }).command, DEFAULT_COMMAND);
 });
@@ -66,6 +66,13 @@ test('runNow uses ping format and falls back to the last command channel', async
 
     const paused = setup({ running: false });
     assert.equal(await paused.manager.runNow(), false);
+});
+
+test('runNow prefers the dedicated cookie channel over the primary command channel', async () => {
+    const { manager, sent } = setup({ config: { channelId: 'cookie-chan', targetId: '1587263872638888' } });
+    assert.equal(await manager.runNow(), true);
+    assert.equal(sent[0].channelId, 'cookie-chan');
+    assert.equal(manager.getStatus().channelSlotId, 'cookie-chan');
 });
 
 test('start sends cookie once at startup then schedules 00:00 WIB', async () => {

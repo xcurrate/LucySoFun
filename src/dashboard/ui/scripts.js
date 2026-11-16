@@ -214,6 +214,7 @@ function getLogRefreshScript(profileOptions = [], viewingProfileId = '', isContr
                         const s = acc.status || {};
                         const parts = [s.enabled ? '✅ Aktif' : '⛔ Nonaktif'];
                         parts.push('mode ' + (s.ping ? 'ping' : 'no ping'));
+                        parts.push('channel ' + (s.channelSlotId ? s.channelSlotId : (s.channelId ? 'utama ' + s.channelId : 'belum diatur')));
                         if (s.targetId) parts.push('target ' + s.targetId);
                         if (s.nextRunAt) {
                             const when = new Date(s.nextRunAt);
