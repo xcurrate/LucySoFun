@@ -15,9 +15,22 @@ module.exports = {
         ticketYesId: 'raid:ticket:yes',
 ticketNoId:  'raid:ticket:no',
 limitText:   'limit fight',
-minTicketLeft: 1,
+        minTicketLeft: 1,
         ticketStatusChannelId: '',
-        ticketStatusCommand: 'lboss t'
+        ticketStatusCommand: 'lboss t',
+        // Gate Fight: OCR gambar reward di pesan boss. Fight hanya diklik bila
+        // minimal satu target yang diisi terpenuhi (targetMode 'any').
+        rewardGate: {
+            enabled: false,
+            targetMode: 'any',
+            targets: {
+                weaponShards: 0,
+                weaponCrate: 0,
+                bossCrate: 0,
+                fabledLootbox: 0,
+                experience: 0
+            }
+        }
     },
     GEMS_TIERS: {
         F: { main: ['57', '71', '78'], special: '85' },

@@ -154,7 +154,18 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
             delayMinMs: body.boss2DelayMin,
             delayMaxMs: body.boss2DelayMax,
             ticketStatusChannelId: body.boss2TicketStatusChannelId,
-            ticketStatusCommand: 'lboss t'
+            ticketStatusCommand: 'lboss t',
+            rewardGate: {
+                enabled: this.toBool(body.boss2RewardEnabled),
+                targetMode: config.settings.boss2?.rewardGate?.targetMode || 'any',
+                targets: {
+                    weaponShards: body.boss2RewardWeaponShards,
+                    weaponCrate: body.boss2RewardWeaponCrate,
+                    bossCrate: body.boss2RewardBossCrate,
+                    fabledLootbox: body.boss2RewardFabledLootbox,
+                    experience: body.boss2RewardExperience
+                }
+            }
         });
 
         config.settings.gems = normalizeGemsSettings({

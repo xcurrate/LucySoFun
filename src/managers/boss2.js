@@ -6,6 +6,11 @@ const MAX_TIMER_MS = 2147483647;
 const TEXT_KEYS = new Set(['content', 'title', 'description', 'name', 'value', 'label', 'text']);
 const TICKET_LEFT_REGEX = /punya\s*\*{0,2}(\d+)\*{0,2}\s*\/\s*\*{0,2}(\d+)\*{0,2}\s*ticket/i;
 
+const REWARD_IMAGE_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
+const REWARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const REWARD_DOWNLOAD_TIMEOUT_MS = 12000;
+const REWARD_CHECK_CACHE_LIMIT = 200;
+
 const toIdList = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
     .map(item => String(item).trim())
     .filter(Boolean);
@@ -18,6 +23,25 @@ const toNonNegativeInt = (value, fallback) => {
 const toText = (value, fallback) => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
+};
+
+const normalizeRewardGate = (raw = {}, defaults = {}) => {
+    const rawTargets = raw.targets || {};
+    const defaultTargets = defaults.targets || {};
+    const target = (key) => Math.max(0, toNonNegativeInt(rawTargets[key], toNonNegativeInt(defaultTargets[key], 0)));
+    return {
+        enabled: raw.enabled === true,
+        // 'any' = minimal satu target terpenuhi. 'all' disiapkan untuk config
+        // manual, tetapi dashboard memakai 'any'.
+        targetMode: raw.targetMode === 'all' ? 'all' : 'any',
+        targets: {
+            weaponShards: target('weaponShards'),
+            weaponCrate: target('weaponCrate'),
+            bossCrate: target('bossCrate'),
+            fabledLootbox: target('fabledLootbox'),
+            experience: target('experience')
+        }
+    };
 };
 
 const normalizeBoss2Settings = (raw = {}) => {
@@ -38,7 +62,8 @@ const normalizeBoss2Settings = (raw = {}) => {
         limitText:   toText(raw.limitText,   defaults.limitText   || 'limit fight'),
         minTicketLeft: Math.max(0, toNonNegativeInt(raw.minTicketLeft, defaults.minTicketLeft ?? 1)),
         ticketStatusChannelId: String(raw.ticketStatusChannelId || defaults.ticketStatusChannelId || '').trim(),
-        ticketStatusCommand: toText(raw.ticketStatusCommand, defaults.ticketStatusCommand || 'lboss t')
+        ticketStatusCommand: toText(raw.ticketStatusCommand, defaults.ticketStatusCommand || 'lboss t'),
+        rewardGate: normalizeRewardGate(raw.rewardGate, defaults.rewardGate)
     };
 };
 
@@ -65,6 +90,120 @@ const collectTexts = (node, texts = []) => {
     }
     return texts;
 };
+
+const isRewardImageUrl = (value) => {
+    if (typeof value !== 'string') return false;
+    try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase();
+        return url.protocol === 'https:'
+            && (REWARD_IMAGE_HOSTS.has(host) || host.endsWith('.discordapp.net'));
+    } catch {
+        return false;
+    }
+};
+
+// Gambar reward ada di komponen V2 type 12 setelah heading "## Hadiah".
+// Fallback: lampiran PNG pada pesan boss yang sama.
+const findRewardImage = (msg) => {
+    const components = toPlainData(msg?.components) || [];
+    for (const container of components) {
+        if (Number(container?.type) !== 17) continue;
+        let hasRewardHeading = false;
+        let imageUrl = null;
+        const seen = new Set();
+        const walk = (node) => {
+            if (!node || typeof node !== 'object' || seen.has(node) || imageUrl) return;
+            seen.add(node);
+            if (Array.isArray(node)) {
+                for (const child of node) walk(child);
+                return;
+            }
+            const type = Number(node.type);
+            if (type === 10) {
+                const text = removeInvisibleChars([node.content, node.text, node.title]
+                    .filter(value => typeof value === 'string').join(' '));
+                if (/##\s*Hadiah\b/i.test(text)) hasRewardHeading = true;
+            }
+            if (type === 12 && hasRewardHeading) {
+                const candidate = node.items?.[0]?.media?.url || node.media?.url;
+                if (isRewardImageUrl(candidate)) {
+                    imageUrl = candidate;
+                    return;
+                }
+            }
+            for (const child of Object.values(node)) {
+                if (child && typeof child === 'object') walk(child);
+            }
+        };
+        walk(container);
+        if (imageUrl) return imageUrl;
+    }
+
+    const attachments = msg?.attachments;
+    const list = Array.isArray(attachments)
+        ? attachments
+        : (typeof attachments?.values === 'function' ? [...attachments.values()] : []);
+    const images = list.map(attachment => {
+        const contentType = String(attachment?.contentType || '').toLowerCase();
+        const name = String(attachment?.name || attachment?.filename || '').toLowerCase();
+        const url = attachment?.url || attachment?.proxyURL || attachment?.proxy_url;
+        const isPng = contentType === 'image/png' || name.endsWith('.png');
+        return isPng && isRewardImageUrl(url) ? { url, name } : null;
+    }).filter(Boolean);
+
+    // Beberapa lampiran (mis. gambar boss + reward): hanya pilih yang jelas
+    // bernama reward, atau bila hanya ada satu PNG.
+    const namedReward = images.find(image => /reward|hadiah/i.test(image.name));
+    if (namedReward) return namedReward.url;
+    return images.length === 1 ? images[0].url : null;
+};
+
+const defaultDownloadImage = async (url) => {
+    if (!isRewardImageUrl(url)) throw new Error('URL gambar reward tidak diizinkan.');
+    if (typeof fetch !== 'function') throw new Error('fetch tidak tersedia untuk mengunduh gambar reward.');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REWARD_DOWNLOAD_TIMEOUT_MS);
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            redirect: 'error',
+            headers: { Accept: 'image/png' }
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const type = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        if (type !== 'image/png') throw new Error('Format reward tidak didukung: ' + (type || 'unknown') + ' (hanya PNG).');
+        const declared = Number(response.headers.get('content-length') || 0);
+        if (declared > REWARD_IMAGE_MAX_BYTES) throw new Error('Gambar reward melebihi batas 8 MB.');
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (!bytes.length || bytes.length > REWARD_IMAGE_MAX_BYTES) throw new Error('Ukuran gambar reward tidak valid.');
+        return bytes;
+    } finally {
+        clearTimeout(timer);
+    }
+};
+
+const evaluateRewardGate = (rewards, settings) => {
+    const gate = settings?.rewardGate || {};
+    const targets = gate.targets || {};
+    const configured = Object.entries(targets).filter(([, value]) => Number.isFinite(value) && value > 0);
+    const matched = configured.filter(([key, target]) => Number.isFinite(rewards?.[key]) && rewards[key] >= target);
+    const passed = configured.length === 0
+        ? true
+        : (gate.targetMode === 'all' ? matched.length === configured.length : matched.length > 0);
+    return {
+        passed,
+        configured,
+        matched,
+        reason: configured.length === 0 ? 'no-targets' : (passed ? 'matched' : 'below-target')
+    };
+};
+
+const formatRewardSummary = (rewards, targets) => Object.keys(targets || {}).map(key => {
+    const value = rewards?.[key];
+    const target = targets[key];
+    return `${key}=${Number.isFinite(value) ? value : '?'}${target > 0 ? '/' + target : ''}`;
+}).join(' ');
 
 const parseDiscordTimestamp = (text, label) => {
     const match = text.match(new RegExp(`${label}\\s*<t:(\\d+)(?::[a-zA-Z])?>`, 'i'));
@@ -150,9 +289,18 @@ const formatCountdown = (ts) => {
     return m >= 60 ? `${Math.floor(m / 60)}j ${m % 60}m` : `${m}m ${s}d`;
 };
 
-const createBoss2Manager = (state, configManager) => {
+const createBoss2Manager = (state, configManager, deps = {}) => {
     state.boss2Raids = state.boss2Raids || new Map();
     state.boss2Timers = state.boss2Timers || new Set();
+    state.boss2RewardChecks = state.boss2RewardChecks || new Map();
+
+    // Diinjeksi oleh test; runtime memakai implementasi nyata.
+    const readRewards = typeof deps.readRewards === 'function'
+        ? deps.readRewards
+        : require('./rewardOCR').readRewards;
+    const downloadImage = typeof deps.downloadImage === 'function'
+        ? deps.downloadImage
+        : defaultDownloadImage;
 
     const prefix = (kind = 'guild') => `${accountPrefix(state)}🐲 Auto Boss2: `;
     const raidKey = (key, kind = 'guild') => `${key}:${kind}`;
@@ -243,6 +391,61 @@ const createBoss2Manager = (state, configManager) => {
             if (settings.allowedGuilds.length > 0 && !settings.allowedGuilds.includes(msg.guildId)) return false;
             if (settings.channelIds.length > 0 && !settings.channelIds.includes(msg.channel?.id)) return false;
             return true;
+        },
+
+        // ── REWARD GATE ────────────────────────────────────────────
+        // Fight hanya boleh diklik bila reward pada gambar boss memenuhi
+        // target. Gambar tidak ada / OCR gagal = Fight dilewati (fail-closed).
+        async checkRewardGate(msg, settings) {
+            const gate = settings.rewardGate;
+            if (!gate?.enabled) return { passed: true, reason: 'disabled', configured: [], matched: [] };
+
+            const configuredTargets = Object.values(gate.targets || {}).filter(value => Number.isFinite(value) && value > 0);
+            if (!configuredTargets.length) {
+                log.warn(prefix() + '🎯 Reward gate aktif tetapi belum ada target; Fight diizinkan.');
+                return { passed: true, reason: 'no-targets', configured: [], matched: [] };
+            }
+
+            const url = findRewardImage(msg);
+            if (!url) {
+                log.warn(prefix() + '🚫 Reward gate: gambar reward tidak ditemukan → Fight dilewati.');
+                return { passed: false, reason: 'no-image', configured: [], matched: [] };
+            }
+
+            const cacheKey = `${msg.id || 'no-id'}:${url}`;
+            const cached = state.boss2RewardChecks.get(cacheKey);
+            if (cached) {
+                log.info(`${prefix()}🎯 Reward gate (cache): ${cached.passed ? 'lolos' : 'gagal'} (${cached.reason}).`);
+                return cached;
+            }
+
+            try {
+                const bytes = await downloadImage(url);
+                const rewards = await readRewards(bytes);
+                const result = evaluateRewardGate(rewards, settings);
+                const entry = { ...result, rewards, url, checkedAt: Date.now() };
+                state.boss2RewardChecks.set(cacheKey, entry);
+                if (state.boss2RewardChecks.size > REWARD_CHECK_CACHE_LIMIT) {
+                    state.boss2RewardChecks.delete(state.boss2RewardChecks.keys().next().value);
+                }
+
+                const summary = formatRewardSummary(rewards, gate.targets);
+                if (result.passed) {
+                    log.success(`${prefix()}🎯 Reward gate lolos (${gate.targetMode.toUpperCase()}): ${summary}`);
+                } else {
+                    log.warn(`${prefix()}🚫 Reward gate gagal (${gate.targetMode.toUpperCase()}): ${summary} → Fight dilewati.`);
+                }
+                return entry;
+            } catch (error) {
+                log.warn(`${prefix()}🚫 Reward gate: gagal membaca reward (${error.message || error}) → Fight dilewati.`);
+                return {
+                    passed: false,
+                    reason: 'ocr-error',
+                    configured: [],
+                    matched: [],
+                    error: String(error.message || error)
+                };
+            }
         },
 
         // ── DISPATCHER ─────────────────────────────────────────────
@@ -342,6 +545,10 @@ const createBoss2Manager = (state, configManager) => {
                 log.info(`${prefix()}Target boss ini tercapai (${raid.fightsDone}/${settings.fightsPerBoss}). Tunggu defeated.`);
                 return 'maxed';
             }
+
+            if (raid.fighting) return null;
+            const reward = await this.checkRewardGate(msg, settings);
+            if (!reward.passed) return 'reward-skip';
 
             return this.fight(raid, msg, info, settings, kind, key);
         },
@@ -588,6 +795,12 @@ const createBoss2Manager = (state, configManager) => {
                     return;
                 }
                 log.info(`${prefix()}⚔️ Boss masih aktif, resume fight.`);
+                const reward = await this.checkRewardGate(msg, settings);
+                if (!reward.passed) {
+                    raid.status = 'idle';
+                    log.info(`${prefix()}Reward gate gagal saat resume; menunggu boss baru.`);
+                    return 'reward-skip';
+                }
                 raid.status = 'active';
                 raid.fightsDone = 0;
                 raid.ticketAtBossStart = null;
@@ -626,6 +839,7 @@ const createBoss2Manager = (state, configManager) => {
         stop() {
             for (const timer of state.boss2Timers) clearTimeout(timer);
             state.boss2Timers.clear();
+            state.boss2RewardChecks.clear();
             if (ticketStatusRequest) ticketStatusRequest.resolve(null);
             pendingTicketContexts.length = 0;
             for (const raid of state.boss2Raids.values()) {
@@ -649,4 +863,8 @@ createBoss2Manager.parseTicketStatusMessage = parseTicketStatusMessage;
 createBoss2Manager.parseLimitMessage = parseLimitMessage;
 createBoss2Manager.collectTexts = collectTexts;
 createBoss2Manager.toPlainData = toPlainData;
+createBoss2Manager.findRewardImage = findRewardImage;
+createBoss2Manager.isRewardImageUrl = isRewardImageUrl;
+createBoss2Manager.evaluateRewardGate = evaluateRewardGate;
+createBoss2Manager.normalizeRewardGate = normalizeRewardGate;
 module.exports = createBoss2Manager;

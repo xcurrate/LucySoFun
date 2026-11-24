@@ -317,6 +317,49 @@ test('dashboard renders Message Debug controls and raw JSON output', async () =>
     });
 });
 
+test('POST /save persists Auto Boss2 reward gate settings and the dashboard renders them', async () => {
+    await withDashboard(async (url, baseDir) => {
+        const response = await fetch(`${url}/save`, {
+            method: 'POST',
+            headers: {
+                Authorization: authHeader(),
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json'
+            },
+            body: new URLSearchParams({
+                action: 'save',
+                boss2Enabled: 'on',
+                boss2RewardEnabled: 'on',
+                boss2RewardWeaponShards: '200',
+                boss2RewardWeaponCrate: '3',
+                boss2RewardBossCrate: '2',
+                boss2RewardFabledLootbox: '1',
+                boss2RewardExperience: '10000'
+            })
+        });
+
+        assert.equal(response.status, 200);
+        const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
+        assert.deepEqual(savedConfig.settings.boss2.rewardGate, {
+            enabled: true,
+            targetMode: 'any',
+            targets: {
+                weaponShards: 200,
+                weaponCrate: 3,
+                bossCrate: 2,
+                fabledLootbox: 1,
+                experience: 10000
+            }
+        });
+
+        const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
+        assert.match(page, /name="boss2RewardEnabled" checked/);
+        assert.match(page, /name="boss2RewardWeaponShards" value="200"/);
+        assert.match(page, /name="boss2RewardExperience" value="10000"/);
+    });
+});
+
 test('POST /save persists Auto Boss2 settings and the dashboard renders them', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {

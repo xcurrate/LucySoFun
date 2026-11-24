@@ -337,6 +337,25 @@ ${renderRestSettings(config.settings?.rest)}
                                 <div class="col"><input type="number" min="0" name="boss2DelayMax" value="${boss2.delayMaxMs ?? 1000}" placeholder="Max"></div>
                             </div>
                         </div>
+
+                        <div class="card">
+                            <label>🎯 REWARD GATE — SYARAT AUTO FIGHT</label>
+                            <div class="input-hint">Auto Boss2 hanya klik Fight jika <strong>minimal satu</strong> target di bawah terpenuhi (ANY). Isi <strong>0</strong> untuk mengabaikan kategori. Jika gambar reward tidak ada atau tidak terbaca, Fight dilewati.</div>
+                            <div class="toggle-row">
+                                <span>Aktifkan Reward Gate</span>
+                                <input type="checkbox" name="boss2RewardEnabled" ${boss2.rewardGate?.enabled ? 'checked' : ''}>
+                            </div>
+                            <label>Minimal Weapon Shards</label>
+                            <input type="number" min="0" name="boss2RewardWeaponShards" value="${boss2.rewardGate?.targets?.weaponShards ?? 0}" placeholder="0">
+                            <label>Minimal Weapon Crate</label>
+                            <input type="number" min="0" name="boss2RewardWeaponCrate" value="${boss2.rewardGate?.targets?.weaponCrate ?? 0}" placeholder="0">
+                            <label>Minimal Boss Crate</label>
+                            <input type="number" min="0" name="boss2RewardBossCrate" value="${boss2.rewardGate?.targets?.bossCrate ?? 0}" placeholder="0">
+                            <label>Minimal Fabled Lootbox</label>
+                            <input type="number" min="0" name="boss2RewardFabledLootbox" value="${boss2.rewardGate?.targets?.fabledLootbox ?? 0}" placeholder="0">
+                            <label>Minimal Experience</label>
+                            <input type="number" min="0" name="boss2RewardExperience" value="${boss2.rewardGate?.targets?.experience ?? 0}" placeholder="0">
+                        </div>
                     </div>
 
                     <div id="tab-lucy-gems" class="tab-content">
