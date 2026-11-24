@@ -152,7 +152,8 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - `parseTicketStatusMessage` hanya membaca bagian **Ticket Boss Guild** → `{ guild: {left,max} }`. Dispatcher menerima balasan status jika `status.guild` ada (tidak lagi mensyaratkan `status.global`).
 - Keputusan tiket (`handleTicketConfirmation` KASUS C) tetap mengambil saldo dari **channel privat** (`ticketStatusChannelId`, perintah `lboss t`) — angka di prompt konfirmasi TIDAK dipakai. Yang dibaca hanya `inventory.guild.left`; `inventory.global` diabaikan.
 - Syarat "Fights per Boss" (`canFightMore`) **tetap dipertahankan** sesuai permintaan user.
-- Tes: `test/boss2.test.js` (13 tes). Fixture `setup()`/`createMessage()` memakai `author.id = CONSTANTS.LUCY_BOT_ID` dan `state.client.user.id` berbeda supaya lolos gate Lucy-only. Dua tes baru memverifikasi keputusan tiket memakai saldo Guild dan mengabaikan Global.
+- Prompt **"kamu sudah melawan boss ini! Yakin mau pakai 1 boss ticket lagi?"** adalah tawaran fight ulang, BUKAN hard stop. `parseTicketConfirmation.isRepeatConfirmation` mendeteksinya, lalu `handleTicketConfirmation` lanjut ke KASUS C (kirim `lboss t`). Hard stop hanya berlaku untuk "sudah melawan boss ini" tanpa tawaran memakai tiket lagi.
+- Tes: `test/boss2.test.js`. Fixture `setup()`/`createMessage()` memakai `author.id = CONSTANTS.LUCY_BOT_ID` dan `state.client.user.id` berbeda supaya lolos gate Lucy-only. `runTicketScenario` menguji saldo Guild vs Global, hard stop, dan tawaran fight ulang (termasuk memastikan `lboss t` terkirim).
 
 ## Dashboard: tab default, banner token, dan batas slot akun
 

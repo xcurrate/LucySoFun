@@ -247,6 +247,10 @@ const parseTicketConfirmation = (msg, settings) => {
     return {
         isTicket: true,
         isAlreadyFought: lowerText.includes('sudah melawan boss ini'),
+        // Lucy memakai teks "sudah melawan boss ini" juga untuk menawarkan
+        // fight ulang ("Yakin mau pakai 1 boss ticket lagi?"). Itu bukan
+        // penolakan keras, jadi harus dicek tiketnya lewat channel privat.
+        isRepeatConfirmation: /pakai\s+\d+\s+boss\s+ticket\s+lagi/i.test(lowerText),
         yesActive: !!yes && yes.disabled !== true,
         noActive:  !!no  && no.disabled !== true,
         ticketLeft: match ? parseInt(match[1], 10) : null,
@@ -641,8 +645,10 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             if (raid.lastTicketActionMessageId === msg.id) return null;
             raid.lastTicketActionMessageId = msg.id;
 
-            // KASUS A — "sudah melawan boss ini" → SELALU Nggak + stop
-            if (ticket.isAlreadyFought) {
+            // KASUS A — "sudah melawan boss ini" TANPA tawaran fight ulang
+            // → Nggak + stop. Kalau Lucy menawarkan "pakai 1 boss ticket lagi",
+            // lanjut ke KASUS C agar saldo tiket Guild dicek dari channel privat.
+            if (ticket.isAlreadyFought && !ticket.isRepeatConfirmation) {
                 log.info(`${prefix(kind)}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
                 try {
                     await msg.clickButton(settings.ticketNoId);
@@ -666,6 +672,9 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             // KASUS C — ambil inventaris terbaru dari channel privat.
             // Prompt konfirmasi tidak menyebut jenis boss, jadi angka di prompt tidak
             // boleh dipakai. Saldo tiket Guild diambil dari channel privat.
+            if (ticket.isRepeatConfirmation) {
+                log.info(`${prefix(kind)}🎫 Lucy menawarkan fight ulang; cek tiket Guild di channel privat.`);
+            }
             raid.awaitingTicketStatus = true;
             let inventory = null;
             try {
