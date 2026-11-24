@@ -316,10 +316,9 @@ ${renderRestSettings(config.settings?.rest)}
                                 <span>Enable Auto Boss2</span>
                                 <input type="checkbox" name="boss2Enabled" ${boss2.enabled ? 'checked' : ''}>
                             </div>
-                            <label>Allowed Guilds</label>
-                            <input type="text" name="boss2Guilds" value="${escapeHtml((boss2.allowedGuilds || []).join(','))}" placeholder="Guild ID">
-                            <label>Allowed Channels</label>
+                            <label>Channel ID</label>
                             <input type="text" name="boss2ChannelIds" value="${escapeHtml((boss2.channelIds || []).join(','))}" placeholder="Channel ID">
+                            <div class="input-hint">Channel ID sudah cukup karena unik per guild. Kosongkan untuk memproses semua channel.</div>
                             <label>Teks Boss Muncul</label>
                             <input type="text" name="boss2AppearText" value="${escapeHtml(boss2.appearText || '')}" placeholder="Guild Boss Telah Muncul">
                             <label>Teks Boss Dikalahkan</label>

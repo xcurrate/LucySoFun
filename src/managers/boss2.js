@@ -49,7 +49,6 @@ const normalizeBoss2Settings = (raw = {}) => {
     const delayMinMs = toNonNegativeInt(raw.delayMinMs, defaults.delayMinMs);
     return {
         enabled: raw.enabled === true,
-        allowedGuilds: toIdList(raw.allowedGuilds),
         channelIds: toIdList(raw.channelIds),
         appearText: toText(raw.appearText, defaults.appearText),
         defeatedText: toText(raw.defeatedText, defaults.defeatedText),
@@ -388,7 +387,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             const authorId = String(msg.author?.id || '');
             if (myId && authorId === myId) return false;
             if (authorId !== CONSTANTS.LUCY_BOT_ID) return false;
-            if (settings.allowedGuilds.length > 0 && !settings.allowedGuilds.includes(msg.guildId)) return false;
+            // Channel ID Discord unik global, jadi filter guild tidak diperlukan.
             if (settings.channelIds.length > 0 && !settings.channelIds.includes(msg.channel?.id)) return false;
             return true;
         },

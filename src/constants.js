@@ -3,7 +3,6 @@ module.exports = {
     LUCY_BOT_ID: '1438615298012872817',
     BOSS2_DEFAULTS: {
         enabled: false,
-        allowedGuilds: [],
         channelIds: [],
         appearText: 'Guild Boss Telah Muncul',
         defeatedText: 'Guild Boss Telah Dikalahkan',

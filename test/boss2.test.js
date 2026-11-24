@@ -103,9 +103,10 @@ function createMessage(components, overrides = {}) {
 }
 
 test('normalizeBoss2Settings fills defaults and clamps values', () => {
-    const settings = normalizeBoss2Settings({ enabled: true, allowedGuilds: 'a, b', fightsPerBoss: '9', delayMinMs: '500', delayMaxMs: '100' });
+    const settings = normalizeBoss2Settings({ enabled: true, channelIds: 'a, b', fightsPerBoss: '9', delayMinMs: '500', delayMaxMs: '100' });
     assert.equal(settings.enabled, true);
-    assert.deepEqual(settings.allowedGuilds, ['a', 'b']);
+    assert.deepEqual(settings.channelIds, ['a', 'b']);
+    assert.equal(settings.allowedGuilds, undefined);
     assert.equal(settings.buttonId, 'raid:fight');
     assert.equal(settings.appearText, 'Guild Boss Telah Muncul');
     assert.equal(settings.fightsPerBoss, 3);
@@ -188,7 +189,7 @@ test('Auto Boss2 does not fight when disabled, filtered out, or button is disabl
     const a = createMessage(appearComponents());
     assert.equal(await disabled.manager.handle(a.msg), null);
 
-    const filtered = setup({ allowedGuilds: ['other-guild'] });
+    const filtered = setup({ channelIds: ['other-channel'] });
     const b = createMessage(appearComponents());
     assert.equal(await filtered.manager.handle(b.msg), null);
 

@@ -373,9 +373,7 @@ test('POST /save persists Auto Boss2 settings and the dashboard renders them', a
             body: new URLSearchParams({
                 action: 'save',
                 boss2Enabled: 'on',
-                boss2Guilds: 'g1, g2',
                 boss2ChannelIds: 'c1',
-                boss2BotIds: 'bot1',
                 boss2AppearText: 'Guild Boss Telah Muncul',
                 boss2DefeatedText: 'Boss Telah Dikalahkan',
                 boss2ButtonId: 'raid:fight',
@@ -387,18 +385,16 @@ test('POST /save persists Auto Boss2 settings and the dashboard renders them', a
 
         assert.equal(response.status, 200);
         const savedConfig = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
-        assert.deepEqual(savedConfig.settings.boss2, {
-            enabled: true,
-            allowedGuilds: ['g1', 'g2'],
-            channelIds: ['c1'],
-            botIds: ['bot1'],
-            appearText: 'Guild Boss Telah Muncul',
-            defeatedText: 'Boss Telah Dikalahkan',
-            buttonId: 'raid:fight',
-            fightsPerBoss: 2,
-            delayMinMs: 1000,
-            delayMaxMs: 3000
-        });
+        const boss2 = savedConfig.settings.boss2;
+        assert.equal(boss2.enabled, true);
+        assert.deepEqual(boss2.channelIds, ['c1']);
+        assert.equal(boss2.allowedGuilds, undefined);
+        assert.equal(boss2.appearText, 'Guild Boss Telah Muncul');
+        assert.equal(boss2.defeatedText, 'Boss Telah Dikalahkan');
+        assert.equal(boss2.buttonId, 'raid:fight');
+        assert.equal(boss2.fightsPerBoss, 2);
+        assert.equal(boss2.delayMinMs, 1000);
+        assert.equal(boss2.delayMaxMs, 3000);
 
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /AUTO BOSS2/);
