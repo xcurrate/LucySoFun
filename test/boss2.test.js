@@ -27,6 +27,26 @@ const appearComponents = ({ disabled = false } = {}) => [{
     ]
 }];
 
+const globalAppearComponents = ({ disabled = false, fightsUsed = 0 } = {}) => [{
+    type: 17,
+    components: [
+        { type: 10, content: '## <:lucy_think:1550898966130852032> Global Raid Boss Telah Muncul!' },
+        { type: 14, spacing: 1, divider: true },
+        { type: 10, content: `⏳ Berakhir <t:${ENDS_AT}:R>\n⚔ **26** fighter • ☠ **541,809** damage diberikan\n-# Fight kamu: ${fightsUsed}/3 • Damage kamu: 14,139` },
+        { type: 1, components: [{ type: 2, custom_id: 'raid:fight', label: 'Fight!', style: 4, disabled }] }
+    ]
+}];
+
+const globalEndedComponents = (text) => [{
+    type: 17,
+    components: [
+        { type: 10, content: `## <:lucy_yay:1550898994111058040> ${text}` },
+        { type: 14, spacing: 1, divider: true },
+        { type: 10, content: '-# <:skull_dim:1> Dikalahkan 18 jam yang lalu • <:fighter_dim:1> **20** fighter • <:skull_dim:1> **467,464** total damage' },
+        { type: 1, components: [{ type: 2, custom_id: 'raid:fight', label: 'Fight!', style: 3, disabled: true }] }
+    ]
+}];
+
 const RESET_AT = NEXT_SPAWN + 7200;
 
 // Shape of a real "Guild Boss Telah Dikalahkan!" message (note the ⌛ icon and the extra reset timestamp).
@@ -202,7 +222,7 @@ test('Auto Boss2 does not fight when disabled, filtered out, or button is disabl
 });
 
 
-test('parseRaidMessage ignores Global Raid Boss messages', () => {
+test('parseRaidMessage detects Global Raid Boss messages', () => {
     const components = [{
         type: 17,
         components: [
@@ -212,12 +232,13 @@ test('parseRaidMessage ignores Global Raid Boss messages', () => {
         ]
     }];
     const info = parseRaidMessage({ content: '', embeds: [], components }, normalizeBoss2Settings({}));
-    assert.equal(info.kind, null);
-    assert.equal(info.isAppear, false);
+    assert.equal(info.kind, 'global');
+    assert.equal(info.isAppear, true);
     assert.equal(info.isDefeated, false);
+    assert.equal(info.nextSpawnAt, null);
 });
 
-test('parseTicketStatusMessage reads only the Guild ticket balance', () => {
+test('parseTicketStatusMessage reads both Guild and Global ticket balances', () => {
     const status = parseTicketStatusMessage({
         content: '',
         components: [{
@@ -231,12 +252,11 @@ test('parseTicketStatusMessage reads only the Guild ticket balance', () => {
             ]
         }]
     });
-    assert.equal(status.guild.left, 2);
-    assert.equal(status.guild.max, 3);
-    assert.equal(status.global, undefined);
+    assert.deepEqual({ left: status.guild.left, max: status.guild.max }, { left: 2, max: 3 });
+    assert.deepEqual({ left: status.global.left, max: status.global.max }, { left: 1, max: 3 });
 });
 
-test('Boss2 ignores Global Raid Boss messages and tracks only Guild state', async () => {
+test('Boss2 ignores Global Boss when globalEnabled is false', async () => {
     const { manager } = setup();
     const guildDefeated = createMessage([{
         type: 17,
@@ -260,15 +280,21 @@ test('Boss2 ignores Global Raid Boss messages and tracks only Guild state', asyn
     manager.stop();
 });
 
-// Menjalankan satu siklus Fight sampai tiket diputuskan. `guildLeft`/`globalLeft`
-// adalah saldo yang dilaporkan channel privat; keputusan tiket harus memakai Guild.
-async function runTicketScenario({ guildLeft, globalLeft, fightsPerBoss = 1, repeatPrompt = false, ticketText, fightsDoneBeforePrompt = 0 } = {}) {
+// Menjalankan satu siklus Fight sampai tiket diputuskan. Saldo `guildLeft`/
+// `globalLeft` hanya dipakai sebagai fallback channel privat; prompt ephemeral
+// selalu diprioritaskan.
+async function runTicketScenario({
+    guildLeft, globalLeft, fightsPerBoss = 1, repeatPrompt = false, ticketText,
+    fightsDoneBeforePrompt = 0, kind = 'guild', globalEnabled = kind === 'global',
+    globalChannelIds = []
+} = {}) {
     const state = {
         config: {
             settings: {
                 boss2: {
                     enabled: true, delayMinMs: 0, delayMaxMs: 0,
-                    fightsPerBoss, minTicketLeft: 1, ticketStatusChannelId: 'private-1'
+                    fightsPerBoss, minTicketLeft: 1, ticketStatusChannelId: 'private-1',
+                    globalEnabled, globalChannelIds
                 }
             }
         },
@@ -307,13 +333,16 @@ async function runTicketScenario({ guildLeft, globalLeft, fightsPerBoss = 1, rep
     const promptText = ticketText ?? (repeatPrompt ? repeatText : '**me**, kamu punya **1**/**3** boss ticket!');
     let ticketSeq = 0;
     const appear = {
-        id: 'raid-msg-1', guildId: 'guild-1', channel: { id: 'channel-1' }, author: { id: LUCY_ID },
-        components: appearComponents(),
+        id: kind === 'global' ? 'global-raid-msg-1' : 'raid-msg-1',
+        guildId: 'guild-1',
+        channel: { id: 'channel-1' },
+        author: { id: LUCY_ID },
+        components: kind === 'global' ? globalAppearComponents() : appearComponents(),
         clickButton: async (id) => {
             fightClicks.push(id);
             if (id !== 'raid:fight') return;
             ticketSeq += 1;
-            const raid = manager.getRaidState('guild-1');
+            const raid = manager.getRaidState('guild-1', kind);
             if (raid && fightsDoneBeforePrompt > 0) raid.fightsDone = fightsDoneBeforePrompt;
             await manager.handle({
                 id: `ticket-${ticketSeq}`, guildId: 'guild-1', channel: { id: 'channel-1' }, author: { id: LUCY_ID },
@@ -334,21 +363,46 @@ async function runTicketScenario({ guildLeft, globalLeft, fightsPerBoss = 1, rep
 
     await manager.handle(appear);
     manager.stop();
-    return { fightClicks, ticketClicks, privateSends };
+    return { fightClicks, ticketClicks, privateSends, manager };
 }
 
-test('Boss2 accepts the ticket using the Guild balance and ignores the Global balance', async () => {
-    // Guild punya tiket, Global kosong: keputusan harus tetap Iya (pakai Guild).
-    const { ticketClicks } = await runTicketScenario({ guildLeft: 2, globalLeft: 0 });
-    assert.ok(ticketClicks.includes('raid:ticket:yes'), 'Guild 2/3 harus memilih Iya');
-    assert.ok(!ticketClicks.includes('raid:ticket:no'), 'Global 0/3 tidak boleh memengaruhi keputusan');
+test('Boss2 accepts the ticket from the ephemeral count without lboss t', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        guildLeft: 0, globalLeft: 0,
+        ticketText: '**me**, kamu punya **2**/**3** boss ticket!'
+    });
+    assert.deepEqual(privateSends, [], 'Angka prompt harus dipakai tanpa lboss t');
+    assert.ok(ticketClicks.includes('raid:ticket:yes'));
+    assert.ok(!ticketClicks.includes('raid:ticket:no'));
 });
 
-test('Boss2 rejects the ticket when only the Global balance has tickets', async () => {
-    // Guild kosong, Global penuh: keputusan harus Nggak (Global diabaikan).
-    const { ticketClicks } = await runTicketScenario({ guildLeft: 0, globalLeft: 2 });
-    assert.ok(ticketClicks.includes('raid:ticket:no'), 'Guild 0/3 harus memilih Nggak');
-    assert.ok(!ticketClicks.includes('raid:ticket:yes'), 'Global 2/3 tidak boleh dipakai untuk Iya');
+test('Boss2 rejects the ticket from the ephemeral count without lboss t', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        guildLeft: 3, globalLeft: 3,
+        ticketText: '**me**, kamu punya **0**/**3** boss ticket!'
+    });
+    assert.deepEqual(privateSends, [], 'Angka prompt 0/3 harus langsung menolak');
+    assert.ok(ticketClicks.includes('raid:ticket:no'));
+    assert.ok(!ticketClicks.includes('raid:ticket:yes'));
+});
+
+test('Boss2 falls back to the private Guild balance when the prompt has no count', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        guildLeft: 2, globalLeft: 0,
+        ticketText: '**me**, kamu punya boss ticket!'
+    });
+    assert.deepEqual(privateSends, ['lboss t']);
+    assert.ok(ticketClicks.includes('raid:ticket:yes'));
+});
+
+test('Boss2 fallback rejects when only the Global balance has tickets', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        guildLeft: 0, globalLeft: 2,
+        ticketText: '**me**, kamu punya boss ticket!'
+    });
+    assert.deepEqual(privateSends, ['lboss t']);
+    assert.ok(ticketClicks.includes('raid:ticket:no'));
+    assert.ok(!ticketClicks.includes('raid:ticket:yes'));
 });
 
 test('parseTicketConfirmation marks the repeat-fight offer but not a hard stop', () => {
@@ -375,26 +429,27 @@ test('parseTicketConfirmation marks the repeat-fight offer but not a hard stop',
     assert.equal(hardStop.isRepeatConfirmation, false);
 });
 
-test('Boss2 checks the private channel for a repeat-fight offer and accepts when allowed', async () => {
+test('Boss2 uses the ephemeral count for a repeat-fight offer', async () => {
     const { privateSends, ticketClicks } = await runTicketScenario({
-        guildLeft: 2, globalLeft: 0, fightsPerBoss: 2, repeatPrompt: true, fightsDoneBeforePrompt: 1
+        guildLeft: 0, globalLeft: 0, fightsPerBoss: 2, repeatPrompt: true, fightsDoneBeforePrompt: 1
     });
-    assert.deepEqual(privateSends, ['lboss t'], 'lboss t harus dikirim untuk cek tiket Guild');
+    assert.deepEqual(privateSends, [], 'Prompt repeat berisi angka; lboss t tidak diperlukan');
     assert.ok(ticketClicks.includes('raid:ticket:yes'), 'Fight ulang harus diterima saat tiket cukup');
     assert.ok(!ticketClicks.includes('raid:ticket:no'));
 });
 
-test('Boss2 still checks tickets for a repeat-fight offer but rejects when the fight target is reached', async () => {
+test('Boss2 rejects a repeat-fight offer from the ephemeral count when target reached', async () => {
     const { privateSends, ticketClicks } = await runTicketScenario({
         guildLeft: 2, globalLeft: 0, fightsPerBoss: 1, repeatPrompt: true, fightsDoneBeforePrompt: 1
     });
-    assert.deepEqual(privateSends, ['lboss t']);
+    assert.deepEqual(privateSends, []);
     assert.ok(ticketClicks.includes('raid:ticket:no'), 'Target fight sudah tercapai → Nggak');
 });
 
-test('Boss2 rejects a repeat-fight offer when only Global tickets remain, after checking Guild balance', async () => {
+test('Boss2 falls back to the private balance for a repeat-fight offer without a count', async () => {
     const { privateSends, ticketClicks } = await runTicketScenario({
-        guildLeft: 0, globalLeft: 2, fightsPerBoss: 2, repeatPrompt: true
+        guildLeft: 0, globalLeft: 2, fightsPerBoss: 2,
+        ticketText: '### <@me>, kamu sudah melawan boss ini!\nYakin mau pakai 1 boss ticket lagi?\nKamu punya boss ticket.'
     });
     assert.deepEqual(privateSends, ['lboss t']);
     assert.ok(ticketClicks.includes('raid:ticket:no'));
@@ -408,6 +463,78 @@ test('Boss2 keeps the hard reject for an already-fought prompt without a repeat 
     });
     assert.deepEqual(privateSends, [], 'Hard stop tidak perlu cek channel privat');
     assert.deepEqual(ticketClicks, ['raid:ticket:no']);
+});
+
+test('Boss2 uses the ephemeral count for Global Boss without lboss t', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        kind: 'global', globalEnabled: true, guildLeft: 0, globalLeft: 0,
+        ticketText: '**me**, kamu punya **2**/**3** boss ticket!'
+    });
+    assert.deepEqual(privateSends, []);
+    assert.ok(ticketClicks.includes('raid:ticket:yes'));
+});
+
+test('Boss2 falls back to the Global private balance when prompt has no count', async () => {
+    const { privateSends, ticketClicks } = await runTicketScenario({
+        kind: 'global', globalEnabled: true, guildLeft: 3, globalLeft: 1,
+        ticketText: '**me**, kamu punya boss ticket!'
+    });
+    assert.deepEqual(privateSends, ['lboss t']);
+    assert.ok(ticketClicks.includes('raid:ticket:yes'));
+});
+
+test('Boss2 ignores Global Boss when globalEnabled is false', async () => {
+    const { manager } = setup();
+    const { msg } = createMessage(globalAppearComponents(), { id: 'global-disabled' });
+    assert.equal(await manager.handle(msg), null);
+    assert.equal(manager.getRaidState('guild-1', 'global'), null);
+    manager.stop();
+});
+
+test('Boss2 accepts a new Global spawn after waiting-defeat', async () => {
+    const state = {
+        config: { settings: { boss2: { enabled: true, globalEnabled: true, delayMinMs: 0, delayMaxMs: 0, fightsPerBoss: 1 } } },
+        client: { user: { id: 'self-account' } }
+    };
+    const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
+    const clickWithTicket = (left) => async (id) => {
+        if (id !== 'raid:fight') return;
+        await manager.handle({
+            id: `ticket-${left}`, guildId: 'guild-1', channel: { id: 'channel-1' }, author: { id: LUCY_ID },
+            components: [{ type: 17, components: [
+                { type: 10, content: `**me**, kamu punya **${left}**/**3** boss ticket!` },
+                { type: 1, components: [
+                    { type: 2, custom_id: 'raid:ticket:yes' },
+                    { type: 2, custom_id: 'raid:ticket:no' }
+                ] }
+            ] }],
+            clickButton: async () => {}
+        });
+    };
+
+    const first = createMessage(globalAppearComponents(), { id: 'global-1', clickButton: clickWithTicket(0) });
+    await manager.handle(first.msg);
+    assert.equal(manager.getRaidState('guild-1', 'global').status, 'waiting-defeat');
+
+    const second = createMessage(globalAppearComponents(), { id: 'global-2', clickButton: clickWithTicket(1) });
+    await manager.handle(second.msg);
+    const raid = manager.getRaidState('guild-1', 'global');
+    assert.equal(raid.messageId, 'global-2');
+    assert.equal(raid.status, 'active');
+    manager.stop();
+});
+
+test('parseRaidMessage uses hardcoded Guild/Global triggers even when custom text is wrong', () => {
+    const settings = normalizeBoss2Settings({ appearText: 'Salah', defeatedText: 'Salah' });
+    const parse = (components) => parseRaidMessage({ content: '', embeds: [], components }, settings);
+    assert.equal(parse(appearComponents()).kind, 'guild');
+    assert.equal(parse(appearComponents()).isAppear, true);
+    assert.equal(parse(globalAppearComponents()).kind, 'global');
+    assert.equal(parse(globalAppearComponents()).isAppear, true);
+    assert.equal(parse(defeatedComponents()).isDefeated, true);
+    assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).kind, 'global');
+    assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).isDefeated, true);
+    assert.equal(parse(globalEndedComponents('Global Raid Boss Kabur!')).isEscaped, true);
 });
 
 test('normalizeBoss2Settings fills reward gate defaults and clamps targets', () => {

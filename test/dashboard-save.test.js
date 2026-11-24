@@ -374,6 +374,8 @@ test('POST /save persists Auto Boss2 settings and the dashboard renders them', a
                 action: 'save',
                 boss2Enabled: 'on',
                 boss2ChannelIds: 'c1',
+                boss2GlobalEnabled: 'on',
+                boss2GlobalChannelIds: 'g1, g2',
                 boss2AppearText: 'Guild Boss Telah Muncul',
                 boss2DefeatedText: 'Boss Telah Dikalahkan',
                 boss2ButtonId: 'raid:fight',
@@ -388,6 +390,8 @@ test('POST /save persists Auto Boss2 settings and the dashboard renders them', a
         const boss2 = savedConfig.settings.boss2;
         assert.equal(boss2.enabled, true);
         assert.deepEqual(boss2.channelIds, ['c1']);
+        assert.equal(boss2.globalEnabled, true);
+        assert.deepEqual(boss2.globalChannelIds, ['g1', 'g2']);
         assert.equal(boss2.allowedGuilds, undefined);
         assert.equal(boss2.appearText, 'Guild Boss Telah Muncul');
         assert.equal(boss2.defeatedText, 'Boss Telah Dikalahkan');
@@ -399,6 +403,8 @@ test('POST /save persists Auto Boss2 settings and the dashboard renders them', a
         const page = await (await fetch(url, { headers: { Authorization: authHeader() } })).text();
         assert.match(page, /AUTO BOSS2/);
         assert.match(page, /name="boss2ButtonId" value="raid:fight"/);
+        assert.match(page, /name="boss2GlobalEnabled" checked/);
+        assert.match(page, /name="boss2GlobalChannelIds" value="g1,g2"/);
     });
 });
 

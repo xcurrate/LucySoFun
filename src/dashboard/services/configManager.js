@@ -146,6 +146,8 @@ module.exports = function createConfigManager({ configPath, fileService, CONSTAN
         config.settings.boss2 = normalizeBoss2Settings({
             enabled: this.toBool(body.boss2Enabled),
             channelIds: this.toArray(body.boss2ChannelIds),
+            globalEnabled: this.toBool(body.boss2GlobalEnabled),
+            globalChannelIds: this.toArray(body.boss2GlobalChannelIds),
             appearText: body.boss2AppearText,
             defeatedText: body.boss2DefeatedText,
             buttonId: body.boss2ButtonId,

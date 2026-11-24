@@ -145,15 +145,16 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 - Regresi dijaga `test/dashboard-save.test.js` ("control panel lists saved accounts from the bot working directory"): menjalankan dashboard dari cwd bot yang berbeda dan memastikan akun tetap tampil.
 
 
-## Auto Boss2 (Guild-only)
+## Auto Boss2 (Guild + Global)
 
-- `src/managers/boss2.js` sekarang **hanya menangani Guild Boss**. Deteksi/penanganan Global Boss (teks "Global Raid Boss ...", state `kind: 'global'`, saldo tiket Global) sudah dihapus.
-- `parseRaidMessage` mengembalikan `kind: 'guild'` atau `null`; pesan Global (yang tidak memuat `settings.appearText`/`defeatedText`) diabaikan. `settings.appearText`/`defeatedText` default kini ber-prefix "Guild ..." (`src/constants.js`), dan `globalAppearText`/`globalDefeatedText` sudah dihapus.
-- `parseTicketStatusMessage` hanya membaca bagian **Ticket Boss Guild** → `{ guild: {left,max} }`. Dispatcher menerima balasan status jika `status.guild` ada (tidak lagi mensyaratkan `status.global`).
-- Keputusan tiket (`handleTicketConfirmation` KASUS C) tetap mengambil saldo dari **channel privat** (`ticketStatusChannelId`, perintah `lboss t`) — angka di prompt konfirmasi TIDAK dipakai. Yang dibaca hanya `inventory.guild.left`; `inventory.global` diabaikan.
-- Syarat "Fights per Boss" (`canFightMore`) **tetap dipertahankan** sesuai permintaan user.
-- Prompt **"kamu sudah melawan boss ini! Yakin mau pakai 1 boss ticket lagi?"** adalah tawaran fight ulang, BUKAN hard stop. `parseTicketConfirmation.isRepeatConfirmation` mendeteksinya, lalu `handleTicketConfirmation` lanjut ke KASUS C (kirim `lboss t`). Hard stop hanya berlaku untuk "sudah melawan boss ini" tanpa tawaran memakai tiket lagi.
-- Tes: `test/boss2.test.js`. Fixture `setup()`/`createMessage()` memakai `author.id = CONSTANTS.LUCY_BOT_ID` dan `state.client.user.id` berbeda supaya lolos gate Lucy-only. `runTicketScenario` menguji saldo Guild vs Global, hard stop, dan tawaran fight ulang (termasuk memastikan `lboss t` terkirim).
+- `src/managers/boss2.js` menangani **Guild Boss** dan **Global Boss**. Global opt-in lewat `settings.boss2.globalEnabled` (default `false`) dan opsional `globalChannelIds`; kalau kosong, Global memakai `channelIds`.
+- Trigger kemunculan/kabur/kalah **hardcoded** untuk kedua jenis (`BOSS_TRIGGERS`): Guild `Guild Boss Telah Muncul/Dikalahkan/Kabur`, Global `Global [Raid] Boss Telah Muncul/Dikalahkan/Kabur`. `settings.appearText`/`defeatedText` tetap dipakai sebagai override tambahan untuk Guild, bukan satu-satunya sumber.
+- `parseRaidMessage` mengembalikan `kind: 'guild' | 'global' | null`. Global **selalu** `nextSpawnAt: null` (tidak punya jadwal spawn); Guild memakai timestamp `Boss baru <t:...>`. Global baru dari summon manual diterima walau raid sebelumnya `waiting-defeat`.
+- `parseTicketStatusMessage` membaca **kedua** pool → `{ guild, global }`. Dispatcher menerima balasan status jika salah satu ada.
+- Keputusan tiket (`handleTicketConfirmation` KASUS C) **ephemeral-first**: angka `ticketLeft` dari prompt konfirmasi dipakai lebih dulu. `lboss t` hanya dikirim sebagai fallback bila prompt tidak membawa angka; pool fallback dipilih dari `context.kind` (`inventory.guild` / `inventory.global`). Ini menghindari jeda/cooldown `lboss` → `lboss t` setiap fight.
+- Syarat "Fights per Boss" (`canFightMore`) tetap dipertahankan. Saat boss baru muncul, `fightsDone` diinisialisasi dari `Fight kamu: X/Y` bila ada (berguna untuk Global/restart).
+- Prompt **"kamu sudah melawan boss ini! Yakin mau pakai 1 boss ticket lagi?"** adalah tawaran fight ulang, BUKAN hard stop. `parseTicketConfirmation.isRepeatConfirmation` mendeteksinya, lalu `handleTicketConfirmation` memakai angka prompt (fallback `lboss t` bila angka tidak ada). Hard stop hanya berlaku untuk "sudah melawan boss ini" tanpa tawaran memakai tiket lagi.
+- Tes: `test/boss2.test.js`. Fixture `setup()`/`createMessage()` memakai `author.id = CONSTANTS.LUCY_BOT_ID` dan `state.client.user.id` berbeda supaya lolos gate Lucy-only. `runTicketScenario` menguji ephemeral-first (tanpa `lboss t`), fallback privat, hard stop, tawaran fight ulang, Global ephemeral/fallback, Global disabled, dan spawn Global baru setelah `waiting-defeat`.
 
 ## Dashboard: tab default, banner token, dan batas slot akun
 
@@ -183,7 +184,7 @@ Letter templates are built by **rendering glyphs from the `.otf` fonts** in `src
 
 ## Auto Boss2 reward gate (syarat Auto Fight)
 
-- Tujuan: Auto Boss2 **hanya klik Fight** bila reward pada gambar boss memenuhi target. Ini gate, bukan notifikasi.
+- Tujuan: Auto Boss2 **hanya klik Fight** bila reward pada gambar boss memenuhi target. Ini gate, bukan notifikasi. Berlaku untuk Guild dan Global (Global tetap opt-in lewat `globalEnabled`).
 - Konfigurasi: `config.settings.boss2.rewardGate = { enabled, targetMode, targets }`. `targets` berisi `weaponShards`, `weaponCrate`, `bossCrate`, `fabledLootbox`, `experience`; nilai `0` = kategori diabaikan. `targetMode` default `'any'` = **minimal satu** target terpenuhi (keputusan user). `'all'` didukung untuk config manual.
 - Fail-closed: bila gambar reward tidak ada, OCR gagal, atau angka tidak terbaca → Fight **dilewati** (`handle()` mengembalikan `'reward-skip'`). Deteksi boss/defeated tetap berjalan dan raid tetap tercatat `active`.
 - Sumber gambar: komponen V2 `type: 12` setelah heading `## Hadiah`, fallback lampiran PNG pada pesan boss yang sama. URL wajib `https` dan host Discord CDN (`cdn.discordapp.com`, `*.discordapp.net`).
