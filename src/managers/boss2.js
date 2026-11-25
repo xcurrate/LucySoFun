@@ -607,11 +607,11 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             const raid = getRaid(key, kind);
             const now = Date.now();
             // `endsAt` hanya identitas selama raid sebelumnya masih active.
-            // Boss global berbeda bisa memakai endsAt event yang sama; kalau
-            // status sudah ended/waiting-defeat, appear baru = boss baru.
+            // Boss global berbeda bisa memakai endsAt event yang sama, tetapi
+            // edit pesan boss yang sama tetap memakai message ID yang sama.
             const sameBoss = !!(info.endsAt && raid.bossEndsAt && info.endsAt === raid.bossEndsAt);
             const isNewRaid = sameBoss
-                ? raid.status !== 'active'
+                ? (raid.status !== 'active' && msg.id !== raid.messageId)
                 : (raid.messageId !== msg.id || raid.status !== 'active');
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp).

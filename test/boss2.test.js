@@ -306,6 +306,26 @@ test('Boss2 treats a new Global Boss as new even when endsAt matches an ended ra
     manager.stop();
 });
 
+test('Boss2 does not re-fight when the same boss message is edited after a rejected ticket', async () => {
+    const { manager, fightClicks } = await runTicketScenario({
+        guildLeft: 3, globalLeft: 2, fightsPerBoss: 1, repeatPrompt: true,
+        kind: 'global', stop: false
+    });
+    assert.deepEqual(fightClicks, ['raid:fight']);
+    const raid = manager.getRaidState('guild-1', 'global');
+    assert.equal(raid.status, 'waiting-defeat');
+
+    const editClicks = [];
+    const edit = createMessage(globalAppearComponents(), {
+        id: 'global-raid-msg-1',
+        clickButton: async (id) => editClicks.push(id)
+    });
+    assert.equal(await manager.handle(edit.msg), 'waiting-defeat-skip');
+    assert.deepEqual(editClicks, [], 'Edit boss yang sama tidak boleh memicu Fight ulang');
+    assert.equal(raid.status, 'waiting-defeat');
+    manager.stop();
+});
+
 // Menjalankan satu siklus Fight sampai tiket diputuskan. Saldo `guildLeft`/
 // `globalLeft` hanya dipakai sebagai fallback channel privat; prompt ephemeral
 // selalu diprioritaskan.
