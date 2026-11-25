@@ -226,43 +226,12 @@ const parseDiscordTimestamp = (text, label) => {
     return match ? parseInt(match[1], 10) * 1000 : null;
 };
 
-// Leaderboard boss menampilkan satu ⚔ per fight. Ini cadangan saat baris
-// "Fight kamu: X/Y" tidak ada atau belum ter-update setelah fight manual.
-const parseLeaderboardFights = (text, user) => {
-    const id = String(user?.id || '');
-    const username = String(user?.username || '').toLowerCase();
-    const source = String(text || '');
-    if (!id && !username) return 0;
-
-    // Leaderboard row: [@name](https://discord.com/users/<id>) `⚔️⚔️`
-    // Newlines sudah dihapus oleh removeInvisibleChars, jadi ambil grup
-    // backtick pertama setelah mention user.
-    const matches = [];
-    if (id) matches.push(source.match(new RegExp(`(?:/users/${id}|<@!?${id}>)`)));
-    if (username) {
-        const lower = source.toLowerCase();
-        const at = lower.indexOf(`@${username}`);
-        if (at >= 0) matches.push({ index: at, 0: `@${username}` });
-    }
-    for (const match of matches) {
-        if (!match) continue;
-        const after = source.slice(match.index + match[0].length);
-        const swords = after.match(/`([^`]*)`/);
-        if (swords) {
-            const count = (swords[1].match(/⚔/g) || []).length;
-            if (count > 0) return count;
-        }
-    }
-    return 0;
-};
-
-const parseRaidMessage = (msg, settings, user = null) => {
+const parseRaidMessage = (msg, settings) => {
     const components = toPlainData(msg.components) || [];
     const embeds = toPlainData(msg.embeds) || [];
     const text = removeInvisibleChars([msg.content || '', ...collectTexts(embeds), ...collectTexts(components)].join('\n'));
     const lowerText = text.toLowerCase();
     const button = findButton(components, settings.buttonId);
-    const fightCount = Number((text.match(/Fight kamu:\s*(\d+)\s*\//i) || [])[1] || 0);
 
     const customAppear = settings.appearText ? lowerText.includes(settings.appearText.toLowerCase()) : false;
     const customDefeated = settings.defeatedText ? lowerText.includes(settings.defeatedText.toLowerCase()) : false;
@@ -289,7 +258,8 @@ const parseRaidMessage = (msg, settings, user = null) => {
         button,
         buttonActive: !!button && button.disabled !== true,
         endsAt: parseDiscordTimestamp(text, 'berakhir') || parseDiscordTimestamp(text, 'kedaluwarsa'),
-        fightsUsed: Math.max(fightCount, parseLeaderboardFights(text, user)),
+        // Leaderboard hanya menampilkan top 10 damage, jadi BUKAN sumber hitungan fight.
+        fightsUsed: Number((text.match(/Fight kamu:\s*(\d+)\s*\//i) || [])[1] || 0),
         fightsMax: Number((text.match(/Fight kamu:\s*\d+\s*\/\s*(\d+)/i) || [])[1] || 0),
         // Global Boss tidak punya jadwal spawn; jangan pernah gate Global
         // dengan "Boss baru" walaupun teksnya tidak sengaja memuat frasa itu.
@@ -584,7 +554,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             if (ticket) return this.handleTicketConfirmation(msg, ticket, settings);
 
             // JALUR 3 — Boss message
-            const info = parseRaidMessage(msg, settings, state.client?.user);
+            const info = parseRaidMessage(msg, settings);
             if (!info.kind) return null;
             if (!this.isChannelAllowed(msg, settings, info.kind)) return null;
             const kind = info.kind;
@@ -640,8 +610,8 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     messageId: msg.id,
                     channelId: msg.channel?.id || msg.channelId || null,
                     status: 'active',
-                    // Global menampilkan "Fight kamu: X/Y"; leaderboard menjadi
-                    // cadangan agar fight manual tidak membuat bot over-fight.
+                    // Global menampilkan "Fight kamu: X/Y"; pakai itu agar
+                    // restart/manual fight tidak membuat bot over-fight.
                     fightsDone: Math.max(0, Number(info.fightsUsed) || 0),
                     bossEndsAt: info.endsAt || null,
                     ticketAtBossStart: null,
@@ -929,7 +899,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 const msg = await channel.messages.fetch(raid.messageId);
                 if (!msg) throw new Error('Pesan boss tidak ditemukan');
 
-                const info = parseRaidMessage(msg, settings, state.client?.user);
+                const info = parseRaidMessage(msg, settings);
                 if (!info.isAppear || !info.buttonActive || (info.kind && info.kind !== raid.kind)) {
                     log.info(`${prefix()}Boss sudah selesai saat reset. Menunggu boss baru.`);
                     raid.status = 'idle';

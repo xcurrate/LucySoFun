@@ -17,13 +17,12 @@ const ENDS_AT = Math.floor(Date.now() / 1000) + 600;
 const NEXT_SPAWN = Math.floor(Date.now() / 1000) + 3600;
 const LUCY_ID = '1438615298012872817';
 
-const appearComponents = ({ disabled = false, endsAt = ENDS_AT, leaderboard = '' } = {}) => [{
+const appearComponents = ({ disabled = false, endsAt = ENDS_AT } = {}) => [{
     type: 17,
     components: [
         { type: 10, content: '## <:lucy_think:1550898966130852032> Guild Boss Telah Muncul!' },
         { type: 14, spacing: 1, divider: true },
         { type: 10, content: `⏳ Berakhir <t:${endsAt}:R>\n⚔ **0** fighter • ☠ **0** damage diberikan\n-# Fight kamu: 0/3 • Damage kamu: 0` },
-        ...(leaderboard ? [{ type: 10, content: leaderboard }] : []),
         { type: 1, components: [{ type: 2, custom_id: 'raid:fight', label: 'Fight!', style: 4, disabled }] }
     ]
 }];
@@ -536,36 +535,6 @@ test('parseRaidMessage uses hardcoded Guild/Global triggers even when custom tex
     assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).kind, 'global');
     assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).isDefeated, true);
     assert.equal(parse(globalEndedComponents('Global Raid Boss Kabur!')).isEscaped, true);
-});
-
-test('parseRaidMessage counts the user swords from the leaderboard as a fight-count fallback', () => {
-    const user = { id: '1515658233174294569', username: 'nnneozen' };
-    const leaderboard = '`Rank` ` Damage` `Username`\n'
-        + '`1   ` `168,594` [@nnneozen](https://discord.com/users/1515658233174294569) `⚔️⚔️`';
-    const info = parseRaidMessage(
-        { content: '', embeds: [], components: appearComponents({ leaderboard }) },
-        normalizeBoss2Settings({}),
-        user
-    );
-    assert.equal(info.fightsUsed, 2);
-});
-
-test('Boss2 skips Fight when the leaderboard already shows the user reached the target', async () => {
-    const state = {
-        config: { settings: { boss2: { enabled: true, delayMinMs: 0, delayMaxMs: 0, fightsPerBoss: 1 } } },
-        client: { user: { id: 'self-account', username: 'nnneozen' } }
-    };
-    const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
-    const leaderboard = '`Rank` ` Damage` `Username`\n'
-        + '`1   ` `168,594` [@nnneozen](https://discord.com/users/self-account) `⚔️`';
-    const clicks = [];
-    const { msg } = createMessage(appearComponents({ leaderboard }), {
-        clickButton: async (id) => clicks.push(id)
-    });
-    const result = await manager.handle(msg);
-    assert.equal(result, 'maxed');
-    assert.deepEqual(clicks, [], 'Fight tidak boleh diklik kalau leaderboard sudah menunjukkan target');
-    manager.stop();
 });
 
 test('Boss2 rejects a repeat-fight offer when the prompt proves the target is reached', async () => {
