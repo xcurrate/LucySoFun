@@ -280,6 +280,32 @@ test('Boss2 ignores Global Boss when globalEnabled is false', async () => {
     manager.stop();
 });
 
+test('Boss2 treats a new Global Boss as new even when endsAt matches an ended raid', async () => {
+    const { manager } = setup({ globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 });
+    const ended = createMessage([{
+        type: 17,
+        components: [
+            { type: 10, content: '## Global Raid Boss Telah Dikalahkan!' },
+            { type: 10, content: `⏳ Berakhir <t:${ENDS_AT}:R>` },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: true }] }
+        ]
+    }], { id: 'global-ended-same-ends' });
+    assert.equal(await manager.handle(ended.msg), 'ended');
+    const raid = manager.getRaidState('guild-1', 'global');
+    assert.equal(raid.status, 'ended');
+    assert.equal(raid.bossEndsAt, ENDS_AT * 1000);
+
+    const next = createMessage(globalAppearComponents({ endsAt: ENDS_AT }), {
+        id: 'global-appear-same-ends',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(next.msg), 'fought');
+    assert.equal(raid.status, 'active');
+    assert.equal(raid.messageId, 'global-appear-same-ends');
+    assert.equal(raid.fightsDone, 0);
+    manager.stop();
+});
+
 // Menjalankan satu siklus Fight sampai tiket diputuskan. Saldo `guildLeft`/
 // `globalLeft` hanya dipakai sebagai fallback channel privat; prompt ephemeral
 // selalu diprioritaskan.

@@ -523,7 +523,14 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
         // ── DISPATCHER ─────────────────────────────────────────────
         async handle(msg) {
             const settings = configManager.getBoss2Settings();
-            if (!settings.enabled) return null;
+            if (!settings.enabled) {
+                const components = toPlainData(msg.components) || [];
+                const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\n'));
+                if (/global\s+(?:raid\s+)?boss/i.test(text)) {
+                    log.info(`${prefix()}Global Boss terdeteksi, tetapi Auto Boss2 disabled untuk akun ini.`);
+                }
+                return null;
+            }
             if (ticketStatusRequest &&
                 String(msg.channel?.id || msg.channelId || '') === ticketStatusRequest.channelId &&
                 String(msg.author?.id || '') === CONSTANTS.LUCY_BOT_ID &&
@@ -599,10 +606,13 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
         async handleAppear(key, kind, msg, info, settings) {
             const raid = getRaid(key, kind);
             const now = Date.now();
-            // `endsAt` unik per boss. Repost/edit boss yang sama dengan message ID
-            // baru tidak boleh mereset fightsDone.
+            // `endsAt` hanya identitas selama raid sebelumnya masih active.
+            // Boss global berbeda bisa memakai endsAt event yang sama; kalau
+            // status sudah ended/waiting-defeat, appear baru = boss baru.
             const sameBoss = !!(info.endsAt && raid.bossEndsAt && info.endsAt === raid.bossEndsAt);
-            const isNewRaid = (raid.messageId !== msg.id || raid.status !== 'active') && !sameBoss;
+            const isNewRaid = sameBoss
+                ? raid.status !== 'active'
+                : (raid.messageId !== msg.id || raid.status !== 'active');
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp).
             // Global Boss tidak punya jadwal spawn, jadi spawn manual baru
