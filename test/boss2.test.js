@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -98,6 +99,17 @@ const rewardImageDeps = (fixture = REWARD_FIXTURE) => ({
 
 function rewardComponents({ url = REWARD_URL, disabled = false } = {}) {
     const components = appearComponents({ disabled });
+    components[0].components.splice(
+        3,
+        0,
+        { type: 10, content: '## Hadiah' },
+        { type: 12, items: [{ media: { url } }] }
+    );
+    return components;
+}
+
+function globalRewardComponents({ url = REWARD_URL, disabled = false } = {}) {
+    const components = globalAppearComponents({ disabled });
     components[0].components.splice(
         3,
         0,
@@ -323,6 +335,79 @@ test('Boss2 does not re-fight when the same boss message is edited after a rejec
     assert.equal(await manager.handle(edit.msg), 'waiting-defeat-skip');
     assert.deepEqual(editClicks, [], 'Edit boss yang sama tidak boleh memicu Fight ulang');
     assert.equal(raid.status, 'waiting-defeat');
+    manager.stop();
+});
+
+const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+
+test('Reward image hash separates a repost from a new Global Boss with the same endsAt', async () => {
+    const imageA = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-1.png'));
+    const imageB = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-2.png'));
+    const urlA = 'https://cdn.discordapp.com/attachments/1/2/rewards-a.png';
+    const urlB = 'https://cdn.discordapp.com/attachments/1/2/rewards-b.png';
+    const { manager } = setup(
+        { globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 },
+        { downloadImage: async (url) => (url === urlA ? imageA : imageB) }
+    );
+
+    const first = createMessage(globalAppearComponents(), {
+        id: 'global-first',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+    const raid = manager.getRaidState('guild-1', 'global');
+    raid.status = 'waiting-defeat';
+    raid.fightsDone = 0;
+    raid.rewardImageHash = sha256(imageA);
+
+    const repostClicks = [];
+    const repost = createMessage(globalRewardComponents({ url: urlA }), {
+        id: 'global-repost',
+        clickButton: async (id) => repostClicks.push(id)
+    });
+    assert.equal(await manager.handle(repost.msg), 'waiting-defeat-skip');
+    assert.deepEqual(repostClicks, [], 'Repost dengan hash reward sama tidak boleh Fight ulang');
+    assert.equal(raid.rewardImageHash, sha256(imageA));
+
+    const newClicks = [];
+    const newBoss = createMessage(globalRewardComponents({ url: urlB }), {
+        id: 'global-new',
+        clickButton: async (id) => { newClicks.push(id); throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(newBoss.msg), 'fought');
+    assert.deepEqual(newClicks, ['raid:fight']);
+    assert.equal(raid.rewardImageHash, sha256(imageB));
+    assert.equal(raid.fightsDone, 0);
+    manager.stop();
+});
+
+test('Reward gate reuses OCR for the same reward image hash across messages', async () => {
+    let reads = 0;
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', REWARD_FIXTURE));
+    const deps = {
+        downloadImage: async () => bytes,
+        readRewards: async () => {
+            reads += 1;
+            return { weaponShards: 500, weaponCrate: 0, bossCrate: 0, fabledLootbox: 0, experience: 0 };
+        }
+    };
+    const { manager } = setup(rewardGate({ weaponShards: 200 }), deps);
+    const first = createMessage(rewardComponents({
+        url: 'https://cdn.discordapp.com/attachments/1/2/rewards-a.png'
+    }), {
+        id: 'reward-a',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+
+    const second = createMessage(rewardComponents({
+        url: 'https://cdn.discordapp.com/attachments/1/2/rewards-b.png'
+    }), {
+        id: 'reward-b',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(second.msg), 'fought');
+    assert.equal(reads, 1, 'OCR hanya boleh sekali untuk hash gambar yang sama');
     manager.stop();
 });
 
