@@ -325,7 +325,7 @@ ${renderRestSettings(config.settings?.rest)}
                             </div>
                             <label>Global Channel ID (opsional)</label>
                             <input type="text" name="boss2GlobalChannelIds" value="${escapeHtml((boss2.globalChannelIds || []).join(','))}" placeholder="Kosong = pakai Channel ID di atas">
-                            <div class="input-hint">Global Boss hanya muncul saat di-summon dev/owner dan tidak punya jadwal spawn. Kosongkan channel untuk memakai daftar Channel ID di atas.</div>
+                            <div class="input-hint">Global Boss hanya muncul saat di-summon dev/owner dan tidak punya jadwal spawn. Kosong = ikut daftar <strong>Channel ID</strong> di atas (bukan semua channel). Kosongkan juga Channel ID di atas bila ingin semua channel.</div>
                             <label>Teks Boss Muncul</label>
                             <input type="text" name="boss2AppearText" value="${escapeHtml(boss2.appearText || '')}" placeholder="Guild Boss Telah Muncul">
                             <label>Teks Boss Dikalahkan</label>

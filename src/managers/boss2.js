@@ -555,13 +555,29 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
 
             // JALUR 3 — Boss message
             const info = parseRaidMessage(msg, settings);
-            if (!info.kind) return null;
-            if (!this.isChannelAllowed(msg, settings, info.kind)) return null;
+            if (!info.kind) {
+                const components = toPlainData(msg.components) || [];
+                const text = removeInvisibleChars([msg.content || '', ...collectTexts(components)].join('\n'));
+                if (/global\s+(?:raid\s+)?boss/i.test(text)) {
+                    log.warn(`${prefix()}Pesan Global Boss terdeteksi tetapi tidak dikenali (kind=null).`);
+                }
+                return null;
+            }
+            if (!this.isChannelAllowed(msg, settings, info.kind)) {
+                if (info.kind === 'global') {
+                    const channelId = String(msg.channel?.id || msg.channelId || '');
+                    log.info(`${prefix()}Global Boss terdeteksi di channel ${channelId}, tetapi difilter: ` +
+                        `globalEnabled=${settings.globalEnabled}, globalChannelIds=[${(settings.globalChannelIds || []).join(',')}], ` +
+                        `channelIds=[${(settings.channelIds || []).join(',')}].`);
+                }
+                return null;
+            }
             const kind = info.kind;
             const raid = getRaid(key, kind);
 
             // Saat limit, hanya track ended (jangan fight)
             if (raid.status === 'limit') {
+                log.info(`${prefix(kind)}Boss masih limit sampai ${raid.limitResetAt ? formatWib(raid.limitResetAt) + ' WIB' : 'waktu yang belum diketahui'}; skip Fight.`);
                 if (info.isDefeated || info.isEscaped || info.nextSpawnAt || (info.button && !info.buttonActive)) {
                     this.handleEnded(key, kind, msg, info);
                 }
@@ -638,7 +654,10 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 return 'maxed';
             }
 
-            if (raid.fighting) return null;
+            if (raid.fighting) {
+                log.info(`${prefix(kind)}Masih ada proses Fight sebelumnya yang berjalan; skip.`);
+                return null;
+            }
             const reward = await this.checkRewardGate(msg, settings);
             if (!reward.passed) return 'reward-skip';
 
