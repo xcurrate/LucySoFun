@@ -226,12 +226,43 @@ const parseDiscordTimestamp = (text, label) => {
     return match ? parseInt(match[1], 10) * 1000 : null;
 };
 
-const parseRaidMessage = (msg, settings) => {
+// Leaderboard boss menampilkan satu ⚔ per fight. Ini cadangan saat baris
+// "Fight kamu: X/Y" tidak ada atau belum ter-update setelah fight manual.
+const parseLeaderboardFights = (text, user) => {
+    const id = String(user?.id || '');
+    const username = String(user?.username || '').toLowerCase();
+    const source = String(text || '');
+    if (!id && !username) return 0;
+
+    // Leaderboard row: [@name](https://discord.com/users/<id>) `⚔️⚔️`
+    // Newlines sudah dihapus oleh removeInvisibleChars, jadi ambil grup
+    // backtick pertama setelah mention user.
+    const matches = [];
+    if (id) matches.push(source.match(new RegExp(`(?:/users/${id}|<@!?${id}>)`)));
+    if (username) {
+        const lower = source.toLowerCase();
+        const at = lower.indexOf(`@${username}`);
+        if (at >= 0) matches.push({ index: at, 0: `@${username}` });
+    }
+    for (const match of matches) {
+        if (!match) continue;
+        const after = source.slice(match.index + match[0].length);
+        const swords = after.match(/`([^`]*)`/);
+        if (swords) {
+            const count = (swords[1].match(/⚔/g) || []).length;
+            if (count > 0) return count;
+        }
+    }
+    return 0;
+};
+
+const parseRaidMessage = (msg, settings, user = null) => {
     const components = toPlainData(msg.components) || [];
     const embeds = toPlainData(msg.embeds) || [];
     const text = removeInvisibleChars([msg.content || '', ...collectTexts(embeds), ...collectTexts(components)].join('\n'));
     const lowerText = text.toLowerCase();
     const button = findButton(components, settings.buttonId);
+    const fightCount = Number((text.match(/Fight kamu:\s*(\d+)\s*\//i) || [])[1] || 0);
 
     const customAppear = settings.appearText ? lowerText.includes(settings.appearText.toLowerCase()) : false;
     const customDefeated = settings.defeatedText ? lowerText.includes(settings.defeatedText.toLowerCase()) : false;
@@ -257,8 +288,8 @@ const parseRaidMessage = (msg, settings) => {
         isEscaped,
         button,
         buttonActive: !!button && button.disabled !== true,
-        endsAt: parseDiscordTimestamp(text, 'berakhir'),
-        fightsUsed: Number((text.match(/Fight kamu:\s*(\d+)\s*\//i) || [])[1] || 0),
+        endsAt: parseDiscordTimestamp(text, 'berakhir') || parseDiscordTimestamp(text, 'kedaluwarsa'),
+        fightsUsed: Math.max(fightCount, parseLeaderboardFights(text, user)),
         fightsMax: Number((text.match(/Fight kamu:\s*\d+\s*\/\s*(\d+)/i) || [])[1] || 0),
         // Global Boss tidak punya jadwal spawn; jangan pernah gate Global
         // dengan "Boss baru" walaupun teksnya tidak sengaja memuat frasa itu.
@@ -412,6 +443,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 fightsDone: 0, ticketAtBossStart: null, fighting: false,
                 lastTicketActionMessageId: null, ticketLastDecision: null,
                 awaitingTicketAfterFight: false,
+                bossEndsAt: null,
                 nextSpawnAt: null,
                 limitResetAt: null, limitTimer: null, limitMessageId: null
             });
@@ -552,7 +584,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             if (ticket) return this.handleTicketConfirmation(msg, ticket, settings);
 
             // JALUR 3 — Boss message
-            const info = parseRaidMessage(msg, settings);
+            const info = parseRaidMessage(msg, settings, state.client?.user);
             if (!info.kind) return null;
             if (!this.isChannelAllowed(msg, settings, info.kind)) return null;
             const kind = info.kind;
@@ -581,7 +613,10 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
         async handleAppear(key, kind, msg, info, settings) {
             const raid = getRaid(key, kind);
             const now = Date.now();
-            const isNewRaid = raid.messageId !== msg.id || raid.status !== 'active';
+            // `endsAt` unik per boss. Repost/edit boss yang sama dengan message ID
+            // baru tidak boleh mereset fightsDone.
+            const sameBoss = !!(info.endsAt && raid.bossEndsAt && info.endsAt === raid.bossEndsAt);
+            const isNewRaid = (raid.messageId !== msg.id || raid.status !== 'active') && !sameBoss;
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp).
             // Global Boss tidak punya jadwal spawn, jadi spawn manual baru
@@ -605,9 +640,10 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     messageId: msg.id,
                     channelId: msg.channel?.id || msg.channelId || null,
                     status: 'active',
-                    // Global menampilkan "Fight kamu: X/Y"; pakai itu agar
-                    // restart/manual fight tidak membuat bot over-fight.
+                    // Global menampilkan "Fight kamu: X/Y"; leaderboard menjadi
+                    // cadangan agar fight manual tidak membuat bot over-fight.
                     fightsDone: Math.max(0, Number(info.fightsUsed) || 0),
+                    bossEndsAt: info.endsAt || null,
                     ticketAtBossStart: null,
                     fighting: false,
                     nextSpawnAt: null,
@@ -616,6 +652,13 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     awaitingTicketAfterFight: false
                 });
                 log.success(`${prefix(kind)}Boss muncul di ${msg.guild?.name || key}!`);
+            } else if (sameBoss) {
+                if (!raid.fighting) {
+                    raid.messageId = msg.id;
+                    raid.channelId = msg.channel?.id || msg.channelId || raid.channelId;
+                }
+                raid.fightsDone = Math.max(raid.fightsDone, Number(info.fightsUsed) || 0);
+                raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
             }
 
             if (raid.status !== 'active') return null;
@@ -793,7 +836,9 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 return 'ticket-status-unavailable';
             }
 
-            const foughtThisBoss = raid.fightsDone;
+            // Prompt "sudah melawan boss ini" membuktikan minimal 1 fight sudah
+            // terjadi, walau state lokal belum sempat mencatatnya.
+            const foughtThisBoss = Math.max(raid.fightsDone, ticket.isAlreadyFought ? 1 : 0);
             const willFight = foughtThisBoss + 1;
             const canFightMore = willFight <= settings.fightsPerBoss;
             const enoughTicket = currentTicketLeft >= settings.minTicketLeft;
@@ -884,7 +929,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 const msg = await channel.messages.fetch(raid.messageId);
                 if (!msg) throw new Error('Pesan boss tidak ditemukan');
 
-                const info = parseRaidMessage(msg, settings);
+                const info = parseRaidMessage(msg, settings, state.client?.user);
                 if (!info.isAppear || !info.buttonActive || (info.kind && info.kind !== raid.kind)) {
                     log.info(`${prefix()}Boss sudah selesai saat reset. Menunggu boss baru.`);
                     raid.status = 'idle';
@@ -898,7 +943,8 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     return 'reward-skip';
                 }
                 raid.status = 'active';
-                raid.fightsDone = 0;
+                raid.fightsDone = Math.max(raid.fightsDone, Number(info.fightsUsed) || 0);
+                raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
                 raid.ticketAtBossStart = null;
                 raid.lastTicketActionMessageId = null;
                 return this.fight(raid, msg, info, settings, raid.kind || 'guild', raid.key || msg.guildId || msg.channel?.id || 'dm');
@@ -919,6 +965,8 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.status = 'ended';
             }
             raid.messageId = raid.messageId || msg.id;
+            raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
+            raid.fightsDone = Math.max(raid.fightsDone, Number(info.fightsUsed) || 0);
 
             if (wasActive) {
                 log.warn(`${prefix(kind)}Boss ${info.isDefeated ? 'telah dikalahkan' : info.isEscaped ? 'kabur' : 'selesai'}.`);

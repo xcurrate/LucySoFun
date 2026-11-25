@@ -17,22 +17,23 @@ const ENDS_AT = Math.floor(Date.now() / 1000) + 600;
 const NEXT_SPAWN = Math.floor(Date.now() / 1000) + 3600;
 const LUCY_ID = '1438615298012872817';
 
-const appearComponents = ({ disabled = false } = {}) => [{
+const appearComponents = ({ disabled = false, endsAt = ENDS_AT, leaderboard = '' } = {}) => [{
     type: 17,
     components: [
         { type: 10, content: '## <:lucy_think:1550898966130852032> Guild Boss Telah Muncul!' },
         { type: 14, spacing: 1, divider: true },
-        { type: 10, content: `⏳ Berakhir <t:${ENDS_AT}:R>\n⚔ **0** fighter • ☠ **0** damage diberikan\n-# Fight kamu: 0/3 • Damage kamu: 0` },
+        { type: 10, content: `⏳ Berakhir <t:${endsAt}:R>\n⚔ **0** fighter • ☠ **0** damage diberikan\n-# Fight kamu: 0/3 • Damage kamu: 0` },
+        ...(leaderboard ? [{ type: 10, content: leaderboard }] : []),
         { type: 1, components: [{ type: 2, custom_id: 'raid:fight', label: 'Fight!', style: 4, disabled }] }
     ]
 }];
 
-const globalAppearComponents = ({ disabled = false, fightsUsed = 0 } = {}) => [{
+const globalAppearComponents = ({ disabled = false, fightsUsed = 0, endsAt = ENDS_AT } = {}) => [{
     type: 17,
     components: [
         { type: 10, content: '## <:lucy_think:1550898966130852032> Global Raid Boss Telah Muncul!' },
         { type: 14, spacing: 1, divider: true },
-        { type: 10, content: `⏳ Berakhir <t:${ENDS_AT}:R>\n⚔ **26** fighter • ☠ **541,809** damage diberikan\n-# Fight kamu: ${fightsUsed}/3 • Damage kamu: 14,139` },
+        { type: 10, content: `⏳ Berakhir <t:${endsAt}:R>\n⚔ **26** fighter • ☠ **541,809** damage diberikan\n-# Fight kamu: ${fightsUsed}/3 • Damage kamu: 14,139` },
         { type: 1, components: [{ type: 2, custom_id: 'raid:fight', label: 'Fight!', style: 4, disabled }] }
     ]
 }];
@@ -286,7 +287,7 @@ test('Boss2 ignores Global Boss when globalEnabled is false', async () => {
 async function runTicketScenario({
     guildLeft, globalLeft, fightsPerBoss = 1, repeatPrompt = false, ticketText,
     fightsDoneBeforePrompt = 0, kind = 'guild', globalEnabled = kind === 'global',
-    globalChannelIds = []
+    globalChannelIds = [], stop = true
 } = {}) {
     const state = {
         config: {
@@ -362,7 +363,7 @@ async function runTicketScenario({
     };
 
     await manager.handle(appear);
-    manager.stop();
+    if (stop) manager.stop();
     return { fightClicks, ticketClicks, privateSends, manager };
 }
 
@@ -516,7 +517,7 @@ test('Boss2 accepts a new Global spawn after waiting-defeat', async () => {
     await manager.handle(first.msg);
     assert.equal(manager.getRaidState('guild-1', 'global').status, 'waiting-defeat');
 
-    const second = createMessage(globalAppearComponents(), { id: 'global-2', clickButton: clickWithTicket(1) });
+    const second = createMessage(globalAppearComponents({ endsAt: ENDS_AT + 3600 }), { id: 'global-2', clickButton: clickWithTicket(1) });
     await manager.handle(second.msg);
     const raid = manager.getRaidState('guild-1', 'global');
     assert.equal(raid.messageId, 'global-2');
@@ -535,6 +536,63 @@ test('parseRaidMessage uses hardcoded Guild/Global triggers even when custom tex
     assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).kind, 'global');
     assert.equal(parse(globalEndedComponents('Global Raid Boss Telah Dikalahkan!')).isDefeated, true);
     assert.equal(parse(globalEndedComponents('Global Raid Boss Kabur!')).isEscaped, true);
+});
+
+test('parseRaidMessage counts the user swords from the leaderboard as a fight-count fallback', () => {
+    const user = { id: '1515658233174294569', username: 'nnneozen' };
+    const leaderboard = '`Rank` ` Damage` `Username`\n'
+        + '`1   ` `168,594` [@nnneozen](https://discord.com/users/1515658233174294569) `⚔️⚔️`';
+    const info = parseRaidMessage(
+        { content: '', embeds: [], components: appearComponents({ leaderboard }) },
+        normalizeBoss2Settings({}),
+        user
+    );
+    assert.equal(info.fightsUsed, 2);
+});
+
+test('Boss2 skips Fight when the leaderboard already shows the user reached the target', async () => {
+    const state = {
+        config: { settings: { boss2: { enabled: true, delayMinMs: 0, delayMaxMs: 0, fightsPerBoss: 1 } } },
+        client: { user: { id: 'self-account', username: 'nnneozen' } }
+    };
+    const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
+    const leaderboard = '`Rank` ` Damage` `Username`\n'
+        + '`1   ` `168,594` [@nnneozen](https://discord.com/users/self-account) `⚔️`';
+    const clicks = [];
+    const { msg } = createMessage(appearComponents({ leaderboard }), {
+        clickButton: async (id) => clicks.push(id)
+    });
+    const result = await manager.handle(msg);
+    assert.equal(result, 'maxed');
+    assert.deepEqual(clicks, [], 'Fight tidak boleh diklik kalau leaderboard sudah menunjukkan target');
+    manager.stop();
+});
+
+test('Boss2 rejects a repeat-fight offer when the prompt proves the target is reached', async () => {
+    const { ticketClicks } = await runTicketScenario({
+        guildLeft: 2, globalLeft: 0, fightsPerBoss: 1, repeatPrompt: true, fightsDoneBeforePrompt: 0
+    });
+    assert.ok(ticketClicks.includes('raid:ticket:no'));
+    assert.ok(!ticketClicks.includes('raid:ticket:yes'));
+});
+
+test('Boss2 does not fight the same boss again when it is reposted with a new message id', async () => {
+    const { manager } = await runTicketScenario({
+        guildLeft: 1, globalLeft: 0, fightsPerBoss: 1, stop: false,
+        ticketText: '**me**, kamu punya **1**/**3** boss ticket!'
+    });
+    const raid = manager.getRaidState('guild-1');
+    assert.equal(raid.fightsDone, 1);
+
+    const repostClicks = [];
+    const repost = createMessage(appearComponents(), {
+        id: 'raid-msg-2',
+        clickButton: async (id) => repostClicks.push(id)
+    });
+    const result = await manager.handle(repost.msg);
+    assert.equal(result, 'maxed');
+    assert.deepEqual(repostClicks, [], 'Boss yang sama tidak boleh di-Fight ulang');
+    manager.stop();
 });
 
 test('normalizeBoss2Settings fills reward gate defaults and clamps targets', () => {
