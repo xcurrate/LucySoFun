@@ -815,7 +815,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             // KASUS A — "sudah melawan boss ini" TANPA tawaran fight ulang
             // → Nggak + stop. Kalau Lucy menawarkan "pakai 1 boss ticket lagi",
             // lanjut ke KASUS C agar saldo tiket Guild dicek dari channel privat.
-            if (ticket.isAlreadyFought && !ticket.isRepeatConfirmation && !raid.hashIdentityNew) {
+            if (ticket.isAlreadyFought && !ticket.isRepeatConfirmation && !raid.rewardImageHash) {
                 log.info(`${prefix(kind)}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
                 try {
                     await msg.clickButton(settings.ticketNoId);
@@ -885,9 +885,11 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 return 'ticket-status-unavailable';
             }
 
-            // Hash reward adalah prioritas: untuk boss baru, prompt
-            // "sudah melawan boss ini" tidak dihitung sebagai 1 fight.
-            const promptFought = ticket.isAlreadyFought && raid.hashIdentityNew !== true;
+            // Hash reward adalah prioritas: kalau boss punya hash, pakai
+            // `fightsDone` sebagai sumber kebenaran, bukan prompt "sudah
+            // melawan boss ini" (prompt Lucy bisa salah untuk repost).
+            const hashVerified = !!raid.rewardImageHash;
+            const promptFought = ticket.isAlreadyFought && !hashVerified;
             const foughtThisBoss = Math.max(raid.fightsDone, promptFought ? 1 : 0);
             raid.hashIdentityNew = false;
             const willFight = foughtThisBoss + 1;
@@ -897,7 +899,9 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             const targetId = shouldAccept ? settings.ticketYesId : settings.ticketNoId;
 
             log.info(`${prefix(kind)}🎫 tiket ${currentTicketLeft ?? '?'}/${currentTicketMax ?? '?'} (${ticketSource}) | ` +
-                     `fightBoss=${foughtThisBoss}/${settings.fightsPerBoss} → ${shouldAccept ? 'Iya ✅' : 'Nggak ❌'}`);
+                     `fightBoss=${foughtThisBoss}/${settings.fightsPerBoss} ` +
+                     `(raid=${raid.fightsDone}, prompt=${ticket.isAlreadyFought ? 1 : 0}, hash=${hashVerified ? 'yes' : 'no'}) ` +
+                     `→ ${shouldAccept ? 'Iya ✅' : 'Nggak ❌'}`);
 
             try { await msg.clickButton(targetId); }
             catch (err) {

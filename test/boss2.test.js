@@ -425,6 +425,28 @@ test('Reward image hash takes priority over the "already fought" prompt for a ne
     assert.ok(!ticketClicks.includes('raid:ticket:no'));
 });
 
+test('Reward image hash takes priority over the "already fought" prompt on a same-hash repost', async () => {
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-2.png'));
+    const hash = sha256(bytes);
+    const { fightClicks, ticketClicks } = await runTicketScenario({
+        guildLeft: 3, globalLeft: 2, fightsPerBoss: 1, repeatPrompt: true,
+        kind: 'global',
+        rewardUrl: 'https://cdn.discordapp.com/attachments/1/2/rewards-repost.png',
+        downloadImage: async () => bytes,
+        rewardGate: { enabled: true, targets: { weaponShards: 0 } },
+        preloadRaid: {
+            status: 'active',
+            messageId: 'previous-global-msg',
+            bossEndsAt: ENDS_AT * 1000,
+            fightsDone: 0,
+            rewardImageHash: hash
+        }
+    });
+    assert.deepEqual(fightClicks, ['raid:fight']);
+    assert.ok(ticketClicks.includes('raid:ticket:yes'), 'Repost hash sama tapi belum pernah fight tetap boleh Fight');
+    assert.ok(!ticketClicks.includes('raid:ticket:no'));
+});
+
 // Menjalankan satu siklus Fight sampai tiket diputuskan. Saldo `guildLeft`/
 // `globalLeft` hanya dipakai sebagai fallback channel privat; prompt ephemeral
 // selalu diprioritaskan.
@@ -432,7 +454,7 @@ async function runTicketScenario({
     guildLeft, globalLeft, fightsPerBoss = 1, repeatPrompt = false, ticketText,
     fightsDoneBeforePrompt = 0, kind = 'guild', globalEnabled = kind === 'global',
     globalChannelIds = [], rewardGate = null, rewardUrl = null, downloadImage = null,
-    stop = true
+    preloadRaid = null, stop = true
 } = {}) {
     const state = {
         config: {
@@ -449,6 +471,11 @@ async function runTicketScenario({
     const manager = createBoss2Manager(state, {
         getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2)
     }, downloadImage ? { downloadImage } : {});
+    if (preloadRaid) {
+        const key = preloadRaid.key || 'guild-1';
+        const raidKind = preloadRaid.kind || kind;
+        state.boss2Raids.set(`${key}:${raidKind}`, { key, kind: raidKind, ...preloadRaid });
+    }
 
     const privateSends = [];
     state.client.channels = {
