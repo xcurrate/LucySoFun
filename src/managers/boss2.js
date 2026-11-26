@@ -42,6 +42,8 @@ const toText = (value, fallback) => {
 };
 
 const normalizeRewardGate = (raw = {}, defaults = {}) => {
+    raw = raw || {};
+    defaults = defaults || {};
     const rawTargets = raw.targets || {};
     const defaultTargets = defaults.targets || {};
     const target = (key) => Math.max(0, toNonNegativeInt(rawTargets[key], toNonNegativeInt(defaultTargets[key], 0)));
@@ -439,6 +441,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 awaitingTicketAfterFight: false,
                 bossEndsAt: null,
                 rewardImageHash: null,
+                hashIdentityNew: false,
                 nextSpawnAt: null,
                 limitResetAt: null, limitTimer: null, limitMessageId: null
             });
@@ -654,6 +657,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             } else {
                 isNewRaid = raid.status !== 'active' && msg.id !== raid.messageId;
             }
+            const hashIdentityNew = isNewRaid && !!image?.hash;
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp).
             // Global Boss tidak punya jadwal spawn, jadi spawn manual baru
@@ -682,6 +686,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     fightsDone: Math.max(0, Number(info.fightsUsed) || 0),
                     bossEndsAt: info.endsAt || null,
                     rewardImageHash: image?.hash || null,
+                    hashIdentityNew,
                     ticketAtBossStart: null,
                     fighting: false,
                     nextSpawnAt: null,
@@ -698,6 +703,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.fightsDone = Math.max(raid.fightsDone, Number(info.fightsUsed) || 0);
                 raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
                 raid.rewardImageHash = image?.hash || raid.rewardImageHash;
+                raid.hashIdentityNew = hashIdentityNew;
             }
 
             if (raid.status !== 'active') return null;
@@ -809,7 +815,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             // KASUS A — "sudah melawan boss ini" TANPA tawaran fight ulang
             // → Nggak + stop. Kalau Lucy menawarkan "pakai 1 boss ticket lagi",
             // lanjut ke KASUS C agar saldo tiket Guild dicek dari channel privat.
-            if (ticket.isAlreadyFought && !ticket.isRepeatConfirmation) {
+            if (ticket.isAlreadyFought && !ticket.isRepeatConfirmation && !raid.hashIdentityNew) {
                 log.info(`${prefix(kind)}🎫 "sudah melawan boss ini" → Nggak ❌ (stop sampai boss defeated)`);
                 try {
                     await msg.clickButton(settings.ticketNoId);
@@ -827,6 +833,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 if (ticket.noActive) { try { await msg.clickButton(settings.ticketNoId); } catch (_) {} }
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
+                raid.hashIdentityNew = false;
                 return 'ticket-skipped';
             }
 
@@ -878,9 +885,11 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 return 'ticket-status-unavailable';
             }
 
-            // Prompt "sudah melawan boss ini" membuktikan minimal 1 fight sudah
-            // terjadi, walau state lokal belum sempat mencatatnya.
-            const foughtThisBoss = Math.max(raid.fightsDone, ticket.isAlreadyFought ? 1 : 0);
+            // Hash reward adalah prioritas: untuk boss baru, prompt
+            // "sudah melawan boss ini" tidak dihitung sebagai 1 fight.
+            const promptFought = ticket.isAlreadyFought && raid.hashIdentityNew !== true;
+            const foughtThisBoss = Math.max(raid.fightsDone, promptFought ? 1 : 0);
+            raid.hashIdentityNew = false;
             const willFight = foughtThisBoss + 1;
             const canFightMore = willFight <= settings.fightsPerBoss;
             const enoughTicket = currentTicketLeft >= settings.minTicketLeft;
@@ -1008,6 +1017,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             if (raid.status !== 'limit') {
                 raid.status = 'ended';
             }
+            raid.hashIdentityNew = false;
             raid.messageId = raid.messageId || msg.id;
             raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
             raid.fightsDone = Math.max(raid.fightsDone, Number(info.fightsUsed) || 0);
@@ -1038,6 +1048,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.awaitingTicketStatus = false;
                 raid.nextSpawnAt = null;
                 raid.rewardImageHash = null;
+                raid.hashIdentityNew = false;
                 if (['active', 'limit', 'ended', 'waiting-defeat'].includes(raid.status)) {
                     raid.status = 'idle';
                 }

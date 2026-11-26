@@ -411,13 +411,28 @@ test('Reward gate reuses OCR for the same reward image hash across messages', as
     manager.stop();
 });
 
+test('Reward image hash takes priority over the "already fought" prompt for a new boss', async () => {
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-2.png'));
+    const { fightClicks, ticketClicks } = await runTicketScenario({
+        guildLeft: 3, globalLeft: 2, fightsPerBoss: 1, repeatPrompt: true,
+        kind: 'global',
+        rewardUrl: 'https://cdn.discordapp.com/attachments/1/2/rewards-priority.png',
+        downloadImage: async () => bytes,
+        rewardGate: { enabled: true, targets: { weaponShards: 0 } }
+    });
+    assert.deepEqual(fightClicks, ['raid:fight']);
+    assert.ok(ticketClicks.includes('raid:ticket:yes'), 'Hash boss baru harus mengalahkan prompt "sudah melawan"');
+    assert.ok(!ticketClicks.includes('raid:ticket:no'));
+});
+
 // Menjalankan satu siklus Fight sampai tiket diputuskan. Saldo `guildLeft`/
 // `globalLeft` hanya dipakai sebagai fallback channel privat; prompt ephemeral
 // selalu diprioritaskan.
 async function runTicketScenario({
     guildLeft, globalLeft, fightsPerBoss = 1, repeatPrompt = false, ticketText,
     fightsDoneBeforePrompt = 0, kind = 'guild', globalEnabled = kind === 'global',
-    globalChannelIds = [], stop = true
+    globalChannelIds = [], rewardGate = null, rewardUrl = null, downloadImage = null,
+    stop = true
 } = {}) {
     const state = {
         config: {
@@ -425,13 +440,15 @@ async function runTicketScenario({
                 boss2: {
                     enabled: true, delayMinMs: 0, delayMaxMs: 0,
                     fightsPerBoss, minTicketLeft: 1, ticketStatusChannelId: 'private-1',
-                    globalEnabled, globalChannelIds
+                    globalEnabled, globalChannelIds, rewardGate
                 }
             }
         },
         client: { user: { id: 'self-account' } }
     };
-    const manager = createBoss2Manager(state, { getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2) });
+    const manager = createBoss2Manager(state, {
+        getBoss2Settings: () => normalizeBoss2Settings(state.config.settings.boss2)
+    }, downloadImage ? { downloadImage } : {});
 
     const privateSends = [];
     state.client.channels = {
@@ -468,7 +485,9 @@ async function runTicketScenario({
         guildId: 'guild-1',
         channel: { id: 'channel-1' },
         author: { id: LUCY_ID },
-        components: kind === 'global' ? globalAppearComponents() : appearComponents(),
+        components: rewardUrl
+            ? (kind === 'global' ? globalRewardComponents({ url: rewardUrl }) : rewardComponents({ url: rewardUrl }))
+            : (kind === 'global' ? globalAppearComponents() : appearComponents()),
         clickButton: async (id) => {
             fightClicks.push(id);
             if (id !== 'raid:fight') return;
