@@ -128,10 +128,8 @@ module.exports = (state, configManager, emergencyHandler, loopManager, commandSe
 
         const targetId = String(debug.targetId || '').trim();
         const channelId = String(debug.channelId || '').trim();
-        const guildId = String(debug.guildId || '').trim();
         if ((targetId && String(msg.author?.id || '') !== targetId) ||
-            (channelId && String(msg.channel?.id || msg.channelId || '') !== channelId) ||
-            (guildId && String(msg.guild?.id || msg.guildId || '') !== guildId)) {
+            (channelId && String(msg.channel?.id || msg.channelId || '') !== channelId)) {
             return false;
         }
 

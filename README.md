@@ -55,7 +55,7 @@ Salin `config.json` sebagai basis konfigurasi. Contoh struktur utama:
       "allowIds": []
     },
     "adventure": { "enabled": false, "channelId": "" },
-    "messageDebug": { "enabled": false, "targetId": "", "channelId": "", "guildId": "" },
+    "messageDebug": { "enabled": false, "targetId": "", "channelId": "" },
     "voice": { "enabled": false, "channelId": "" },
     "boss2": {},
     "gems": {},

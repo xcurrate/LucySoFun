@@ -121,13 +121,11 @@ ${renderRestSettings(config.settings?.rest)}
                                 <span>Aktifkan ekstraksi pesan</span>
                                 <input type="checkbox" name="messageDebugEnabled" ${messageDebug.enabled ? 'checked' : ''}>
                             </div>
-                            <div class="input-hint">Filter bersifat opsional. Bila seluruh ID kosong, semua pesan pada akun yang sedang dipantau akan ditangkap.</div>
+                            <div class="input-hint">Filter User ID dan Channel ID bersifat opsional. Bila keduanya kosong, semua pesan pada akun yang sedang dipantau akan ditangkap.</div>
                             <label>Target User ID</label>
                             <input type="text" name="messageDebugTargetId" value="${escapeHtml(messageDebug.targetId || '')}" placeholder="Author/User ID">
                             <label>Target Channel ID</label>
                             <input type="text" name="messageDebugChannelId" value="${escapeHtml(messageDebug.channelId || '')}" placeholder="Channel ID">
-                            <label>Target Guild ID</label>
-                            <input type="text" name="messageDebugGuildId" value="${escapeHtml(messageDebug.guildId || '')}" placeholder="Guild/Server ID">
                             <div class="divider"></div>
                             <label>RAW JSON PESAN TERAKHIR</label>
                             <div class="input-hint">Jenis pesan ditandai sebagai <code>text</code>, <code>embed</code>, atau <code>components</code>. Untuk komponen, JSON menyertakan semua tombol dan properti yang diterima.</div>

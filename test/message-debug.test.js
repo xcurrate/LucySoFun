@@ -18,7 +18,7 @@ function createHandler(messageDebug) {
 }
 
 test('Message Debug captures component messages and retains their raw button JSON', () => {
-    const { state, handler } = createHandler({ enabled: true, targetId: 'user-1', channelId: 'channel-1', guildId: 'guild-1' });
+    const { state, handler } = createHandler({ enabled: true, targetId: 'user-1', channelId: 'channel-1' });
     const components = [{ type: 1, components: [{ type: 2, custom_id: 'guildboss_fight', label: 'Fight' }] }];
     const captured = handler.captureMessageDebug({
         id: 'message-1',
@@ -38,7 +38,7 @@ test('Message Debug captures component messages and retains their raw button JSO
 });
 
 test('Message Debug ignores a message that does not match configured filters', () => {
-    const { state, handler } = createHandler({ enabled: true, targetId: 'user-1', channelId: '', guildId: '' });
+    const { state, handler } = createHandler({ enabled: true, targetId: 'user-1', channelId: '' });
     const captured = handler.captureMessageDebug({
         id: 'message-2',
         content: 'hello',
@@ -50,4 +50,21 @@ test('Message Debug ignores a message that does not match configured filters', (
 
     assert.equal(captured, false);
     assert.deepEqual(state.messageDebugEntries, []);
+});
+
+test('Message Debug filters by channel ID only and ignores guild ID', () => {
+    const { state, handler } = createHandler({ enabled: true, targetId: '', channelId: 'channel-1', guildId: 'legacy-guild' });
+    const captured = handler.captureMessageDebug({
+        id: 'message-3',
+        content: 'hello',
+        author: { id: 'another-user' },
+        channel: { id: 'channel-1' },
+        guild: { id: 'different-guild' },
+        embeds: [],
+        components: []
+    });
+
+    assert.equal(captured, true);
+    assert.equal(state.messageDebugEntries.length, 1);
+    assert.equal(state.messageDebugEntries[0].message.channelId, 'channel-1');
 });

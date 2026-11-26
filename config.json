@@ -24,8 +24,7 @@
     "messageDebug": {
       "enabled": false,
       "targetId": "",
-      "channelId": "",
-      "guildId": ""
+      "channelId": ""
     },
     "telegram": {
       "token": "",

@@ -272,7 +272,7 @@ test('POST /save persists Lucy Discord control and the dashboard renders the Luc
     });
 });
 
-test('Message Debug settings persist target, channel, and guild filters', async () => {
+test('Message Debug settings persist target and channel filters', async () => {
     await withDashboard(async (url, baseDir) => {
         const response = await fetch(`${url}/save`, {
             method: 'POST',
@@ -285,8 +285,7 @@ test('Message Debug settings persist target, channel, and guild filters', async 
                 action: 'save',
                 messageDebugEnabled: 'on',
                 messageDebugTargetId: '111',
-                messageDebugChannelId: '222',
-                messageDebugGuildId: '333'
+                messageDebugChannelId: '222'
             })
         });
 
@@ -295,8 +294,7 @@ test('Message Debug settings persist target, channel, and guild filters', async 
         assert.deepEqual(savedConfig.settings.messageDebug, {
             enabled: true,
             targetId: '111',
-            channelId: '222',
-            guildId: '333'
+            channelId: '222'
         });
     });
 });
@@ -310,7 +308,8 @@ test('dashboard renders Message Debug controls and raw JSON output', async () =>
         assert.match(html, /data-menu-label="Debug Pesan"/);
         assert.match(html, /name="messageDebugTargetId"/);
         assert.match(html, /name="messageDebugChannelId"/);
-        assert.match(html, /name="messageDebugGuildId"/);
+        assert.doesNotMatch(html, /name="messageDebugGuildId"/);
+        assert.doesNotMatch(html, /Target Guild ID/);
         assert.match(html, /id="messageDebugOutput"/);
         assert.match(html, /id="copyMessageDebugButton"/);
         assert.match(html, /id="clearMessageDebugButton"/);
@@ -551,7 +550,7 @@ test('MULTI ACCOUNT chip actions keep the target profile configuration intact', 
     const profileConfig = {
         token: makeToken(profileId),
         botStatus: { running: true, paused: false },
-        settings: { messageDebug: { enabled: true, targetId: 'u1', channelId: 'c1', guildId: 'g1' } },
+        settings: { messageDebug: { enabled: true, targetId: 'u1', channelId: 'c1' } },
         otherCommands: [{ text: '!profile', delayMs: 7000, count: 3, channelId: '555', enabled: true }]
     };
 
@@ -588,7 +587,7 @@ test('MULTI ACCOUNT chip actions keep the target profile configuration intact', 
             assert.deepEqual(await response.json(), { success: true, message: 'Account action completed' });
 
             const savedProfile = JSON.parse(fs.readFileSync(path.join(baseDir, 'profiles', `config_${profileId}.json`), 'utf8'));
-            assert.deepEqual(savedProfile.settings.messageDebug, { enabled: true, targetId: 'u1', channelId: 'c1', guildId: 'g1' }, `chip ${action} must not reset profile settings`);
+            assert.deepEqual(savedProfile.settings.messageDebug, { enabled: true, targetId: 'u1', channelId: 'c1' }, `chip ${action} must not reset profile settings`);
             assert.equal(savedProfile.otherCommands[0].text, '!profile');
             assert.equal(savedProfile.otherCommands[0].channelId, '555');
             assert.equal(savedProfile.token, makeToken(profileId), `chip ${action} must preserve the profile token`);
@@ -605,7 +604,7 @@ test('MULTI ACCOUNT chip start for the main account keeps the main configuration
         token: makeToken(mainId),
         botStatus: { running: false, paused: true },
         multiAccount: { enabled: true, maxAccounts: 2 },
-        settings: { messageDebug: { enabled: true, targetId: 'u2', channelId: 'c2', guildId: 'g2' } },
+        settings: { messageDebug: { enabled: true, targetId: 'u2', channelId: 'c2' } },
         otherCommands: [{ text: '!main', delayMs: 5000, count: 1, channelId: '111', enabled: false }]
     };
 
@@ -629,7 +628,7 @@ test('MULTI ACCOUNT chip start for the main account keeps the main configuration
 
         assert.equal(response.status, 200);
         const savedMain = JSON.parse(fs.readFileSync(path.join(baseDir, 'config.json'), 'utf8'));
-        assert.deepEqual(savedMain.settings.messageDebug, { enabled: true, targetId: 'u2', channelId: 'c2', guildId: 'g2' }, 'main config settings must not be reset by its own chip');
+        assert.deepEqual(savedMain.settings.messageDebug, { enabled: true, targetId: 'u2', channelId: 'c2' }, 'main config settings must not be reset by its own chip');
         assert.equal(savedMain.otherCommands[0].text, '!main');
         assert.deepEqual(savedMain.botStatus, { running: true, paused: false });
     });
