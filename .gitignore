@@ -8,6 +8,9 @@ node_modules/
 # Log runtime per akun (logs/log_<accountId>.txt), jangan di-commit.
 logs/
 
+# State runtime Auto Boss2 (hash reward + fightsDone per akun).
+boss2-state/
+
 # Scratch/preview workspace for agents.
 .agent_tmp/
 

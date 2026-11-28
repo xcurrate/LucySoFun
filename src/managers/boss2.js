@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const CONSTANTS = require('../constants');
 const log = require('../../logger');
 const { safeJsonStringify, removeInvisibleChars, accountPrefix, randomInt } = require('../utils');
@@ -26,6 +28,11 @@ const REWARD_IMAGE_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net'
 const REWARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const REWARD_DOWNLOAD_TIMEOUT_MS = 12000;
 const REWARD_CHECK_CACHE_LIMIT = 200;
+const PERSIST_VERSION = 1;
+const PERSISTED_RAID_FIELDS = [
+    'key', 'kind', 'messageId', 'channelId', 'status', 'fightsDone',
+    'bossStartedAt', 'bossEndsAt', 'rewardImageHash', 'nextSpawnAt', 'limitResetAt', 'limitMessageId'
+];
 
 const toIdList = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
     .map(item => String(item).trim())
@@ -351,6 +358,34 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
     const prefix = (kind = 'guild') => `${accountPrefix(state)}🐲 Auto Boss2: `;
     const raidKey = (key, kind = 'guild') => `${key}:${kind}`;
     const hashImage = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+    const stateFile = typeof deps.stateFile === 'string' && deps.stateFile.trim() ? deps.stateFile.trim() : null;
+
+    const snapshotRaid = (raid) => {
+        const snapshot = {};
+        for (const field of PERSISTED_RAID_FIELDS) {
+            if (raid[field] !== undefined) snapshot[field] = raid[field];
+        }
+        return snapshot;
+    };
+
+    const persistRaids = () => {
+        if (!stateFile || state.configDeleted) return;
+        try {
+            const payload = {
+                version: PERSIST_VERSION,
+                updatedAt: Date.now(),
+                raids: [...state.boss2Raids.values()]
+                    .filter(raid => raid?.key && raid?.kind)
+                    .map(snapshotRaid)
+            };
+            fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+            const tmpFile = `${stateFile}.tmp`;
+            fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2));
+            fs.renameSync(tmpFile, stateFile);
+        } catch (error) {
+            log.warn(`${prefix()}Gagal menyimpan state boss: ${error.message || error}`);
+        }
+    };
 
     // Gambar reward yang sama = boss yang sama (repost `lgboss`/`lboss`);
     // gambar berbeda = boss baru walau `endsAt` event-nya sama.
@@ -439,6 +474,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 fightsDone: 0, ticketAtBossStart: null, fighting: false,
                 lastTicketActionMessageId: null, ticketLastDecision: null,
                 awaitingTicketAfterFight: false,
+                bossStartedAt: null,
                 bossEndsAt: null,
                 rewardImageHash: null,
                 hashIdentityNew: false,
@@ -450,6 +486,40 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
         raid.kind = kind;
         return raid;
     };
+
+    const isStaleBossMessage = (raid, msg) => {
+        const created = Number(msg?.createdTimestamp);
+        const started = Number(raid?.bossStartedAt);
+        if (!Number.isFinite(created) || created <= 0 || !Number.isFinite(started) || started <= 0) return false;
+        if (msg?.id === raid?.messageId) return false;
+        return created < started - 5000;
+    };
+
+    const restorePersistedRaids = () => {
+        if (!stateFile) return;
+        try {
+            const payload = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+            if (!payload || payload.version !== PERSIST_VERSION || !Array.isArray(payload.raids)) return;
+            for (const saved of payload.raids) {
+                if (!saved?.key || !saved?.kind) continue;
+                const raid = getRaid(saved.key, saved.kind);
+                Object.assign(raid, saved, {
+                    fighting: false,
+                    awaitingTicketAfterFight: false,
+                    awaitingTicketStatus: false,
+                    limitTimer: null,
+                    ticketAtBossStart: null,
+                    lastTicketActionMessageId: null,
+                    ticketLastDecision: null,
+                    hashIdentityNew: false
+                });
+            }
+            if (payload.raids.length) log.info(`${prefix()}State boss dipulihkan (${payload.raids.length} raid).`);
+        } catch (error) {
+            if (error.code !== 'ENOENT') log.warn(`${prefix()}Gagal memuat state boss: ${error.message || error}`);
+        }
+    };
+    restorePersistedRaids();
 
     return {
         getRaidState(key, kind = 'guild') { return state.boss2Raids.get(raidKey(key, kind)) || null; },
@@ -619,6 +689,12 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             const kind = info.kind;
             const raid = getRaid(key, kind);
 
+            // Edit/repost pesan boss lama jangan sampai mengubah raid aktif.
+            if (isStaleBossMessage(raid, msg)) {
+                log.info(`${prefix(kind)}Abaikan pesan boss lama (id=${msg.id}) karena boss aktif dimulai ${formatWib(raid.bossStartedAt)} WIB.`);
+                return 'stale-boss-ignored';
+            }
+
             // Saat limit, hanya track ended (jangan fight)
             if (raid.status === 'limit') {
                 log.info(`${prefix(kind)}Boss masih limit sampai ${raid.limitResetAt ? formatWib(raid.limitResetAt) + ' WIB' : 'waktu yang belum diketahui'}; skip Fight.`);
@@ -643,21 +719,43 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
         async handleAppear(key, kind, msg, info, settings) {
             const raid = getRaid(key, kind);
             const now = Date.now();
-            // `endsAt` hanya identitas selama raid sebelumnya masih active.
-            // Hash gambar reward membedakan repost boss yang sama dari boss
-            // baru yang memakai endsAt event yang sama.
-            const sameBoss = !!(info.endsAt && raid.bossEndsAt && info.endsAt === raid.bossEndsAt);
+            if (raid.status === 'limit' && raid.limitResetAt && now >= raid.limitResetAt) {
+                // Limit sudah reset; biarkan raid aktif lagi agar repost hash
+                // yang sama bisa dilanjutkan tanpa mereset fightsDone.
+                raid.status = 'active';
+                raid.limitResetAt = null;
+                raid.limitMessageId = null;
+                persistRaids();
+            }
+            // Hash reward adalah identitas utama, bahkan saat `endsAt` berubah
+            // karena repost. `endsAt` hanya fallback bila gambar tidak tersedia.
+            const sameEndsAt = !!(info.endsAt && raid.bossEndsAt && info.endsAt === raid.bossEndsAt);
             const gateEnabled = settings.rewardGate?.enabled === true;
-            const image = (gateEnabled || sameBoss) ? await getRewardImage(msg) : null;
+            const image = (gateEnabled || sameEndsAt || !!raid.rewardImageHash) ? await getRewardImage(msg) : null;
+            // Hash yang sama tetap boss yang sama walau status sudah `ended`;
+            // ini mencegah repost setelah "kabur" memicu Fight kedua.
+            const sameHash = !!(raid.rewardImageHash && image?.hash
+                && image.hash === raid.rewardImageHash);
+            const sameBoss = sameHash || sameEndsAt;
             let isNewRaid;
-            if (!sameBoss) {
-                isNewRaid = raid.messageId !== msg.id || raid.status !== 'active';
-            } else if (raid.rewardImageHash && image?.hash) {
-                isNewRaid = image.hash !== raid.rewardImageHash;
+            if (sameBoss) {
+                if (sameHash) {
+                    isNewRaid = false;
+                } else if (raid.rewardImageHash && image?.hash) {
+                    isNewRaid = image.hash !== raid.rewardImageHash;
+                } else {
+                    isNewRaid = raid.status !== 'active' && msg.id !== raid.messageId;
+                }
             } else {
-                isNewRaid = raid.status !== 'active' && msg.id !== raid.messageId;
+                isNewRaid = raid.messageId !== msg.id || raid.status !== 'active';
             }
             const hashIdentityNew = isNewRaid && !!image?.hash;
+            const hashStatus = sameHash
+                ? 'sama'
+                : (raid.rewardImageHash && image?.hash ? 'beda' : (image?.hash ? 'baru' : 'n/a'));
+            log.info(`${prefix(kind)}Identitas boss: endsAt=${sameEndsAt ? 'sama' : 'beda'} ` +
+                `hash=${hashStatus} baru=${isNewRaid ? 'ya' : 'tidak'} ` +
+                `fights=${raid.fightsDone}/${settings.fightsPerBoss}`);
 
             // GATE 1 — masih tunggu defeated message (belum ada timestamp).
             // Global Boss tidak punya jadwal spawn, jadi spawn manual baru
@@ -681,6 +779,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     messageId: msg.id,
                     channelId: msg.channel?.id || msg.channelId || null,
                     status: 'active',
+                    bossStartedAt: Number(msg.createdTimestamp) || Date.now(),
                     // Global menampilkan "Fight kamu: X/Y"; pakai itu agar
                     // restart/manual fight tidak membuat bot over-fight.
                     fightsDone: Math.max(0, Number(info.fightsUsed) || 0),
@@ -695,6 +794,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     awaitingTicketAfterFight: false
                 });
                 log.success(`${prefix(kind)}Boss muncul di ${msg.guild?.name || key}!`);
+                persistRaids();
             } else if (sameBoss) {
                 if (!raid.fighting) {
                     raid.messageId = msg.id;
@@ -704,11 +804,13 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.bossEndsAt = info.endsAt || raid.bossEndsAt;
                 raid.rewardImageHash = image?.hash || raid.rewardImageHash;
                 raid.hashIdentityNew = hashIdentityNew;
+                persistRaids();
             }
 
             if (raid.status !== 'active') return null;
 
             if (raid.fightsDone >= settings.fightsPerBoss) {
+                persistRaids();
                 log.info(`${prefix()}Target boss ini tercapai (${raid.fightsDone}/${settings.fightsPerBoss}). Tunggu defeated.`);
                 return 'maxed';
             }
@@ -718,9 +820,14 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 return null;
             }
             const reward = await this.checkRewardGate(msg, settings, image);
-            if (!reward.passed) return 'reward-skip';
+            if (!reward.passed) {
+                persistRaids();
+                return 'reward-skip';
+            }
 
-            return this.fight(raid, msg, info, settings, kind, key);
+            const result = await this.fight(raid, msg, info, settings, kind, key);
+            persistRaids();
+            return result;
         },
 
         // ── FIGHT — klik fight, tunggu ephemeral/ticket handler ────
@@ -772,6 +879,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                         const pendingIndex = pendingTicketContexts.indexOf(pendingContext);
                         if (pendingIndex >= 0) pendingTicketContexts.splice(pendingIndex, 1);
                         raid.fightsDone = before + 1;
+                        persistRaids();
                         log.success(`${prefix(kind)}⚔️ Fight ${raid.fightsDone}/${target} (sukses langsung)`);
                     }
 
@@ -792,6 +900,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 for (let i = pendingTicketContexts.length - 1; i >= 0; i--) {
                     if (pendingTicketContexts[i].raid === raid) pendingTicketContexts.splice(i, 1);
                 }
+                persistRaids();
             }
             return 'fought';
         },
@@ -825,6 +934,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
                 raid.status = 'waiting-defeat';
+                persistRaids();
                 return 'ticket-rejected';
             }
 
@@ -834,6 +944,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
                 raid.hashIdentityNew = false;
+                persistRaids();
                 return 'ticket-skipped';
             }
 
@@ -864,6 +975,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                     }
                     raid.awaitingTicketAfterFight = false;
                     raid.ticketLastDecision = 'no';
+                    persistRaids();
                     return 'ticket-stale';
                 }
                 const pool = inventory?.[kind] || null;
@@ -882,6 +994,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.awaitingTicketAfterFight = false;
                 raid.ticketLastDecision = 'no';
                 raid.status = 'waiting-defeat';
+                persistRaids();
                 return 'ticket-status-unavailable';
             }
 
@@ -916,12 +1029,14 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
 
             if (shouldAccept) {
                 raid.fightsDone = foughtThisBoss + 1;
+                persistRaids();
                 log.success(`${prefix(kind)}⚔️ Fight ${raid.fightsDone}/${settings.fightsPerBoss} (via ticket)`);
                 return 'ticket-accepted';
             }
 
             // Tiket tidak cukup → stop sampai defeated
             raid.status = 'waiting-defeat';
+            persistRaids();
             return 'ticket-rejected';
         },
 
@@ -970,12 +1085,14 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 });
             };
             raid.limitTimer = schedule(onReset, limit.resetAt);
+            persistRaids();
             return 'limit';
         },
 
         async resumeAfterLimit(raid, settings) {
             if (!raid.messageId || !raid.channelId) {
                 raid.status = 'idle';
+                persistRaids();
                 return;
             }
             try {
@@ -988,6 +1105,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 if (!info.isAppear || !info.buttonActive || (info.kind && info.kind !== raid.kind)) {
                     log.info(`${prefix()}Boss sudah selesai saat reset. Menunggu boss baru.`);
                     raid.status = 'idle';
+                    persistRaids();
                     return;
                 }
                 log.info(`${prefix()}⚔️ Boss masih aktif, resume fight.`);
@@ -995,6 +1113,7 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 const reward = await this.checkRewardGate(msg, settings, image);
                 if (!reward.passed) {
                     raid.status = 'idle';
+                    persistRaids();
                     log.info(`${prefix()}Reward gate gagal saat resume; menunggu boss baru.`);
                     return 'reward-skip';
                 }
@@ -1004,10 +1123,12 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 raid.rewardImageHash = image?.hash || raid.rewardImageHash;
                 raid.ticketAtBossStart = null;
                 raid.lastTicketActionMessageId = null;
+                persistRaids();
                 return this.fight(raid, msg, info, settings, raid.kind || 'guild', raid.key || msg.guildId || msg.channel?.id || 'dm');
             } catch (err) {
                 log.warn(`${prefix()}Boss tidak bisa di-resume: ${err.message}`);
                 raid.status = 'idle';
+                persistRaids();
             }
         },
 
@@ -1032,10 +1153,13 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
                 log.info(`${prefix(kind)}Boss ${info.isDefeated ? 'telah dikalahkan' : info.isEscaped ? 'kabur' : 'selesai'}.`);
             }
 
-            if (info.nextSpawnAt && info.nextSpawnAt !== raid.nextSpawnAt) {
+            if (info.nextSpawnAt && info.nextSpawnAt > Date.now() && info.nextSpawnAt !== raid.nextSpawnAt) {
                 raid.nextSpawnAt = info.nextSpawnAt;
                 log.info(`${prefix()}⏰ Boss baru: ${formatWib(info.nextSpawnAt)} WIB (${formatCountdown(info.nextSpawnAt)})`);
+            } else if (info.nextSpawnAt && info.nextSpawnAt <= Date.now()) {
+                log.info(`${prefix()}Abaikan timestamp boss baru yang sudah lewat: ${formatWib(info.nextSpawnAt)} WIB.`);
             }
+            persistRaids();
         },
 
         stop() {
@@ -1047,16 +1171,12 @@ const createBoss2Manager = (state, configManager, deps = {}) => {
             pendingTicketContexts.length = 0;
             for (const raid of state.boss2Raids.values()) {
                 raid.limitTimer = null;
-                raid.limitResetAt = null;
                 raid.awaitingTicketAfterFight = false;
                 raid.awaitingTicketStatus = false;
-                raid.nextSpawnAt = null;
-                raid.rewardImageHash = null;
+                raid.fighting = false;
                 raid.hashIdentityNew = false;
-                if (['active', 'limit', 'ended', 'waiting-defeat'].includes(raid.status)) {
-                    raid.status = 'idle';
-                }
             }
+            persistRaids();
         }
     };
 };

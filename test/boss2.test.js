@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const createBoss2Manager = require('../src/managers/boss2');
@@ -108,8 +109,8 @@ function rewardComponents({ url = REWARD_URL, disabled = false } = {}) {
     return components;
 }
 
-function globalRewardComponents({ url = REWARD_URL, disabled = false } = {}) {
-    const components = globalAppearComponents({ disabled });
+function globalRewardComponents({ url = REWARD_URL, disabled = false, endsAt = ENDS_AT } = {}) {
+    const components = globalAppearComponents({ disabled, endsAt });
     components[0].components.splice(
         3,
         0,
@@ -379,6 +380,167 @@ test('Reward image hash separates a repost from a new Global Boss with the same 
     assert.equal(raid.rewardImageHash, sha256(imageB));
     assert.equal(raid.fightsDone, 0);
     manager.stop();
+});
+
+test('Reward hash keeps the same Global Boss when endsAt changes', async () => {
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-1.png'));
+    const url = 'https://cdn.discordapp.com/attachments/1/2/rewards-ends-at.png';
+    const { manager } = setup(
+        { globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 },
+        { downloadImage: async () => bytes }
+    );
+
+    const first = createMessage(globalRewardComponents({ url }), {
+        id: 'global-ends-at-1',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+    const raid = manager.getRaidState('guild-1', 'global');
+    raid.status = 'active';
+    raid.fightsDone = 1;
+    raid.rewardImageHash = sha256(bytes);
+    raid.bossEndsAt = ENDS_AT * 1000;
+
+    const clicks = [];
+    const repost = createMessage(globalRewardComponents({ url, endsAt: ENDS_AT + 120 }), {
+        id: 'global-ends-at-2',
+        clickButton: async (id) => clicks.push(id)
+    });
+    assert.equal(await manager.handle(repost.msg), 'maxed');
+    assert.deepEqual(clicks, [], 'Hash reward sama harus dianggap boss yang sama walau endsAt berubah');
+    assert.equal(raid.fightsDone, 1);
+    manager.stop();
+});
+
+test('Boss2 does not re-fight after ended when reward hash is unchanged', async () => {
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-1.png'));
+    const url = 'https://cdn.discordapp.com/attachments/1/2/rewards-ended-same-hash.png';
+    const { manager } = setup(
+        { globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 },
+        { downloadImage: async () => bytes }
+    );
+
+    const first = createMessage(globalRewardComponents({ url }), {
+        id: 'global-hash-ended-1',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+    const raid = manager.getRaidState('guild-1', 'global');
+    raid.status = 'active';
+    raid.fightsDone = 1;
+    raid.rewardImageHash = sha256(bytes);
+    raid.bossEndsAt = ENDS_AT * 1000;
+
+    const ended = createMessage(globalEndedComponents('Global Raid Boss Telah Kabur!'), {
+        id: 'global-hash-ended-2'
+    });
+    assert.equal(await manager.handle(ended.msg), 'ended');
+    assert.equal(raid.status, 'ended');
+
+    const clicks = [];
+    const repost = createMessage(globalRewardComponents({ url }), {
+        id: 'global-hash-ended-3',
+        clickButton: async (id) => clicks.push(id)
+    });
+    assert.notEqual(await manager.handle(repost.msg), 'fought');
+    assert.deepEqual(clicks, [], 'Repost hash sama setelah ended tidak boleh Fight ulang');
+    assert.equal(raid.fightsDone, 1);
+    manager.stop();
+});
+
+test('Boss2 ignores a stale ended message from an older raid', async () => {
+    const bossCreated = Date.now();
+    const { manager } = setup({ globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 });
+    const first = createMessage(globalAppearComponents(), {
+        id: 'global-stale-boss',
+        createdTimestamp: bossCreated,
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+    const raid = manager.getRaidState('guild-1', 'global');
+
+    const stale = createMessage(globalEndedComponents('Global Raid Boss Telah Kabur!'), {
+        id: 'global-stale-ended',
+        createdTimestamp: bossCreated - 60000
+    });
+    assert.equal(await manager.handle(stale.msg), 'stale-boss-ignored');
+    assert.equal(raid.status, 'active', 'Pesan ended lama tidak boleh mengakhiri raid aktif');
+    manager.stop();
+});
+
+test('Boss2 ignores a past next-spawn timestamp from an ended message', async () => {
+    const { manager } = setup({ fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 });
+    const first = createMessage(appearComponents(), {
+        id: 'guild-past-spawn-boss',
+        clickButton: async () => { throw new Error('stop-test'); }
+    });
+    assert.equal(await manager.handle(first.msg), 'fought');
+    const raid = manager.getRaidState('guild-1', 'guild');
+
+    const past = Math.floor(Date.now() / 1000) - 60;
+    const ended = createMessage([{
+        type: 17,
+        components: [
+            { type: 10, content: '## Guild Boss Telah Dikalahkan!' },
+            { type: 10, content: `⌛ Boss baru <t:${past}:R>\n-# Fight kamu: 1/1` },
+            { type: 1, components: [{ type: 2, custom_id: 'raid:fight', disabled: true }] }
+        ]
+    }], { id: 'guild-past-spawn-ended' });
+    assert.equal(await manager.handle(ended.msg), 'ended');
+    assert.equal(raid.nextSpawnAt, null, 'Timestamp boss baru yang sudah lewat tidak boleh dipakai');
+    manager.stop();
+});
+
+test('Boss2 restores hash and fightsDone from disk after restart', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lucy-boss2-'));
+    const stateFile = path.join(dir, 'boss2-state', 'account.json');
+    const imageA = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-1.png'));
+    const imageB = fs.readFileSync(path.join(__dirname, 'fixtures', 'boss-reward-2.png'));
+    const url = 'https://cdn.discordapp.com/attachments/1/2/rewards-persist.png';
+    const settings = { globalEnabled: true, fightsPerBoss: 1, delayMinMs: 0, delayMaxMs: 0 };
+    const downloadImage = async (imageUrl) => (imageUrl.includes('persist-new') ? imageB : imageA);
+
+    try {
+        const first = setup(settings, { stateFile, downloadImage });
+        const firstMsg = createMessage(globalRewardComponents({ url }), {
+            id: 'global-persist-1',
+            clickButton: async () => { throw new Error('stop-test'); }
+        });
+        assert.equal(await first.manager.handle(firstMsg.msg), 'fought');
+        const raid = first.manager.getRaidState('guild-1', 'global');
+        raid.status = 'active';
+        raid.fightsDone = 1;
+        raid.rewardImageHash = sha256(imageA);
+        raid.bossEndsAt = ENDS_AT * 1000;
+        first.manager.stop();
+
+        assert.equal(raid.status, 'active', 'stop/pause tidak boleh mereset status raid');
+        assert.equal(raid.rewardImageHash, sha256(imageA), 'stop/pause tidak boleh menghapus hash reward');
+        assert.ok(fs.existsSync(stateFile), 'state boss harus disimpan ke disk');
+
+        const second = setup(settings, { stateFile, downloadImage });
+        const clicks = [];
+        const repost = createMessage(globalRewardComponents({ url }), {
+            id: 'global-persist-2',
+            clickButton: async (id) => clicks.push(id)
+        });
+        assert.equal(await second.manager.handle(repost.msg), 'maxed');
+        assert.deepEqual(clicks, [], 'Setelah restart, boss dengan hash sama tidak boleh diserang ulang');
+        assert.equal(second.manager.getRaidState('guild-1', 'global').fightsDone, 1);
+
+        const newClicks = [];
+        const newBoss = createMessage(globalRewardComponents({
+            url: 'https://cdn.discordapp.com/attachments/1/2/rewards-persist-new.png'
+        }), {
+            id: 'global-persist-3',
+            clickButton: async (id) => { newClicks.push(id); throw new Error('stop-test'); }
+        });
+        assert.equal(await second.manager.handle(newBoss.msg), 'fought');
+        assert.deepEqual(newClicks, ['raid:fight']);
+        second.manager.stop();
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 test('Reward gate reuses OCR for the same reward image hash across messages', async () => {
